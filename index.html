@@ -42,6 +42,7 @@ body{background:#0a0a1a;color:#c8c8e0;font-family:'JetBrains Mono',monospace;min
 .btn:hover{filter:brightness(1.15);transform:translateY(-1px)}
 .btn:active{transform:translateY(0)}
 .btn-roll{background:#ff6b35}
+.btn-rand{background:#8b5cf6}
 .btn-clear{background:#333}
 .team-names{display:flex;justify-content:center;gap:32px;margin-bottom:8px}
 .team-name-label{font-family:'Oswald',sans-serif;font-size:13px;font-weight:600;letter-spacing:2px;text-transform:uppercase;cursor:pointer;opacity:0.8;transition:opacity 0.15s}
@@ -117,6 +118,7 @@ body{background:#0a0a1a;color:#c8c8e0;font-family:'JetBrains Mono',monospace;min
       <option value="5">Summer League</option>
     </select>
     <button class="btn btn-roll" onclick="rerollAll()">🎲 Re-roll All</button>
+    <button class="btn btn-rand" onclick="randomizeTeams()">🔀 Random Teams</button>
     <button class="btn btn-clear" onclick="clearAll()">Clear</button>
   </div>
   <div class="team-names">
@@ -142,17 +144,20 @@ body{background:#0a0a1a;color:#c8c8e0;font-family:'JetBrains Mono',monospace;min
   </div>
 </div>
 <script>
-// Game array indices: [TEAM,OPP,POS,MIN,PTS,FGM,FGA,3PM,3PA,FTM,FTA,ORB,DRB,REB,AST,STL,BLK,TOV,PF,TYPE,YEAR]
+// Game array indices
 const G={TM:0,OP:1,PS:2,MN:3,PT:4,FM:5,FA:6,PM:7,PA:8,FT:9,TA:10,OR:11,DR:12,RB:13,AS:14,ST:15,BK:16,TO:17,PF:18,TY:19,YR:20};
 const STAT_KEYS=["MIN","PTS","FGM","FGA","FG%","3PM","3PA","FTM","FTA","FT%","ORB","DRB","REB","AST","STL","BLK","TOV","PF"];
 const NUM_STATS=["PTS","FGM","FGA","3PM","3PA","FTM","FTA","ORB","DRB","REB","AST","STL","BLK","TOV","PF"];
 const TYPE_LABELS=["RS","Playoffs","Finals","Preseason","Play-In","Summer Lg"];
 const COLORS=["#e63946","#1d3557"];
+// Position order for lineup building: PG, SG, SF, PF, C
+const POS_ORDER=["PG","SG","SF","PF","C"];
 
 let TEAMS=[],POS=[],playerIndex={},playerNames=[],activeTeam=0,teams=[[],[]],teamNames=["TEAM A","TEAM B"];
+// adjustedStats[teamIdx][playerIdx] = {stat: adjustedValue} — only populated for adjusted stats
+let adjustedStats=[[],[]];
 
-// Stat accessor for a game array
-function gv(game, stat){
+function gvRaw(game,stat){
   switch(stat){
     case"MIN":return game[G.MN];case"PTS":return game[G.PT];
     case"FGM":return game[G.FM];case"FGA":return game[G.FA];
@@ -167,7 +172,134 @@ function gv(game, stat){
     default:return 0;
   }
 }
+// Get stat value respecting adjustments
+function gv(ti,pi,stat){
+  if(adjustedStats[ti]&&adjustedStats[ti][pi]&&adjustedStats[ti][pi][stat]!==undefined)
+    return adjustedStats[ti][pi][stat];
+  return gvRaw(teams[ti][pi].game,stat);
+}
 
+// === STAT RECONCILIATION ENGINE ===
+function reconcileStats(){
+  adjustedStats=[[],[]];
+  if(teams[0].length===0||teams[1].length===0)return;
+  // Init empty adjustment objects
+  for(let t=0;t<2;t++) for(let i=0;i<teams[t].length;i++) adjustedStats[t][i]={};
+
+  // Gather raw totals
+  function rawTotal(ti,stat){
+    return teams[ti].reduce((s,p)=>s+gvRaw(p.game,stat),0);
+  }
+
+  // 1. STEALS vs TURNOVERS: Team A steals <= Team B turnovers (and vice versa)
+  for(let t=0;t<2;t++){
+    const opp=1-t;
+    const myStl=rawTotal(t,"STL");
+    const oppTov=rawTotal(opp,"TOV");
+    if(myStl>oppTov && myStl>0){
+      const scale=oppTov/myStl;
+      teams[t].forEach((p,i)=>{
+        adjustedStats[t][i].STL=Math.round(gvRaw(p.game,"STL")*scale);
+      });
+    }
+  }
+
+  // 2. BLOCKS vs OPPONENT FGA: Team A blocks <= reasonable % of Team B FGA
+  for(let t=0;t<2;t++){
+    const opp=1-t;
+    const myBlk=rawTotal(t,"BLK");
+    const oppFGA=rawTotal(opp,"FGA");
+    const maxBlk=Math.round(oppFGA*0.12); // ~12% block rate is extreme max
+    if(myBlk>maxBlk && myBlk>0){
+      const scale=maxBlk/myBlk;
+      teams[t].forEach((p,i)=>{
+        adjustedStats[t][i].BLK=Math.round(gvRaw(p.game,"BLK")*scale);
+      });
+    }
+  }
+
+  // 3. ASSISTS vs FGM: Team assists <= team FGM
+  for(let t=0;t<2;t++){
+    const myAst=rawTotal(t,"AST");
+    const myFGM=rawTotal(t,"FGM");
+    if(myAst>myFGM && myAst>0){
+      const scale=myFGM/myAst;
+      teams[t].forEach((p,i)=>{
+        adjustedStats[t][i].AST=Math.round(gvRaw(p.game,"AST")*scale);
+      });
+    }
+  }
+
+  // 4. REBOUNDS: Total rebounds for both teams must be realistic
+  // Available rebounds = missed FGA (both teams) + ~15% of missed FTA
+  for(let t=0;t<2;t++){
+    const opp=1-t;
+    const myFGA=rawTotal(t,"FGA"), myFGM=rawTotal(t,"FGM");
+    const oppFGA=rawTotal(opp,"FGA"), oppFGM=rawTotal(opp,"FGM");
+    const myFTA=rawTotal(t,"FTA"), myFTM=rawTotal(t,"FTM");
+    const oppFTA=rawTotal(opp,"FTA"), oppFTM=rawTotal(opp,"FTM");
+
+    const myMissFG=myFGA-myFGM;
+    const oppMissFG=oppFGA-oppFGM;
+    const myMissFT=myFTA-myFTM;
+    const oppMissFT=oppFTA-oppFTM;
+
+    // ORB for team comes from own missed shots
+    const maxORB=Math.round(myMissFG*0.35 + myMissFT*0.15); // ~28% ORB rate is high + some FT misses
+    const myORB=rawTotal(t,"ORB");
+    let orbScale=1;
+    if(myORB>maxORB && myORB>0){
+      orbScale=maxORB/myORB;
+    }
+
+    // DRB for team comes from opponent missed shots
+    const maxDRB=Math.round(oppMissFG*0.85 + oppMissFT*0.15); // ~72% DRB rate is normal
+    const myDRB=rawTotal(t,"DRB");
+    let drbScale=1;
+    if(myDRB>maxDRB && myDRB>0){
+      drbScale=maxDRB/myDRB;
+    }
+
+    // Total team rebounds can't exceed total available
+    const totalAvail=myMissFG+oppMissFG+Math.round((myMissFT+oppMissFT)*0.15);
+    const totalREB=rawTotal(0,"REB")+rawTotal(1,"REB");
+    let totalScale=1;
+    if(totalREB>totalAvail && totalREB>0){
+      totalScale=totalAvail/totalREB;
+    }
+
+    const needScale=orbScale<1||drbScale<1||totalScale<1;
+    if(needScale){
+      teams[t].forEach((p,i)=>{
+        const rawOrb=gvRaw(p.game,"ORB");
+        const rawDrb=gvRaw(p.game,"DRB");
+        const adjOrb=Math.round(rawOrb*Math.min(orbScale,totalScale));
+        const adjDrb=Math.round(rawDrb*Math.min(drbScale,totalScale));
+        adjustedStats[t][i].ORB=adjOrb;
+        adjustedStats[t][i].DRB=adjDrb;
+        adjustedStats[t][i].REB=adjOrb+adjDrb;
+      });
+    }
+  }
+
+  // 5. Recalculate PTS from actual shooting stats (FGM*2 + 3PM*1 + FTM)
+  // This keeps points consistent with makes
+  for(let t=0;t<2;t++){
+    teams[t].forEach((p,i)=>{
+      const fgm=gvRaw(p.game,"FGM");
+      const tpm=gvRaw(p.game,"3PM");
+      const ftm=gvRaw(p.game,"FTM");
+      const calcPts=(fgm-tpm)*2 + tpm*3 + ftm;
+      const rawPts=gvRaw(p.game,"PTS");
+      // Use calculated if raw seems off, otherwise keep raw
+      if(Math.abs(calcPts-rawPts)>2){
+        adjustedStats[t][i].PTS=calcPts;
+      }
+    });
+  }
+}
+
+// === DATA LOADING ===
 (async function(){
   const fill=document.getElementById("progressFill"),text=document.getElementById("progressText"),label=document.getElementById("progressLabel");
   try{
@@ -187,29 +319,79 @@ function gv(game, stat){
     const compressed=new Uint8Array(received);
     let offset=0;
     for(const c of chunks){compressed.set(c,offset);offset+=c.length}
-    
     const decompressed=pako.inflate(compressed,{to:'string'});
     label.textContent="Parsing...";fill.style.width="93%";
-    
     const raw=JSON.parse(decompressed);
-    TEAMS=raw.t; POS=raw.p; playerIndex=raw.d;
+    TEAMS=raw.t;POS=raw.p;playerIndex=raw.d;
     playerNames=Object.keys(playerIndex).sort();
-    
     fill.style.width="100%";text.textContent="Done!";
     setTimeout(()=>{
       document.getElementById("loadScreen").style.display="none";
       document.getElementById("app").style.display="block";
       const gc=Object.values(playerIndex).reduce((s,g)=>s+g.length,0);
       document.getElementById("playerCount").textContent=playerNames.length+" PLAYERS · "+gc.toLocaleString()+" GAMES · 1998-2025";
-      updateTabs();document.getElementById("searchInput").focus();
+      updateTabs();
+      randomizeTeams();
     },400);
   }catch(err){
     label.textContent="Error loading data";text.textContent=err.message;
-    fill.style.background="#e63946";fill.style.width="100%";
-    console.error(err);
+    fill.style.background="#e63946";fill.style.width="100%";console.error(err);
   }
 })();
 
+// === RANDOM TEAM GENERATION ===
+function pickRandomPlayers(count){
+  // Weight toward players with 100+ games for quality rosters
+  const eligible=playerNames.filter(n=>playerIndex[n].length>=50);
+  const pool=eligible.length>=count*2?eligible:playerNames;
+  const shuffled=[...pool].sort(()=>Math.random()-0.5);
+  return shuffled.slice(0,count);
+}
+
+function buildRoster(names){
+  const roster=[];
+  // Group by position and try to fill: 2xPG, 2xSG, 2xSF, 2xPF, 2xC + 2 flex
+  const byPos={PG:[],SG:[],SF:[],PF:[],C:[],OTHER:[]};
+  names.forEach(name=>{
+    const games=playerIndex[name];
+    // Find most common position for this player
+    const posCounts={};
+    games.forEach(g=>{const p=POS[g[G.PS]]||"";posCounts[p]=(posCounts[p]||0)+1});
+    const mainPos=Object.entries(posCounts).sort((a,b)=>b[1]-a[1])[0];
+    const pos=mainPos?mainPos[0]:"OTHER";
+    if(byPos[pos])byPos[pos].push(name);
+    else byPos.OTHER.push(name);
+  });
+  // Fill 2 per position, rest as flex
+  const used=new Set();
+  POS_ORDER.forEach(pos=>{
+    let count=0;
+    (byPos[pos]||[]).forEach(name=>{
+      if(count<2&&!used.has(name)){
+        roster.push(name);used.add(name);count++;
+      }
+    });
+  });
+  // Fill remaining spots
+  names.forEach(name=>{
+    if(!used.has(name)&&roster.length<12){
+      roster.push(name);used.add(name);
+    }
+  });
+  return roster.slice(0,12);
+}
+
+function randomizeTeams(){
+  const all=pickRandomPlayers(24);
+  const rosterA=buildRoster(all.slice(0,12));
+  const rosterB=buildRoster(all.slice(12,24));
+  teams[0]=rosterA.map(name=>({name,game:getRandomGame(name)})).filter(p=>p.game);
+  teams[1]=rosterB.map(name=>({name,game:getRandomGame(name)})).filter(p=>p.game);
+  reconcileStats();
+  render();
+}
+
+// === SEARCH ===
 const searchInput=document.getElementById("searchInput"),dropdown=document.getElementById("dropdown");
 searchInput.addEventListener("input",function(){
   const q=this.value.toLowerCase().trim();
@@ -227,6 +409,7 @@ searchInput.addEventListener("focus",function(){if(this.value.length>=2)this.dis
 searchInput.addEventListener("keydown",function(e){if(e.key==="Enter"){const it=dropdown.querySelectorAll(".dropdown-item");if(it.length)it[0].click()}});
 document.addEventListener("mousedown",function(e){if(!dropdown.contains(e.target)&&e.target!==searchInput)dropdown.classList.remove("active")});
 
+// === TEAM MANAGEMENT ===
 function setActiveTeam(i){activeTeam=i;updateTabs()}
 function updateTabs(){
   const a=document.getElementById("tabA"),b=document.getElementById("tabB");
@@ -245,12 +428,20 @@ function getRandomGame(name){
 function addPlayer(name){
   const g=getRandomGame(name);if(!g)return;
   teams[activeTeam].push({name,game:g});
-  searchInput.value="";dropdown.classList.remove("active");render();searchInput.focus();
+  searchInput.value="";dropdown.classList.remove("active");
+  reconcileStats();render();searchInput.focus();
 }
-function removePlayer(t,p){teams[t].splice(p,1);render()}
-function rerollPlayer(t,p){const pl=teams[t][p],g=getRandomGame(pl.name);if(g)teams[t][p]={name:pl.name,game:g};render()}
-function rerollAll(){teams.forEach(team=>{team.forEach((p,i)=>{const g=getRandomGame(p.name);if(g)team[i]={name:p.name,game:g}})});render()}
-function clearAll(){teams=[[],[]];render()}
+function removePlayer(t,p){teams[t].splice(p,1);reconcileStats();render()}
+function rerollPlayer(t,p){
+  const pl=teams[t][p],g=getRandomGame(pl.name);
+  if(g)teams[t][p]={name:pl.name,game:g};
+  reconcileStats();render();
+}
+function rerollAll(){
+  teams.forEach(team=>{team.forEach((p,i)=>{const g=getRandomGame(p.name);if(g)team[i]={name:p.name,game:g}})});
+  reconcileStats();render();
+}
+function clearAll(){teams=[[],[]];adjustedStats=[[],[]];render()}
 function editTeamName(idx){
   const el=document.getElementById(idx===0?"nameA":"nameB");
   const inp=document.createElement("input");inp.className="team-name-input";
@@ -260,6 +451,7 @@ function editTeamName(idx){
   inp.addEventListener("blur",done);inp.addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();done()}});
 }
 
+// === RENDER ===
 function fmtMin(v){
   if(typeof v==="string"&&v.includes(":"))return v;
   const n=parseFloat(v)||0,m=Math.floor(n),s=Math.round((n-m)*60);
@@ -271,7 +463,7 @@ function renderTeam(ti){
   const team=teams[ti],el=document.getElementById(ti===0?"teamASection":"teamBSection");
   if(!team.length){el.innerHTML="";return}
   const tot={};
-  NUM_STATS.forEach(s=>{tot[s]=team.reduce((sum,p)=>sum+gv(p.game,s),0)});
+  NUM_STATS.forEach(s=>{tot[s]=0;team.forEach((p,i)=>{tot[s]+=gv(ti,i,s)})});
   tot.MIN=team.reduce((sum,p)=>{const v=p.game[G.MN];if(typeof v==="string"&&v.includes(":")){const[m,s]=v.split(":");return sum+parseInt(m)+(parseInt(s||0)/60)}return sum+(parseFloat(v)||0)},0);
 
   let rows="";
@@ -280,19 +472,23 @@ function renderTeam(ti){
     const tm=TEAMS[g[G.TM]]||"?",op=TEAMS[g[G.OP]]||"?",pos=POS[g[G.PS]]||"";
     const yr=g[G.YR]||"?";
     const typ=g[G.TY]>0?TYPE_LABELS[g[G.TY]]||"":"";
-    const pts=g[G.PT]||0;
-    const cats=[pts,g[G.RB]||0,g[G.AS]||0,g[G.ST]||0,g[G.BK]||0].filter(v=>v>=10);
+    const pts=gv(ti,i,"PTS");
+    const reb=gv(ti,i,"REB"),ast=gv(ti,i,"AST"),stl=gv(ti,i,"STL"),blk=gv(ti,i,"BLK");
+    const cats=[pts,reb,ast,stl,blk].filter(v=>v>=10);
     const isDbl=cats.length>=2;
     let cells="";
     STAT_KEYS.forEach(s=>{
       let val;
       if(s==="MIN")val=fmtMin(g[G.MN]);
-      else if(s==="FG%"||s==="FT%")val=fmtPct(gv(g,s));
-      else val=Math.round(gv(g,s));
+      else if(s==="FG%"){const fgm=gv(ti,i,"FGM"),fga=gv(ti,i,"FGA");val=fmtPct(fga>0?fgm/fga:0)}
+      else if(s==="FT%"){const ftm=gv(ti,i,"FTM"),fta=gv(ti,i,"FTA");val=fmtPct(fta>0?ftm/fta:0)}
+      else val=Math.round(gv(ti,i,s));
       let cls="r";
       if(s==="PTS"&&pts>=40)cls+=" hl-dbl";
       else if(s==="PTS"&&pts>=30)cls+=" hl";
-      else if(isDbl&&["PTS","REB","AST","STL","BLK"].includes(s)&&gv(g,s)>=10)cls+=" hl";
+      else if(isDbl&&["PTS","REB","AST","STL","BLK"].includes(s)){
+        const sv=gv(ti,i,s);if(sv>=10)cls+=" hl";
+      }
       cells+='<td class="'+cls+'">'+val+'</td>';
     });
     rows+='<tr class="row-'+(i%2===0?"even":"odd")+'">'+'<td class="pname">'+p.name+'<span class="pos-tag">'+pos+'</span></td>'+'<td class="ginfo">'+tm+' vs '+op+' <span style="color:#444">('+yr+(typ?" · "+typ:"")+')</span></td>'+cells+'<td class="act" onclick="rerollPlayer('+ti+','+i+')" title="Re-roll"><span class="dice">🎲</span></td>'+'<td class="act" onclick="removePlayer('+ti+','+i+')" title="Remove"><span class="rm">×</span></td></tr>';
@@ -314,8 +510,10 @@ function render(){
   const has=teams[0].length>0||teams[1].length>0;
   document.getElementById("scoreboard").style.display=has?"flex":"none";
   document.getElementById("emptyMsg").style.display=has?"none":"block";
-  const pA=Math.round(teams[0].reduce((s,p)=>s+(p.game[G.PT]||0),0));
-  const pB=Math.round(teams[1].reduce((s,p)=>s+(p.game[G.PT]||0),0));
+  let pA=0,pB=0;
+  teams[0].forEach((p,i)=>{pA+=gv(0,i,"PTS")});
+  teams[1].forEach((p,i)=>{pB+=gv(1,i,"PTS")});
+  pA=Math.round(pA);pB=Math.round(pB);
   document.getElementById("scoreALabel").textContent=teamNames[0];
   document.getElementById("scoreALabel").style.color=COLORS[0];
   document.getElementById("scoreBLabel").textContent=teamNames[1];
