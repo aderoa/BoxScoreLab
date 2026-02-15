@@ -303,8 +303,8 @@ function reconcileStats(){
 (async function(){
   const fill=document.getElementById("progressFill"),text=document.getElementById("progressText"),label=document.getElementById("progressLabel");
   try{
-    const resp=await fetch("data.json.gz");
-    if(!resp.ok)throw new Error("HTTP "+resp.status+" — make sure data.json.gz is in the same folder");
+    const resp=await fetch("data.bin");
+    if(!resp.ok)throw new Error("HTTP "+resp.status+" — make sure data.bin is in the same folder");
     const reader=resp.body.getReader();
     const total=parseInt(resp.headers.get("content-length"))||9400000;
     let received=0;const chunks=[];
