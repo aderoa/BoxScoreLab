@@ -65,9 +65,8 @@ body{background:#0a0a1a;color:#c8c8e0;font-family:'JetBrains Mono',monospace;min
 .box-tbl th.r{text-align:right;min-width:32px}
 .box-tbl td{padding:6px 5px;color:#b0b0cc}
 .box-tbl td.r{text-align:right}
-.box-tbl td.pname{font-weight:600;color:#e0e0ff;white-space:nowrap;max-width:130px;overflow:hidden;text-overflow:ellipsis}
+.box-tbl td.pname{font-weight:600;color:#e0e0ff;white-space:nowrap;max-width:160px;overflow:hidden;text-overflow:ellipsis}
 .box-tbl td .pos-tag{font-size:9px;color:#666;margin-left:3px;background:#1a1a3e;padding:1px 4px;border-radius:2px}
-.box-tbl td.ginfo{font-size:9px;color:#666688;white-space:nowrap}
 .box-tbl td.act{text-align:center;cursor:pointer;width:26px;padding:6px 2px}
 .box-tbl td.act:hover{opacity:0.6}
 .box-tbl .rm{color:#ff4444;font-size:13px;font-weight:700}
@@ -113,9 +112,6 @@ body{background:#0a0a1a;color:#c8c8e0;font-family:'JetBrains Mono',monospace;min
       <option value="0">Regular Season</option>
       <option value="1">Playoffs</option>
       <option value="2">Finals</option>
-      <option value="4">Play-In</option>
-      <option value="3">Preseason</option>
-      <option value="5">Summer League</option>
     </select>
     <button class="btn btn-roll" onclick="rerollAll()">🎲 Re-roll All</button>
     <button class="btn btn-rand" onclick="randomizeTeams()">🔀 Random Teams</button>
@@ -144,159 +140,164 @@ body{background:#0a0a1a;color:#c8c8e0;font-family:'JetBrains Mono',monospace;min
   </div>
 </div>
 <script>
-// Game array indices
 const G={TM:0,OP:1,PS:2,MN:3,PT:4,FM:5,FA:6,PM:7,PA:8,FT:9,TA:10,OR:11,DR:12,RB:13,AS:14,ST:15,BK:16,TO:17,PF:18,TY:19,YR:20};
 const STAT_KEYS=["MIN","PTS","FGM","FGA","FG%","3PM","3PA","FTM","FTA","FT%","ORB","DRB","REB","AST","STL","BLK","TOV","PF"];
-const NUM_STATS=["PTS","FGM","FGA","3PM","3PA","FTM","FTA","ORB","DRB","REB","AST","STL","BLK","TOV","PF"];
-const TYPE_LABELS=["RS","Playoffs","Finals","Preseason","Play-In","Summer Lg"];
+const COUNT_STATS=["PTS","FGM","FGA","3PM","3PA","FTM","FTA","ORB","DRB","REB","AST","STL","BLK","TOV","PF"];
+const TYPE_LABELS=["RS","Playoffs","Finals"];
 const COLORS=["#e63946","#1d3557"];
-// Position order for lineup building: PG, SG, SF, PF, C
-const POS_ORDER=["PG","SG","SF","PF","C"];
+const TARGET_MIN=240;
+// Minutes template for 12-man roster sorted by role
+// Starters: ~32 avg, Key bench: ~15 avg, Deep bench: ~5 avg = 240
+const MIN_TEMPLATE=[35,33,32,31,29,19,17,15,12,9,5,3];
 
 let TEAMS=[],POS=[],playerIndex={},playerNames=[],activeTeam=0,teams=[[],[]],teamNames=["TEAM A","TEAM B"];
-// adjustedStats[teamIdx][playerIdx] = {stat: adjustedValue} — only populated for adjusted stats
-let adjustedStats=[[],[]];
+// adjusted[ti][pi] = {stat: val} for all scaled stats
+let adjusted=[[],[]];
 
-function gvRaw(game,stat){
-  switch(stat){
-    case"MIN":return game[G.MN];case"PTS":return game[G.PT];
-    case"FGM":return game[G.FM];case"FGA":return game[G.FA];
-    case"3PM":return game[G.PM];case"3PA":return game[G.PA];
-    case"FTM":return game[G.FT];case"FTA":return game[G.TA];
-    case"ORB":return game[G.OR];case"DRB":return game[G.DR];
-    case"REB":return game[G.RB];case"AST":return game[G.AS];
-    case"STL":return game[G.ST];case"BLK":return game[G.BK];
-    case"TOV":return game[G.TO];case"PF":return game[G.PF];
-    case"FG%":return game[G.FA]>0?(game[G.FM]/game[G.FA]):0;
-    case"FT%":return game[G.TA]>0?(game[G.FT]/game[G.TA]):0;
+function rawG(game,s){
+  switch(s){
+    case"PTS":return game[G.PT];case"FGM":return game[G.FM];case"FGA":return game[G.FA];
+    case"3PM":return game[G.PM];case"3PA":return game[G.PA];case"FTM":return game[G.FT];
+    case"FTA":return game[G.TA];case"ORB":return game[G.OR];case"DRB":return game[G.DR];
+    case"REB":return game[G.RB];case"AST":return game[G.AS];case"STL":return game[G.ST];
+    case"BLK":return game[G.BK];case"TOV":return game[G.TO];case"PF":return game[G.PF];
+    case"MIN":return parseFloat(game[G.MN])||0;
     default:return 0;
   }
 }
-// Get stat value respecting adjustments
-function gv(ti,pi,stat){
-  if(adjustedStats[ti]&&adjustedStats[ti][pi]&&adjustedStats[ti][pi][stat]!==undefined)
-    return adjustedStats[ti][pi][stat];
-  return gvRaw(teams[ti][pi].game,stat);
+function av(ti,pi,s){
+  if(adjusted[ti]&&adjusted[ti][pi]&&adjusted[ti][pi][s]!==undefined)return adjusted[ti][pi][s];
+  return rawG(teams[ti][pi].game,s);
 }
 
-// === STAT RECONCILIATION ENGINE ===
-function reconcileStats(){
-  adjustedStats=[[],[]];
-  if(teams[0].length===0||teams[1].length===0)return;
-  // Init empty adjustment objects
-  for(let t=0;t<2;t++) for(let i=0;i<teams[t].length;i++) adjustedStats[t][i]={};
+// === POSITION HELPERS ===
+// Position compatibility groups for minute sharing
+// PG(0) can share with SG(1)
+// SG(1) can share with PG(0),SF(2)
+// SF(2) can share with SG(1),PF(3)
+// PF(3) can share with SF(2),C(4)
+// C(4) can share with PF(3)
+const POS_NAMES=["PG","SG","SF","PF","C"];
 
-  // Gather raw totals
-  function rawTotal(ti,stat){
-    return teams[ti].reduce((s,p)=>s+gvRaw(p.game,stat),0);
-  }
+function getPlayerPos(game){
+  const p=POS[game[G.PS]];
+  const idx=POS_NAMES.indexOf(p);
+  return idx>=0?idx:2; // default SF
+}
 
-  // 1. STEALS vs TURNOVERS: Team A steals <= Team B turnovers (and vice versa)
-  for(let t=0;t<2;t++){
-    const opp=1-t;
-    const myStl=rawTotal(t,"STL");
-    const oppTov=rawTotal(opp,"TOV");
-    if(myStl>oppTov && myStl>0){
-      const scale=oppTov/myStl;
-      teams[t].forEach((p,i)=>{
-        adjustedStats[t][i].STL=Math.round(gvRaw(p.game,"STL")*scale);
-      });
+function getMostCommonPos(name){
+  const games=playerIndex[name];if(!games)return 2;
+  const ct=[0,0,0,0,0];
+  games.forEach(g=>{const p=getPlayerPos(g);ct[p]++});
+  return ct.indexOf(Math.max(...ct));
+}
+
+// === MINUTES DISTRIBUTION & STAT SCALING ===
+function normalizeTeam(ti){
+  const team=teams[ti];
+  if(!team.length){adjusted[ti]=[];return}
+  adjusted[ti]=team.map(()=>({}));
+
+  // Sort indices by raw PTS desc, then raw MIN desc for template assignment
+  const indices=team.map((_,i)=>i);
+  indices.sort((a,b)=>{
+    const pa=rawG(team[a].game,"PTS"),pb=rawG(team[b].game,"PTS");
+    if(pb!==pa)return pb-pa;
+    return rawG(team[b].game,"MIN")-rawG(team[a].game,"MIN");
+  });
+
+  // Assign minutes from template
+  const n=team.length;
+  let template;
+  if(n>=12) template=MIN_TEMPLATE.slice(0,n);
+  else{
+    // Scale template for fewer players
+    const sub=MIN_TEMPLATE.slice(0,n);
+    const subSum=sub.reduce((a,b)=>a+b,0);
+    template=sub.map(m=>Math.round(m*TARGET_MIN/subSum));
+    // Fix rounding
+    let diff=TARGET_MIN-template.reduce((a,b)=>a+b,0);
+    for(let i=0;diff!==0&&i<n;i++){
+      if(diff>0){template[i]++;diff--}
+      else{template[i]--;diff++}
     }
   }
 
-  // 2. BLOCKS vs OPPONENT FGA: Team A blocks <= reasonable % of Team B FGA
-  for(let t=0;t<2;t++){
-    const opp=1-t;
-    const myBlk=rawTotal(t,"BLK");
-    const oppFGA=rawTotal(opp,"FGA");
-    const maxBlk=Math.round(oppFGA*0.12); // ~12% block rate is extreme max
-    if(myBlk>maxBlk && myBlk>0){
-      const scale=maxBlk/myBlk;
-      teams[t].forEach((p,i)=>{
-        adjustedStats[t][i].BLK=Math.round(gvRaw(p.game,"BLK")*scale);
-      });
-    }
-  }
-
-  // 3. ASSISTS vs FGM: Team assists <= team FGM
-  for(let t=0;t<2;t++){
-    const myAst=rawTotal(t,"AST");
-    const myFGM=rawTotal(t,"FGM");
-    if(myAst>myFGM && myAst>0){
-      const scale=myFGM/myAst;
-      teams[t].forEach((p,i)=>{
-        adjustedStats[t][i].AST=Math.round(gvRaw(p.game,"AST")*scale);
-      });
-    }
-  }
-
-  // 4. REBOUNDS: Total rebounds for both teams must be realistic
-  // Available rebounds = missed FGA (both teams) + ~15% of missed FTA
-  for(let t=0;t<2;t++){
-    const opp=1-t;
-    const myFGA=rawTotal(t,"FGA"), myFGM=rawTotal(t,"FGM");
-    const oppFGA=rawTotal(opp,"FGA"), oppFGM=rawTotal(opp,"FGM");
-    const myFTA=rawTotal(t,"FTA"), myFTM=rawTotal(t,"FTM");
-    const oppFTA=rawTotal(opp,"FTA"), oppFTM=rawTotal(opp,"FTM");
-
-    const myMissFG=myFGA-myFGM;
-    const oppMissFG=oppFGA-oppFGM;
-    const myMissFT=myFTA-myFTM;
-    const oppMissFT=oppFTA-oppFTM;
-
-    // ORB for team comes from own missed shots
-    const maxORB=Math.round(myMissFG*0.35 + myMissFT*0.15); // ~28% ORB rate is high + some FT misses
-    const myORB=rawTotal(t,"ORB");
-    let orbScale=1;
-    if(myORB>maxORB && myORB>0){
-      orbScale=maxORB/myORB;
-    }
-
-    // DRB for team comes from opponent missed shots
-    const maxDRB=Math.round(oppMissFG*0.85 + oppMissFT*0.15); // ~72% DRB rate is normal
-    const myDRB=rawTotal(t,"DRB");
-    let drbScale=1;
-    if(myDRB>maxDRB && myDRB>0){
-      drbScale=maxDRB/myDRB;
-    }
-
-    // Total team rebounds can't exceed total available
-    const totalAvail=myMissFG+oppMissFG+Math.round((myMissFT+oppMissFT)*0.15);
-    const totalREB=rawTotal(0,"REB")+rawTotal(1,"REB");
-    let totalScale=1;
-    if(totalREB>totalAvail && totalREB>0){
-      totalScale=totalAvail/totalREB;
-    }
-
-    const needScale=orbScale<1||drbScale<1||totalScale<1;
-    if(needScale){
-      teams[t].forEach((p,i)=>{
-        const rawOrb=gvRaw(p.game,"ORB");
-        const rawDrb=gvRaw(p.game,"DRB");
-        const adjOrb=Math.round(rawOrb*Math.min(orbScale,totalScale));
-        const adjDrb=Math.round(rawDrb*Math.min(drbScale,totalScale));
-        adjustedStats[t][i].ORB=adjOrb;
-        adjustedStats[t][i].DRB=adjDrb;
-        adjustedStats[t][i].REB=adjOrb+adjDrb;
-      });
-    }
-  }
-
-  // 5. Recalculate PTS from actual shooting stats (FGM*2 + 3PM*1 + FTM)
-  // This keeps points consistent with makes
-  for(let t=0;t<2;t++){
-    teams[t].forEach((p,i)=>{
-      const fgm=gvRaw(p.game,"FGM");
-      const tpm=gvRaw(p.game,"3PM");
-      const ftm=gvRaw(p.game,"FTM");
-      const calcPts=(fgm-tpm)*2 + tpm*3 + ftm;
-      const rawPts=gvRaw(p.game,"PTS");
-      // Use calculated if raw seems off, otherwise keep raw
-      if(Math.abs(calcPts-rawPts)>2){
-        adjustedStats[t][i].PTS=calcPts;
-      }
+  // Assign template minutes in PTS-sorted order
+  indices.forEach((pi,rank)=>{
+    const rawMin=rawG(team[pi].game,"MIN");
+    const targetMin=template[rank]||5;
+    adjusted[ti][pi].MIN=targetMin;
+    // Scale all counting stats proportionally
+    const scale=rawMin>0?targetMin/rawMin:0;
+    COUNT_STATS.forEach(s=>{
+      const raw=rawG(team[pi].game,s);
+      // Use fractional scaling but round to int
+      adjusted[ti][pi][s]=Math.round(raw*scale);
     });
+    // Fix: FGM can't exceed FGA, 3PM can't exceed FGM, FTM can't exceed FTA
+    const a=adjusted[ti][pi];
+    if(a.FGM>a.FGA)a.FGM=a.FGA;
+    if(a["3PM"]>a.FGM)a["3PM"]=a.FGM;
+    if(a["3PM"]>a["3PA"])a["3PM"]=a["3PA"];
+    if(a.FTM>a.FTA)a.FTM=a.FTA;
+    // Recalc PTS from makes
+    a.PTS=(a.FGM-a["3PM"])*2+a["3PM"]*3+a.FTM;
+    // REB = ORB + DRB
+    a.REB=a.ORB+a.DRB;
+  });
+}
+
+// === STAT RECONCILIATION (cross-team) ===
+function reconcile(){
+  if(teams[0].length===0||teams[1].length===0)return;
+  function total(ti,s){let t=0;teams[ti].forEach((_,i)=>{t+=av(ti,i,s)});return t}
+
+  for(let t=0;t<2;t++){
+    const opp=1-t;
+    // STL <= opp TOV
+    const stl=total(t,"STL"),tov=total(opp,"TOV");
+    if(stl>tov&&stl>0){
+      const sc=tov/stl;
+      teams[t].forEach((_,i)=>{adjusted[t][i].STL=Math.round(av(t,i,"STL")*sc)});
+    }
+    // BLK <= 12% opp FGA
+    const blk=total(t,"BLK"),oFGA=total(opp,"FGA");
+    const maxBlk=Math.round(oFGA*0.12);
+    if(blk>maxBlk&&blk>0){
+      const sc=maxBlk/blk;
+      teams[t].forEach((_,i)=>{adjusted[t][i].BLK=Math.round(av(t,i,"BLK")*sc)});
+    }
+    // AST <= FGM
+    const ast=total(t,"AST"),fgm=total(t,"FGM");
+    if(ast>fgm&&ast>0){
+      const sc=fgm/ast;
+      teams[t].forEach((_,i)=>{adjusted[t][i].AST=Math.round(av(t,i,"AST")*sc)});
+    }
+    // Rebounds
+    const myFGA=total(t,"FGA"),myFGM=total(t,"FGM");
+    const opFGA=total(opp,"FGA"),opFGM=total(opp,"FGM");
+    const myFTA=total(t,"FTA"),myFTM=total(t,"FTM");
+    const opFTA=total(opp,"FTA"),opFTM=total(opp,"FTM");
+    const maxORB=Math.round((myFGA-myFGM)*0.35+(myFTA-myFTM)*0.15);
+    const maxDRB=Math.round((opFGA-opFGM)*0.85+(opFTA-opFTM)*0.15);
+    const myORB=total(t,"ORB"),myDRB=total(t,"DRB");
+    let needScale=false;
+    let orbSc=1,drbSc=1;
+    if(myORB>maxORB&&myORB>0){orbSc=maxORB/myORB;needScale=true}
+    if(myDRB>maxDRB&&myDRB>0){drbSc=maxDRB/myDRB;needScale=true}
+    if(needScale){
+      teams[t].forEach((_,i)=>{
+        adjusted[t][i].ORB=Math.round(av(t,i,"ORB")*orbSc);
+        adjusted[t][i].DRB=Math.round(av(t,i,"DRB")*drbSc);
+        adjusted[t][i].REB=adjusted[t][i].ORB+adjusted[t][i].DRB;
+      });
+    }
   }
+}
+
+function processAll(){
+  normalizeTeam(0);normalizeTeam(1);reconcile();
 }
 
 // === DATA LOADING ===
@@ -306,7 +307,7 @@ function reconcileStats(){
     const resp=await fetch("data.bin");
     if(!resp.ok)throw new Error("HTTP "+resp.status+" — make sure data.bin is in the same folder");
     const reader=resp.body.getReader();
-    const total=parseInt(resp.headers.get("content-length"))||9400000;
+    const total=parseInt(resp.headers.get("content-length"))||11000000;
     let received=0;const chunks=[];
     while(true){
       const{done,value}=await reader.read();
@@ -329,9 +330,8 @@ function reconcileStats(){
       document.getElementById("loadScreen").style.display="none";
       document.getElementById("app").style.display="block";
       const gc=Object.values(playerIndex).reduce((s,g)=>s+g.length,0);
-      document.getElementById("playerCount").textContent=playerNames.length+" PLAYERS · "+gc.toLocaleString()+" GAMES · 1998-2025";
-      updateTabs();
-      randomizeTeams();
+      document.getElementById("playerCount").textContent=playerNames.length+" PLAYERS · "+gc.toLocaleString()+" GAMES · 1986-2025";
+      updateTabs();randomizeTeams();
     },400);
   }catch(err){
     label.textContent="Error loading data";text.textContent=err.message;
@@ -339,56 +339,41 @@ function reconcileStats(){
   }
 })();
 
-// === RANDOM TEAM GENERATION ===
-function pickRandomPlayers(count){
-  // Weight toward players with 100+ games for quality rosters
+// === RANDOM TEAMS ===
+function pickRandom24(){
   const eligible=playerNames.filter(n=>playerIndex[n].length>=50);
-  const pool=eligible.length>=count*2?eligible:playerNames;
+  const pool=eligible.length>=48?eligible:playerNames;
   const shuffled=[...pool].sort(()=>Math.random()-0.5);
-  return shuffled.slice(0,count);
+  return shuffled.slice(0,24);
 }
-
 function buildRoster(names){
-  const roster=[];
-  // Group by position and try to fill: 2xPG, 2xSG, 2xSF, 2xPF, 2xC + 2 flex
-  const byPos={PG:[],SG:[],SF:[],PF:[],C:[],OTHER:[]};
-  names.forEach(name=>{
-    const games=playerIndex[name];
-    // Find most common position for this player
-    const posCounts={};
-    games.forEach(g=>{const p=POS[g[G.PS]]||"";posCounts[p]=(posCounts[p]||0)+1});
-    const mainPos=Object.entries(posCounts).sort((a,b)=>b[1]-a[1])[0];
-    const pos=mainPos?mainPos[0]:"OTHER";
-    if(byPos[pos])byPos[pos].push(name);
-    else byPos.OTHER.push(name);
-  });
-  // Fill 2 per position, rest as flex
-  const used=new Set();
-  POS_ORDER.forEach(pos=>{
-    let count=0;
-    (byPos[pos]||[]).forEach(name=>{
-      if(count<2&&!used.has(name)){
-        roster.push(name);used.add(name);count++;
-      }
-    });
-  });
-  // Fill remaining spots
-  names.forEach(name=>{
-    if(!used.has(name)&&roster.length<12){
-      roster.push(name);used.add(name);
+  // Group by most common position
+  const byPos=[[],[],[],[],[]];
+  names.forEach(name=>{byPos[getMostCommonPos(name)].push(name)});
+  const roster=[];const used=new Set();
+  // 2 per position
+  for(let p=0;p<5;p++){
+    let ct=0;
+    byPos[p].forEach(n=>{if(ct<2&&!used.has(n)){roster.push(n);used.add(n);ct++}});
+    // If not enough, pull from adjacent positions
+    if(ct<2){
+      const adj=p===0?[1]:p===4?[3]:[p-1,p+1];
+      adj.forEach(ap=>{
+        byPos[ap].forEach(n=>{if(ct<2&&!used.has(n)){roster.push(n);used.add(n);ct++}});
+      });
     }
-  });
+  }
+  // Fill to 12
+  names.forEach(n=>{if(!used.has(n)&&roster.length<12){roster.push(n);used.add(n)}});
   return roster.slice(0,12);
 }
-
 function randomizeTeams(){
-  const all=pickRandomPlayers(24);
-  const rosterA=buildRoster(all.slice(0,12));
-  const rosterB=buildRoster(all.slice(12,24));
-  teams[0]=rosterA.map(name=>({name,game:getRandomGame(name)})).filter(p=>p.game);
-  teams[1]=rosterB.map(name=>({name,game:getRandomGame(name)})).filter(p=>p.game);
-  reconcileStats();
-  render();
+  const all=pickRandom24();
+  const rA=buildRoster(all.slice(0,12));
+  const rB=buildRoster(all.slice(12,24));
+  teams[0]=rA.map(n=>({name:n,game:getRandomGame(n)})).filter(p=>p.game);
+  teams[1]=rB.map(n=>({name:n,game:getRandomGame(n)})).filter(p=>p.game);
+  processAll();render();
 }
 
 // === SEARCH ===
@@ -409,7 +394,7 @@ searchInput.addEventListener("focus",function(){if(this.value.length>=2)this.dis
 searchInput.addEventListener("keydown",function(e){if(e.key==="Enter"){const it=dropdown.querySelectorAll(".dropdown-item");if(it.length)it[0].click()}});
 document.addEventListener("mousedown",function(e){if(!dropdown.contains(e.target)&&e.target!==searchInput)dropdown.classList.remove("active")});
 
-// === TEAM MANAGEMENT ===
+// === TEAM MGMT ===
 function setActiveTeam(i){activeTeam=i;updateTabs()}
 function updateTabs(){
   const a=document.getElementById("tabA"),b=document.getElementById("tabB");
@@ -429,19 +414,19 @@ function addPlayer(name){
   const g=getRandomGame(name);if(!g)return;
   teams[activeTeam].push({name,game:g});
   searchInput.value="";dropdown.classList.remove("active");
-  reconcileStats();render();searchInput.focus();
+  processAll();render();searchInput.focus();
 }
-function removePlayer(t,p){teams[t].splice(p,1);reconcileStats();render()}
+function removePlayer(t,p){teams[t].splice(p,1);processAll();render()}
 function rerollPlayer(t,p){
   const pl=teams[t][p],g=getRandomGame(pl.name);
   if(g)teams[t][p]={name:pl.name,game:g};
-  reconcileStats();render();
+  processAll();render();
 }
 function rerollAll(){
   teams.forEach(team=>{team.forEach((p,i)=>{const g=getRandomGame(p.name);if(g)team[i]={name:p.name,game:g}})});
-  reconcileStats();render();
+  processAll();render();
 }
-function clearAll(){teams=[[],[]];adjustedStats=[[],[]];render()}
+function clearAll(){teams=[[],[]];adjusted=[[],[]];render()}
 function editTeamName(idx){
   const el=document.getElementById(idx===0?"nameA":"nameB");
   const inp=document.createElement("input");inp.className="team-name-input";
@@ -453,7 +438,6 @@ function editTeamName(idx){
 
 // === RENDER ===
 function fmtMin(v){
-  if(typeof v==="string"&&v.includes(":"))return v;
   const n=parseFloat(v)||0,m=Math.floor(n),s=Math.round((n-m)*60);
   return m+":"+(s<10?"0":"")+s;
 }
@@ -462,36 +446,41 @@ function fmtPct(v){const n=parseFloat(v);if(isNaN(n))return".000";return n.toFix
 function renderTeam(ti){
   const team=teams[ti],el=document.getElementById(ti===0?"teamASection":"teamBSection");
   if(!team.length){el.innerHTML="";return}
+
+  // Sort display: PTS desc, then MIN desc
+  const order=team.map((_,i)=>i);
+  order.sort((a,b)=>{
+    const pa=av(ti,a,"PTS"),pb=av(ti,b,"PTS");
+    if(pb!==pa)return pb-pa;
+    return av(ti,b,"MIN")-av(ti,a,"MIN");
+  });
+
   const tot={};
-  NUM_STATS.forEach(s=>{tot[s]=0;team.forEach((p,i)=>{tot[s]+=gv(ti,i,s)})});
-  tot.MIN=team.reduce((sum,p)=>{const v=p.game[G.MN];if(typeof v==="string"&&v.includes(":")){const[m,s]=v.split(":");return sum+parseInt(m)+(parseInt(s||0)/60)}return sum+(parseFloat(v)||0)},0);
+  COUNT_STATS.forEach(s=>{tot[s]=0;team.forEach((_,i)=>{tot[s]+=av(ti,i,s)})});
+  tot.MIN=0;team.forEach((_,i)=>{tot.MIN+=av(ti,i,"MIN")});
 
   let rows="";
-  team.forEach((p,i)=>{
-    const g=p.game;
-    const tm=TEAMS[g[G.TM]]||"?",op=TEAMS[g[G.OP]]||"?",pos=POS[g[G.PS]]||"";
-    const yr=g[G.YR]||"?";
-    const typ=g[G.TY]>0?TYPE_LABELS[g[G.TY]]||"":"";
-    const pts=gv(ti,i,"PTS");
-    const reb=gv(ti,i,"REB"),ast=gv(ti,i,"AST"),stl=gv(ti,i,"STL"),blk=gv(ti,i,"BLK");
+  order.forEach((pi,di)=>{
+    const p=team[pi],g=p.game;
+    const pos=POS[g[G.PS]]||"";
+    const pts=av(ti,pi,"PTS"),min=av(ti,pi,"MIN");
+    const reb=av(ti,pi,"REB"),ast=av(ti,pi,"AST"),stl=av(ti,pi,"STL"),blk=av(ti,pi,"BLK");
     const cats=[pts,reb,ast,stl,blk].filter(v=>v>=10);
     const isDbl=cats.length>=2;
     let cells="";
     STAT_KEYS.forEach(s=>{
       let val;
-      if(s==="MIN")val=fmtMin(g[G.MN]);
-      else if(s==="FG%"){const fgm=gv(ti,i,"FGM"),fga=gv(ti,i,"FGA");val=fmtPct(fga>0?fgm/fga:0)}
-      else if(s==="FT%"){const ftm=gv(ti,i,"FTM"),fta=gv(ti,i,"FTA");val=fmtPct(fta>0?ftm/fta:0)}
-      else val=Math.round(gv(ti,i,s));
+      if(s==="MIN")val=fmtMin(min);
+      else if(s==="FG%"){const fm=av(ti,pi,"FGM"),fa=av(ti,pi,"FGA");val=fmtPct(fa>0?fm/fa:0)}
+      else if(s==="FT%"){const fm=av(ti,pi,"FTM"),fa=av(ti,pi,"FTA");val=fmtPct(fa>0?fm/fa:0)}
+      else val=Math.round(av(ti,pi,s));
       let cls="r";
       if(s==="PTS"&&pts>=40)cls+=" hl-dbl";
       else if(s==="PTS"&&pts>=30)cls+=" hl";
-      else if(isDbl&&["PTS","REB","AST","STL","BLK"].includes(s)){
-        const sv=gv(ti,i,s);if(sv>=10)cls+=" hl";
-      }
+      else if(isDbl&&["PTS","REB","AST","STL","BLK"].includes(s)&&av(ti,pi,s)>=10)cls+=" hl";
       cells+='<td class="'+cls+'">'+val+'</td>';
     });
-    rows+='<tr class="row-'+(i%2===0?"even":"odd")+'">'+'<td class="pname">'+p.name+'<span class="pos-tag">'+pos+'</span></td>'+'<td class="ginfo">'+tm+' vs '+op+' <span style="color:#444">('+yr+(typ?" · "+typ:"")+')</span></td>'+cells+'<td class="act" onclick="rerollPlayer('+ti+','+i+')" title="Re-roll"><span class="dice">🎲</span></td>'+'<td class="act" onclick="removePlayer('+ti+','+i+')" title="Remove"><span class="rm">×</span></td></tr>';
+    rows+='<tr class="row-'+(di%2===0?"even":"odd")+'">'+'<td class="pname">'+p.name+'<span class="pos-tag">'+pos+'</span></td>'+cells+'<td class="act" onclick="rerollPlayer('+ti+','+pi+')" title="Re-roll"><span class="dice">🎲</span></td>'+'<td class="act" onclick="removePlayer('+ti+','+pi+')" title="Remove"><span class="rm">×</span></td></tr>';
   });
   let tc="";
   STAT_KEYS.forEach(s=>{
@@ -503,7 +492,7 @@ function renderTeam(ti){
     tc+='<td class="r">'+v+'</td>';
   });
   const hc=STAT_KEYS.map(s=>'<th class="r">'+s+'</th>').join("");
-  el.innerHTML='<div class="team-section"><div class="team-hdr" style="background:'+COLORS[ti]+'"><span class="team-hdr-name">'+teamNames[ti]+'</span><span class="team-hdr-pts">'+Math.round(tot.PTS)+'</span></div><div class="tbl-wrap"><table class="box-tbl"><thead><tr><th style="min-width:110px">PLAYER</th><th style="min-width:80px">GAME</th>'+hc+'<th></th><th></th></tr></thead><tbody>'+rows+'<tr class="totals" style="background:'+COLORS[ti]+'22;border-top:2px solid '+COLORS[ti]+'"><td style="font-weight:700;color:#fff">TOTALS</td><td></td>'+tc+'<td></td><td></td></tr></tbody></table></div></div>';
+  el.innerHTML='<div class="team-section"><div class="team-hdr" style="background:'+COLORS[ti]+'"><span class="team-hdr-name">'+teamNames[ti]+'</span><span class="team-hdr-pts">'+Math.round(tot.PTS)+'</span></div><div class="tbl-wrap"><table class="box-tbl"><thead><tr><th style="min-width:140px">PLAYER</th>'+hc+'<th></th><th></th></tr></thead><tbody>'+rows+'<tr class="totals" style="background:'+COLORS[ti]+'22;border-top:2px solid '+COLORS[ti]+'"><td style="font-weight:700;color:#fff">TOTALS</td>'+tc+'<td></td><td></td></tr></tbody></table></div></div>';
 }
 function render(){
   updateTabs();renderTeam(0);renderTeam(1);
@@ -511,8 +500,8 @@ function render(){
   document.getElementById("scoreboard").style.display=has?"flex":"none";
   document.getElementById("emptyMsg").style.display=has?"none":"block";
   let pA=0,pB=0;
-  teams[0].forEach((p,i)=>{pA+=gv(0,i,"PTS")});
-  teams[1].forEach((p,i)=>{pB+=gv(1,i,"PTS")});
+  teams[0].forEach((_,i)=>{pA+=av(0,i,"PTS")});
+  teams[1].forEach((_,i)=>{pB+=av(1,i,"PTS")});
   pA=Math.round(pA);pB=Math.round(pB);
   document.getElementById("scoreALabel").textContent=teamNames[0];
   document.getElementById("scoreALabel").style.color=COLORS[0];
