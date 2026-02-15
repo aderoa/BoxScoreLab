@@ -282,7 +282,7 @@ function processAll(){normalizeTeam(0);normalizeTeam(1);reconcile()}
       document.getElementById("loadScreen").style.display="none";
       document.getElementById("app").style.display="block";
       const gc=Object.values(playerIndex).reduce((s,g)=>s+g.length,0);
-      document.getElementById("playerCount").textContent=playerNames.length+" PLAYERS · "+gc.toLocaleString()+" GAMES · 1986-2025";
+      document.getElementById("playerCount").textContent=playerNames.length+" PLAYERS · "+gc.toLocaleString()+" GAMES · 1947-2025";
       updateTabs();randomizeTeams();
     },400);
   }catch(err){label.textContent="Error loading data";text.textContent=err.message;fill.style.background="#e63946";fill.style.width="100%";console.error(err)}
