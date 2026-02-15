@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Box Score Lab — Fantasy Box Score Simulator</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏀</text></svg>">
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+::-webkit-scrollbar{height:6px;width:6px}
+::-webkit-scrollbar-track{background:#0a0a1a}
+::-webkit-scrollbar-thumb{background:#333366;border-radius:3px}
+body{background:#0a0a1a;color:#c8c8e0;font-family:'JetBrains Mono',monospace;min-height:100vh}
+#loadScreen{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;background:linear-gradient(145deg,#0a0a1a 0%,#1a1a3e 50%,#0a0a1a 100%);padding:24px;text-align:center}
+.logo-main{font-family:'Oswald',sans-serif;font-size:52px;font-weight:700;letter-spacing:6px;text-transform:uppercase;line-height:1.1;background:linear-gradient(135deg,#ff6b35 0%,#ffd700 50%,#ff6b35 100%);background-size:200% auto;-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;animation:shimmer 3s ease-in-out infinite}
+@keyframes shimmer{0%,100%{background-position:0% center}50%{background-position:200% center}}
+.subtitle{font-size:13px;color:#8888aa;letter-spacing:3px;text-transform:uppercase;margin:8px 0 48px;font-family:'Oswald',sans-serif}
+#progressWrap{width:320px}
+#progressLabel{font-size:14px;color:#8888aa;margin-bottom:16px;font-family:'Oswald',sans-serif;letter-spacing:1px}
+#progressBar{width:100%;height:4px;background:#16213e;border-radius:2px;overflow:hidden}
+#progressFill{width:0%;height:100%;border-radius:2px;background:linear-gradient(90deg,#ff6b35,#ffd700);transition:width 0.4s ease}
+#progressText{font-size:11px;color:#555;margin-top:8px}
+#app{display:none;padding:16px 12px;max-width:1200px;margin:0 auto}
+.header{text-align:center;margin-bottom:20px}
+.logo-sm{font-family:'Oswald',sans-serif;font-size:26px;font-weight:700;letter-spacing:4px;text-transform:uppercase;background:linear-gradient(90deg,#ff6b35,#ffd700);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.player-count{font-size:10px;color:#444;letter-spacing:2px;margin-top:2px}
+.controls{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:center;margin-bottom:16px;padding:12px 14px;background:#111128;border-radius:8px;border:1px solid #1a1a3e}
+.team-tabs{display:flex;gap:3px}
+.team-tab{padding:6px 14px;border-radius:4px;border:none;cursor:pointer;font-family:'Oswald',sans-serif;font-size:12px;font-weight:600;letter-spacing:1px;text-transform:uppercase;transition:all 0.15s}
+.search-wrap{position:relative;flex:1 1 200px;max-width:280px}
+.search-input{width:100%;padding:7px 12px;border-radius:4px;background:#0a0a1a;color:#e0e0ff;font-size:13px;font-family:'JetBrains Mono',monospace;outline:none;border:1px solid #222244;transition:border-color 0.2s}
+.search-input:focus{border-color:#ff6b35}
+.dropdown{position:absolute;top:100%;left:0;right:0;background:#16213e;border:1px solid #0f3460;border-radius:0 0 6px 6px;max-height:260px;overflow-y:auto;z-index:100;display:none}
+.dropdown.active{display:block}
+.dropdown-item{padding:8px 12px;cursor:pointer;font-size:12px;border-bottom:1px solid #0f346033;display:flex;justify-content:space-between;align-items:center;color:#e0e0ff;transition:background 0.1s}
+.dropdown-item:hover{background:#1a1a4e}
+.dropdown-item .meta{color:#555;font-size:10px}
+.filter-select{padding:7px 8px;border-radius:4px;border:1px solid #1a1a3e;background:#0a0a1a;color:#8888aa;font-size:11px;font-family:'JetBrains Mono',monospace;cursor:pointer}
+.btn{padding:6px 14px;border-radius:4px;border:none;cursor:pointer;color:#fff;font-size:11px;font-weight:600;font-family:'JetBrains Mono',monospace;letter-spacing:0.5px;transition:all 0.15s}
+.btn:hover{filter:brightness(1.15);transform:translateY(-1px)}
+.btn:active{transform:translateY(0)}
+.btn-roll{background:#ff6b35}
+.btn-clear{background:#333}
+.team-names{display:flex;justify-content:center;gap:32px;margin-bottom:8px}
+.team-name-label{font-family:'Oswald',sans-serif;font-size:13px;font-weight:600;letter-spacing:2px;text-transform:uppercase;cursor:pointer;opacity:0.8;transition:opacity 0.15s}
+.team-name-label:hover{opacity:1}
+.team-name-input{background:transparent;font-family:'Oswald',sans-serif;font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:2px;padding:2px 8px;border-radius:4px;outline:none;text-align:center;width:140px;color:inherit}
+.scoreboard{display:flex;justify-content:center;align-items:center;gap:32px;margin-bottom:20px;padding:12px}
+.score-team{text-align:center;min-width:100px}
+.score-label{font-family:'Oswald',sans-serif;font-size:13px;letter-spacing:2px;text-transform:uppercase;opacity:0.8}
+.score-pts{font-family:'Oswald',sans-serif;font-size:56px;font-weight:700;color:#fff;line-height:1;margin-top:4px;transition:all 0.3s ease}
+.score-winner{text-shadow:0 0 20px rgba(255,215,0,0.3)}
+.score-vs{font-family:'Oswald',sans-serif;font-size:18px;color:#222;letter-spacing:4px;margin-top:14px}
+.team-section{margin-bottom:28px;animation:fadeIn 0.3s ease}
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.team-hdr{display:flex;align-items:center;justify-content:space-between;padding:10px 16px;border-radius:6px 6px 0 0}
+.team-hdr-name{font-family:'Oswald',sans-serif;font-size:16px;font-weight:700;text-transform:uppercase;letter-spacing:2px;color:#fff}
+.team-hdr-pts{font-family:'Oswald',sans-serif;font-size:26px;font-weight:700;color:#fff}
+.tbl-wrap{overflow-x:auto}
+.box-tbl{width:100%;border-collapse:collapse;font-family:'JetBrains Mono',monospace;font-size:11px;background:#12122a}
+.box-tbl th{padding:7px 5px;text-align:left;color:#666688;font-size:9px;font-weight:600;letter-spacing:0.5px;text-transform:uppercase;border-bottom:2px solid #1a1a3e;white-space:nowrap;position:sticky;top:0;background:#0e0e24;z-index:2}
+.box-tbl th.r{text-align:right;min-width:32px}
+.box-tbl td{padding:6px 5px;color:#b0b0cc}
+.box-tbl td.r{text-align:right}
+.box-tbl td.pname{font-weight:600;color:#e0e0ff;white-space:nowrap;max-width:130px;overflow:hidden;text-overflow:ellipsis}
+.box-tbl td .pos-tag{font-size:9px;color:#666;margin-left:3px;background:#1a1a3e;padding:1px 4px;border-radius:2px}
+.box-tbl td.ginfo{font-size:9px;color:#666688;white-space:nowrap}
+.box-tbl td.act{text-align:center;cursor:pointer;width:26px;padding:6px 2px}
+.box-tbl td.act:hover{opacity:0.6}
+.box-tbl .rm{color:#ff4444;font-size:13px;font-weight:700}
+.box-tbl .dice{font-size:12px}
+.box-tbl tr.row-even{background:#12122a}
+.box-tbl tr.row-odd{background:#151538}
+.box-tbl tr{border-bottom:1px solid #1a1a3e22;transition:background 0.1s}
+.box-tbl tbody tr:hover{background:#1a1a4e}
+.box-tbl .totals td{font-weight:700;color:#fff}
+.hl{color:#ffd700 !important;font-weight:700 !important}
+.hl-dbl{color:#ff6b35 !important;font-weight:700 !important}
+.empty-state{text-align:center;padding:80px 20px;color:#222244;font-family:'Oswald',sans-serif;font-size:15px;letter-spacing:2px}
+.empty-state .icon{font-size:40px;margin-bottom:12px;opacity:0.4}
+@media(max-width:600px){.logo-main{font-size:32px;letter-spacing:3px}.controls{padding:10px;gap:6px}.search-wrap{max-width:100%;flex:1 1 100%}.score-pts{font-size:40px}.scoreboard{gap:20px}}
+</style>
+</head>
+<body>
+<div id="loadScreen">
+  <div class="logo-main">BOX SCORE<br>LAB</div>
+  <div class="subtitle">Fantasy Box Score Simulator</div>
+  <div id="progressWrap">
+    <div id="progressLabel">Downloading game logs...</div>
+    <div id="progressBar"><div id="progressFill"></div></div>
+    <div id="progressText">Connecting...</div>
+  </div>
+</div>
+<div id="app">
+  <div class="header">
+    <div class="logo-sm">BOX SCORE LAB</div>
+    <div class="player-count" id="playerCount"></div>
+  </div>
+  <div class="controls">
+    <div class="team-tabs">
+      <button class="team-tab" id="tabA" onclick="setActiveTeam(0)">TEAM A (0)</button>
+      <button class="team-tab" id="tabB" onclick="setActiveTeam(1)">TEAM B (0)</button>
+    </div>
+    <div class="search-wrap">
+      <input class="search-input" id="searchInput" type="text" placeholder="Search player..." autocomplete="off">
+      <div class="dropdown" id="dropdown"></div>
+    </div>
+    <select class="filter-select" id="gameTypeFilter">
+      <option value="-1">All Games</option>
+      <option value="0">Regular Season</option>
+      <option value="1">Playoffs</option>
+      <option value="2">Finals</option>
+      <option value="4">Play-In</option>
+      <option value="3">Preseason</option>
+      <option value="5">Summer League</option>
+    </select>
+    <button class="btn btn-roll" onclick="rerollAll()">🎲 Re-roll All</button>
+    <button class="btn btn-clear" onclick="clearAll()">Clear</button>
+  </div>
+  <div class="team-names">
+    <span class="team-name-label" id="nameA" style="color:#e63946" onclick="editTeamName(0)">✏️ TEAM A</span>
+    <span class="team-name-label" id="nameB" style="color:#1d3557" onclick="editTeamName(1)">✏️ TEAM B</span>
+  </div>
+  <div id="scoreboard" class="scoreboard" style="display:none">
+    <div class="score-team">
+      <div class="score-label" id="scoreALabel" style="color:#e63946">TEAM A</div>
+      <div class="score-pts" id="scoreAPts">0</div>
+    </div>
+    <div class="score-vs">VS</div>
+    <div class="score-team">
+      <div class="score-label" id="scoreBLabel" style="color:#1d3557">TEAM B</div>
+      <div class="score-pts" id="scoreBPts">0</div>
+    </div>
+  </div>
+  <div id="teamASection"></div>
+  <div id="teamBSection"></div>
+  <div class="empty-state" id="emptyMsg">
+    <div class="icon">🏀</div>
+    Search and add players to build your fantasy box score
+  </div>
+</div>
+<script>
+// Game array indices: [TEAM,OPP,POS,MIN,PTS,FGM,FGA,3PM,3PA,FTM,FTA,ORB,DRB,REB,AST,STL,BLK,TOV,PF,TYPE,YEAR]
+const G={TM:0,OP:1,PS:2,MN:3,PT:4,FM:5,FA:6,PM:7,PA:8,FT:9,TA:10,OR:11,DR:12,RB:13,AS:14,ST:15,BK:16,TO:17,PF:18,TY:19,YR:20};
+const STAT_KEYS=["MIN","PTS","FGM","FGA","FG%","3PM","3PA","FTM","FTA","FT%","ORB","DRB","REB","AST","STL","BLK","TOV","PF"];
+const NUM_STATS=["PTS","FGM","FGA","3PM","3PA","FTM","FTA","ORB","DRB","REB","AST","STL","BLK","TOV","PF"];
+const TYPE_LABELS=["RS","Playoffs","Finals","Preseason","Play-In","Summer Lg"];
+const COLORS=["#e63946","#1d3557"];
+
+let TEAMS=[],POS=[],playerIndex={},playerNames=[],activeTeam=0,teams=[[],[]],teamNames=["TEAM A","TEAM B"];
+
+// Stat accessor for a game array
+function gv(game, stat){
+  switch(stat){
+    case"MIN":return game[G.MN];case"PTS":return game[G.PT];
+    case"FGM":return game[G.FM];case"FGA":return game[G.FA];
+    case"3PM":return game[G.PM];case"3PA":return game[G.PA];
+    case"FTM":return game[G.FT];case"FTA":return game[G.TA];
+    case"ORB":return game[G.OR];case"DRB":return game[G.DR];
+    case"REB":return game[G.RB];case"AST":return game[G.AS];
+    case"STL":return game[G.ST];case"BLK":return game[G.BK];
+    case"TOV":return game[G.TO];case"PF":return game[G.PF];
+    case"FG%":return game[G.FA]>0?(game[G.FM]/game[G.FA]):0;
+    case"FT%":return game[G.TA]>0?(game[G.FT]/game[G.TA]):0;
+    default:return 0;
+  }
+}
+
+(async function(){
+  const fill=document.getElementById("progressFill"),text=document.getElementById("progressText"),label=document.getElementById("progressLabel");
+  try{
+    const resp=await fetch("data.json.gz");
+    if(!resp.ok)throw new Error("HTTP "+resp.status+" — make sure data.json.gz is in the same folder");
+    const reader=resp.body.getReader();
+    const total=parseInt(resp.headers.get("content-length"))||9400000;
+    let received=0;const chunks=[];
+    while(true){
+      const{done,value}=await reader.read();
+      if(done)break;
+      chunks.push(value);received+=value.length;
+      fill.style.width=Math.min(80,Math.round(received/total*80))+"%";
+      text.textContent=(received/1048576).toFixed(1)+" / ~"+(total/1048576).toFixed(0)+" MB";
+    }
+    label.textContent="Decompressing...";fill.style.width="85%";
+    const compressed=new Uint8Array(received);
+    let offset=0;
+    for(const c of chunks){compressed.set(c,offset);offset+=c.length}
+    
+    const decompressed=pako.inflate(compressed,{to:'string'});
+    label.textContent="Parsing...";fill.style.width="93%";
+    
+    const raw=JSON.parse(decompressed);
+    TEAMS=raw.t; POS=raw.p; playerIndex=raw.d;
+    playerNames=Object.keys(playerIndex).sort();
+    
+    fill.style.width="100%";text.textContent="Done!";
+    setTimeout(()=>{
+      document.getElementById("loadScreen").style.display="none";
+      document.getElementById("app").style.display="block";
+      const gc=Object.values(playerIndex).reduce((s,g)=>s+g.length,0);
+      document.getElementById("playerCount").textContent=playerNames.length+" PLAYERS · "+gc.toLocaleString()+" GAMES · 1998-2025";
+      updateTabs();document.getElementById("searchInput").focus();
+    },400);
+  }catch(err){
+    label.textContent="Error loading data";text.textContent=err.message;
+    fill.style.background="#e63946";fill.style.width="100%";
+    console.error(err);
+  }
+})();
+
+const searchInput=document.getElementById("searchInput"),dropdown=document.getElementById("dropdown");
+searchInput.addEventListener("input",function(){
+  const q=this.value.toLowerCase().trim();
+  if(q.length<2){dropdown.classList.remove("active");return}
+  const m=playerNames.filter(n=>n.toLowerCase().includes(q)).slice(0,15);
+  if(!m.length){dropdown.classList.remove("active");return}
+  dropdown.innerHTML=m.map(name=>{
+    const games=playerIndex[name],yrs=games.map(x=>x[G.YR]).filter(y=>y>0);
+    const mn=Math.min(...yrs),mx=Math.max(...yrs),sp=mn===mx?mn:mn+"-"+mx;
+    return'<div class="dropdown-item" onclick="addPlayer(\''+name.replace(/'/g,"\\'")+'\')">'+'<span>'+name+'</span><span class="meta">'+games.length+' gm · '+sp+'</span></div>';
+  }).join("");
+  dropdown.classList.add("active");
+});
+searchInput.addEventListener("focus",function(){if(this.value.length>=2)this.dispatchEvent(new Event("input"))});
+searchInput.addEventListener("keydown",function(e){if(e.key==="Enter"){const it=dropdown.querySelectorAll(".dropdown-item");if(it.length)it[0].click()}});
+document.addEventListener("mousedown",function(e){if(!dropdown.contains(e.target)&&e.target!==searchInput)dropdown.classList.remove("active")});
+
+function setActiveTeam(i){activeTeam=i;updateTabs()}
+function updateTabs(){
+  const a=document.getElementById("tabA"),b=document.getElementById("tabB");
+  a.textContent=teamNames[0]+" ("+teams[0].length+")";
+  b.textContent=teamNames[1]+" ("+teams[1].length+")";
+  a.style.background=activeTeam===0?COLORS[0]:"#1a1a3e";a.style.color=activeTeam===0?"#fff":"#555";
+  b.style.background=activeTeam===1?COLORS[1]:"#1a1a3e";b.style.color=activeTeam===1?"#fff":"#555";
+}
+function getRandomGame(name){
+  if(!playerIndex[name])return null;
+  let games=playerIndex[name];
+  const f=parseInt(document.getElementById("gameTypeFilter").value);
+  if(f>=0){const fl=games.filter(x=>x[G.TY]===f);if(fl.length)games=fl}
+  return games[Math.floor(Math.random()*games.length)];
+}
+function addPlayer(name){
+  const g=getRandomGame(name);if(!g)return;
+  teams[activeTeam].push({name,game:g});
+  searchInput.value="";dropdown.classList.remove("active");render();searchInput.focus();
+}
+function removePlayer(t,p){teams[t].splice(p,1);render()}
+function rerollPlayer(t,p){const pl=teams[t][p],g=getRandomGame(pl.name);if(g)teams[t][p]={name:pl.name,game:g};render()}
+function rerollAll(){teams.forEach(team=>{team.forEach((p,i)=>{const g=getRandomGame(p.name);if(g)team[i]={name:p.name,game:g}})});render()}
+function clearAll(){teams=[[],[]];render()}
+function editTeamName(idx){
+  const el=document.getElementById(idx===0?"nameA":"nameB");
+  const inp=document.createElement("input");inp.className="team-name-input";
+  inp.value=teamNames[idx];inp.style.color=COLORS[idx];inp.style.border="1px solid "+COLORS[idx];
+  el.replaceWith(inp);inp.focus();inp.select();
+  function done(){teamNames[idx]=inp.value.trim()||(idx===0?"TEAM A":"TEAM B");render()}
+  inp.addEventListener("blur",done);inp.addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();done()}});
+}
+
+function fmtMin(v){
+  if(typeof v==="string"&&v.includes(":"))return v;
+  const n=parseFloat(v)||0,m=Math.floor(n),s=Math.round((n-m)*60);
+  return m+":"+(s<10?"0":"")+s;
+}
+function fmtPct(v){const n=parseFloat(v);if(isNaN(n))return".000";return n.toFixed(3).replace(/^0/,"")}
+
+function renderTeam(ti){
+  const team=teams[ti],el=document.getElementById(ti===0?"teamASection":"teamBSection");
+  if(!team.length){el.innerHTML="";return}
+  const tot={};
+  NUM_STATS.forEach(s=>{tot[s]=team.reduce((sum,p)=>sum+gv(p.game,s),0)});
+  tot.MIN=team.reduce((sum,p)=>{const v=p.game[G.MN];if(typeof v==="string"&&v.includes(":")){const[m,s]=v.split(":");return sum+parseInt(m)+(parseInt(s||0)/60)}return sum+(parseFloat(v)||0)},0);
+
+  let rows="";
+  team.forEach((p,i)=>{
+    const g=p.game;
+    const tm=TEAMS[g[G.TM]]||"?",op=TEAMS[g[G.OP]]||"?",pos=POS[g[G.PS]]||"";
+    const yr=g[G.YR]||"?";
+    const typ=g[G.TY]>0?TYPE_LABELS[g[G.TY]]||"":"";
+    const pts=g[G.PT]||0;
+    const cats=[pts,g[G.RB]||0,g[G.AS]||0,g[G.ST]||0,g[G.BK]||0].filter(v=>v>=10);
+    const isDbl=cats.length>=2;
+    let cells="";
+    STAT_KEYS.forEach(s=>{
+      let val;
+      if(s==="MIN")val=fmtMin(g[G.MN]);
+      else if(s==="FG%"||s==="FT%")val=fmtPct(gv(g,s));
+      else val=Math.round(gv(g,s));
+      let cls="r";
+      if(s==="PTS"&&pts>=40)cls+=" hl-dbl";
+      else if(s==="PTS"&&pts>=30)cls+=" hl";
+      else if(isDbl&&["PTS","REB","AST","STL","BLK"].includes(s)&&gv(g,s)>=10)cls+=" hl";
+      cells+='<td class="'+cls+'">'+val+'</td>';
+    });
+    rows+='<tr class="row-'+(i%2===0?"even":"odd")+'">'+'<td class="pname">'+p.name+'<span class="pos-tag">'+pos+'</span></td>'+'<td class="ginfo">'+tm+' vs '+op+' <span style="color:#444">('+yr+(typ?" · "+typ:"")+')</span></td>'+cells+'<td class="act" onclick="rerollPlayer('+ti+','+i+')" title="Re-roll"><span class="dice">🎲</span></td>'+'<td class="act" onclick="removePlayer('+ti+','+i+')" title="Remove"><span class="rm">×</span></td></tr>';
+  });
+  let tc="";
+  STAT_KEYS.forEach(s=>{
+    let v;
+    if(s==="MIN")v=fmtMin(tot.MIN);
+    else if(s==="FG%")v=tot.FGA>0?(tot.FGM/tot.FGA).toFixed(3).replace(/^0/,""):".000";
+    else if(s==="FT%")v=tot.FTA>0?(tot.FTM/tot.FTA).toFixed(3).replace(/^0/,""):".000";
+    else v=Math.round(tot[s]||0);
+    tc+='<td class="r">'+v+'</td>';
+  });
+  const hc=STAT_KEYS.map(s=>'<th class="r">'+s+'</th>').join("");
+  el.innerHTML='<div class="team-section"><div class="team-hdr" style="background:'+COLORS[ti]+'"><span class="team-hdr-name">'+teamNames[ti]+'</span><span class="team-hdr-pts">'+Math.round(tot.PTS)+'</span></div><div class="tbl-wrap"><table class="box-tbl"><thead><tr><th style="min-width:110px">PLAYER</th><th style="min-width:80px">GAME</th>'+hc+'<th></th><th></th></tr></thead><tbody>'+rows+'<tr class="totals" style="background:'+COLORS[ti]+'22;border-top:2px solid '+COLORS[ti]+'"><td style="font-weight:700;color:#fff">TOTALS</td><td></td>'+tc+'<td></td><td></td></tr></tbody></table></div></div>';
+}
+function render(){
+  updateTabs();renderTeam(0);renderTeam(1);
+  const has=teams[0].length>0||teams[1].length>0;
+  document.getElementById("scoreboard").style.display=has?"flex":"none";
+  document.getElementById("emptyMsg").style.display=has?"none":"block";
+  const pA=Math.round(teams[0].reduce((s,p)=>s+(p.game[G.PT]||0),0));
+  const pB=Math.round(teams[1].reduce((s,p)=>s+(p.game[G.PT]||0),0));
+  document.getElementById("scoreALabel").textContent=teamNames[0];
+  document.getElementById("scoreALabel").style.color=COLORS[0];
+  document.getElementById("scoreBLabel").textContent=teamNames[1];
+  document.getElementById("scoreBLabel").style.color=COLORS[1];
+  document.getElementById("scoreAPts").textContent=pA;
+  document.getElementById("scoreBPts").textContent=pB;
+  document.getElementById("scoreAPts").className="score-pts"+(pA>pB&&has?" score-winner":"");
+  document.getElementById("scoreBPts").className="score-pts"+(pB>pA&&has?" score-winner":"");
+  document.querySelector(".team-names").innerHTML='<span class="team-name-label" id="nameA" style="color:'+COLORS[0]+'" onclick="editTeamName(0)">✏️ '+teamNames[0]+'</span><span class="team-name-label" id="nameB" style="color:'+COLORS[1]+'" onclick="editTeamName(1)">✏️ '+teamNames[1]+'</span>';
+}
+</script>
+</body>
+</html>
