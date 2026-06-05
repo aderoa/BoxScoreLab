@@ -167,6 +167,25 @@ body{background:#0a0a1a;color:#c8c8e0;font-family:'JetBrains Mono',monospace;min
 .modal-stat-line{display:block;font-family:'JetBrains Mono',monospace;font-size:10px;color:#8888aa;line-height:1.4}
 .modal-stat-line b{color:#ffd700;font-weight:700}
 .modal-stat-new{color:#ffd700;font-style:italic}
+.modal-roster-player.disabled{opacity:0.45;cursor:not-allowed;background:#0a0a14}
+.modal-roster-player.disabled:hover{background:#0a0a14;border-color:#1a1a3e}
+.modal-row-lock{display:block;font-family:'Oswald',sans-serif;font-size:9px;letter-spacing:1px;color:#ff8866;margin-top:3px;text-transform:uppercase}
+
+/* Cup detail modal */
+.cup-detail-modal{max-width:560px}
+.cup-progress.clickable{cursor:pointer;transition:transform 0.15s,border-color 0.15s}
+.cup-progress.clickable:hover{transform:translateY(-2px);border-color:#ff6b35}
+.cup-detail-summary{font-family:'JetBrains Mono',monospace;font-size:11px;color:#aaaadd;text-align:center;margin-bottom:14px;letter-spacing:1px}
+.cup-detail-list{display:flex;flex-direction:column;gap:5px;margin-bottom:14px;max-height:50vh;overflow-y:auto}
+.cup-detail-row{padding:8px 12px;background:#0a0a1a;border:1px solid #1a1a3e;border-radius:4px;display:flex;justify-content:space-between;align-items:center;font-size:11px}
+.cup-detail-row.won{border-color:#34c75944;background:linear-gradient(135deg,#0e2a14 0%,#0a0a1a 100%)}
+.cup-detail-row.pending{border-color:#1a1a3e}
+.cup-detail-row.auto{border-color:#5a5a7a55;background:#14141e}
+.cup-detail-target{font-family:'Oswald',sans-serif;font-size:13px;font-weight:600;color:#fff;letter-spacing:1px;text-transform:uppercase}
+.cup-detail-status{font-family:'JetBrains Mono',monospace;font-size:10px;color:#666688;letter-spacing:1px}
+.cup-detail-row.won .cup-detail-status{color:#34c759;font-weight:700}
+.cup-detail-row.pending .cup-detail-status{color:#888;font-style:italic}
+.cup-detail-row.auto .cup-detail-status{color:#5a5a7a;font-style:italic}
 .modal-close{background:#333;width:100%;padding:8px}
 
 .win-banner{font-family:'Oswald',sans-serif;font-size:14px;letter-spacing:2px;color:#34c759;text-align:center;padding:8px;margin-bottom:12px;background:#0e2a14;border-radius:6px;border:1px solid #34c75944;animation:fadeIn 0.4s}
@@ -373,6 +392,15 @@ body{background:#0a0a1a;color:#c8c8e0;font-family:'JetBrains Mono',monospace;min
     <button class="btn btn-play reveal-close" onclick="closeRevealModal()" id="revealCloseBtn">CONTINUE</button>
   </div>
 </div>
+<!-- =========== Cup detail modal (shows all matchups for a cup) =========== -->
+<div class="modal-backdrop" id="cupModal">
+  <div class="modal cup-detail-modal">
+    <div class="modal-title" id="cupModalTitle">Cup</div>
+    <div class="cup-detail-summary" id="cupModalSummary"></div>
+    <div class="cup-detail-list" id="cupModalList"></div>
+    <button class="btn modal-close" onclick="closeCupModal()">Close</button>
+  </div>
+</div>
 <script>
 // [TEAM,OPP,POS,MIN,PTS,FGM,FGA,3PM,3PA,FTM,FTA,ORB,DRB,REB,AST,STL,BLK,TOV,PF,TYPE,SEASON_YR,GAME_YR]
 const G={TM:0,OP:1,PS:2,MN:3,PT:4,FM:5,FA:6,PM:7,PA:8,FT:9,TA:10,OR:11,DR:12,RB:13,AS:14,ST:15,BK:16,TO:17,PF:18,TY:19,SY:20,GY:21};
@@ -393,9 +421,10 @@ let currentMode="career";   // default landing tab — was "sandbox"
 let careerScreen="roster";  // "roster" | "boxscore" | "freeagents"
 let careerState=null;       // see initCareerState() for shape
 let pendingPickSlotIdx=null; // mystery-slot index awaiting roster choice
+let pendingDiscardSlotIdx=null; // mystery-slot index awaiting discard confirmation
 let pendingResult=null;      // {pA, pB, justRevealedSlotIdx} held between game → continue
 const CLUE_LABELS=["BIRTH YEAR","STATE/COUNTRY","POSITION","COLLEGE","DRAFT YEAR","PICK","TEAM / SEASON"];
-const CAREER_STORAGE_KEY="bsl_career_v3";  // v3 — added cups system
+const CAREER_STORAGE_KEY="bsl_career_v4";  // v4 — position-balance rules + cup matchup history with scores
 
 function rawG(game,s){
   switch(s){
@@ -684,6 +713,84 @@ function buildRoster(names){
   names.forEach(n=>{if(!used.has(n)&&roster.length<12){roster.push(n);used.add(n)}});
   return roster.slice(0,12);
 }
+
+/* ===== Position-balance helpers (used by career mode) =====
+   The career game has a hard rule: every team needs at least 4 G, 4 F,
+   and 2 C. Players with dual eligibility (G-F, F-C, etc.) count for both
+   of their positions toward those minimums. */
+const POS_TARGETS={g:4,f:4,c:2};
+function playerPositions(name){
+  // Prefer bio data's clean G/F/C/G-F/etc. notation. Fall back to the
+  // modal game-log position (PG/SG/SF/PF/C) for any player not in the
+  // bio set — opponents come from the broader pool too.
+  const bi=bioByName[name];
+  if(bi!=null){
+    const pos=(bioData[bi][3]||'').toUpperCase();
+    return {g:pos.indexOf('G')>=0,f:pos.indexOf('F')>=0,c:pos.indexOf('C')>=0};
+  }
+  if(!playerIndex[name]||!playerIndex[name].length){return {g:false,f:false,c:false}}
+  const idx=getMostCommonPos(name); // 0=PG, 1=SG, 2=SF, 3=PF, 4=C
+  return {g:idx===0||idx===1,f:idx===2||idx===3,c:idx===4};
+}
+function rosterPositionCounts(roster){
+  let g=0,f=0,c=0;
+  for(const name of roster){
+    const p=playerPositions(name);
+    if(p.g)g++;if(p.f)f++;if(p.c)c++;
+  }
+  return {g,f,c};
+}
+function isValidRoster(roster){
+  const ct=rosterPositionCounts(roster);
+  return ct.g>=POS_TARGETS.g&&ct.f>=POS_TARGETS.f&&ct.c>=POS_TARGETS.c;
+}
+function swapWouldBeValid(roster,removeIdx,addName){
+  // Would removing roster[removeIdx] and adding addName keep the roster valid?
+  const ct=rosterPositionCounts(roster);
+  const rm=playerPositions(roster[removeIdx]);
+  const add=playerPositions(addName);
+  if(rm.g)ct.g--;if(rm.f)ct.f--;if(rm.c)ct.c--;
+  if(add.g)ct.g++;if(add.f)ct.f++;if(add.c)ct.c++;
+  return ct.g>=POS_TARGETS.g&&ct.f>=POS_TARGETS.f&&ct.c>=POS_TARGETS.c;
+}
+
+// Build a 12-player roster that satisfies 4G/4F/2C minimums. Fills the
+// scarcest position need (centers first), then guards, then forwards,
+// then any-position fill for the remaining slots. Returns whatever it
+// could build; the caller should validate with isValidRoster() and bail
+// if the pool was too thin to meet minimums.
+function buildBalancedRoster(candidates){
+  const roster=[];const used=new Set();
+  const counts={g:0,f:0,c:0};
+  function add(name){
+    if(used.has(name)||roster.length>=12)return false;
+    roster.push(name);used.add(name);
+    const p=playerPositions(name);
+    if(p.g)counts.g++;if(p.f)counts.f++;if(p.c)counts.c++;
+    return true;
+  }
+  // Fill centers first (only 2 needed, rarest in any random pool)
+  for(const n of candidates){if(counts.c>=POS_TARGETS.c)break;if(playerPositions(n).c)add(n)}
+  // Then guards
+  for(const n of candidates){if(counts.g>=POS_TARGETS.g)break;if(playerPositions(n).g)add(n)}
+  // Then forwards
+  for(const n of candidates){if(counts.f>=POS_TARGETS.f)break;if(playerPositions(n).f)add(n)}
+  // Fill remaining slots from anyone left in the pool
+  for(const n of candidates){if(roster.length>=12)break;add(n)}
+  return roster;
+}
+
+/* Only Regular Season, Playoffs, and Finals games count. Anything else in
+   the data (preseason, summer league, all-star, etc.) is filtered out
+   everywhere games are rolled or candidacy is evaluated. */
+const PLAYABLE_GAME_TYPES=new Set([0,1,2]);
+function isPlayableGame(g){return PLAYABLE_GAME_TYPES.has(g[G.TY])}
+function playerHasPlayableGames(name){
+  const games=playerIndex[name];
+  if(!games)return false;
+  for(let i=0;i<games.length;i++){if(isPlayableGame(games[i]))return true}
+  return false;
+}
 function randomizeTeams(){
   const all=pickRandom24();
   teams[0]=buildRoster(all.slice(0,12)).map(n=>({name:n,game:getRandomGame(n)})).filter(p=>p.game);
@@ -719,7 +826,10 @@ function updateTabs(){
 }
 function getRandomGame(name){
   if(!playerIndex[name])return null;
-  let games=playerIndex[name];
+  // Always exclude preseason / summer league / all-star — the dropdown
+  // only narrows further within Reg Season / Playoffs / Finals.
+  let games=playerIndex[name].filter(isPlayableGame);
+  if(!games.length)return null;
   const f=parseInt(document.getElementById("gameTypeFilter").value);
   if(f>=0){const fl=games.filter(x=>x[G.TY]===f);if(fl.length)games=fl}
   return games[Math.floor(Math.random()*games.length)];
@@ -872,22 +982,30 @@ function freshMysterySlot(usedNames){
 }
 function initCareerState(){
   if(!bioData.length){
-    careerState={roster:[],slots:[],wins:0,losses:0,games:0,cups:emptyCups(),nextGame:null};
+    careerState={roster:[],slots:[],wins:0,losses:0,games:0,cups:emptyCups(),nextGame:null,playerStats:{}};
     return;
   }
-  // Position-balanced random roster from bio-eligible players, mirroring
-  // the sandbox randomizeTeams flow.
-  const candidates=bioEligibleNames();
-  const seed=shuffle(candidates).slice(0,24);
-  const roster=buildRoster(seed);
+  // Position-balanced random roster (4G/4F/2C minimum). Re-roll seeds up
+  // to 5 times if the first seed can't satisfy the minimums (rare but
+  // possible with unlucky shuffles).
+  let roster=null;
+  for(let attempt=0;attempt<5;attempt++){
+    const candidates=bioEligibleNames().filter(playerHasPlayableGames);
+    const seed=shuffle(candidates).slice(0,40);
+    const r=buildBalancedRoster(seed);
+    if(isValidRoster(r)){roster=r;break}
+  }
+  if(!roster||roster.length<12){
+    // Fallback — use whatever the last attempt produced, even if not perfectly balanced.
+    roster=buildBalancedRoster(shuffle(bioEligibleNames().filter(playerHasPlayableGames)).slice(0,60));
+  }
   const used=new Set(roster);
   const slots=[];
   for(let i=0;i<5;i++){
     const s=freshMysterySlot(used);
     if(s){slots.push(s);used.add(s.name)}
   }
-  careerState={roster,slots,wins:0,losses:0,games:0,cups:emptyCups(),nextGame:null};
-  // Roll the first opponent so the initial roster screen can preview it
+  careerState={roster,slots,wins:0,losses:0,games:0,cups:emptyCups(),nextGame:null,playerStats:{}};
   careerState.nextGame=pickNextGameTarget();
   saveCareer();
 }
@@ -1014,20 +1132,22 @@ function cupCandidates(cup,target){
     const tmSet=franchiseTeamSet(target);
     return playerNames.filter(n=>{
       const games=playerIndex[n]||[];
-      return games.some(g=>tmSet.has(TEAMS[g[G.TM]]));
+      // Player must have at least one Reg-Season / Playoff / Finals game
+      // FOR this franchise.
+      return games.some(g=>isPlayableGame(g)&&tmSet.has(TEAMS[g[G.TM]]));
     });
   }
   if(cup==="states"){
-    return bioData.filter(r=>r[7]==="us"&&r[2]===target).map(r=>r[0]);
+    return bioData.filter(r=>r[7]==="us"&&r[2]===target).map(r=>r[0]).filter(playerHasPlayableGames);
   }
   if(cup==="continents"){
-    return bioData.filter(r=>r[7]===target).map(r=>r[0]);
+    return bioData.filter(r=>r[7]===target).map(r=>r[0]).filter(playerHasPlayableGames);
   }
   if(cup==="decades"){
     const start=parseInt(target),end=start+10;
     return playerNames.filter(n=>{
       const games=playerIndex[n]||[];
-      return games.some(g=>{const gy=g[G.GY];return gy>=start&&gy<end});
+      return games.some(g=>isPlayableGame(g)&&g[G.GY]>=start&&g[G.GY]<end);
     });
   }
   return [];
@@ -1045,17 +1165,16 @@ function cupCandidates(cup,target){
 //   - States/Continents constrain only WHO can be on the opp (via the
 //     candidate pool), not which game they roll.
 function rollGameForTeam(name,cup,target,isOpp){
+  // Base pool: always exclude preseason / summer league / all-star.
+  let games=(playerIndex[name]||[]).filter(isPlayableGame);
   if(cup==="decades"){
     const start=parseInt(target),end=start+10;
-    const games=(playerIndex[name]||[]).filter(g=>{const gy=g[G.GY];return gy>=start&&gy<end});
-    return games.length?games[Math.floor(Math.random()*games.length)]:null;
-  }
-  if(cup==="franchise"&&isOpp){
+    games=games.filter(g=>{const gy=g[G.GY];return gy>=start&&gy<end});
+  }else if(cup==="franchise"&&isOpp){
     const tmSet=franchiseTeamSet(target);
-    const games=(playerIndex[name]||[]).filter(g=>tmSet.has(TEAMS[g[G.TM]]));
-    return games.length?games[Math.floor(Math.random()*games.length)]:null;
+    games=games.filter(g=>tmSet.has(TEAMS[g[G.TM]]));
   }
-  return getRandomGame(name);
+  return games.length?games[Math.floor(Math.random()*games.length)]:null;
 }
 function resetCareer(){
   if(!confirm("Reset career? Your record, roster, and revealed clues will be lost."))return;
@@ -1100,7 +1219,10 @@ function setMode(mode){
 function setCareerScreen(s){
   careerScreen=s;
   updateCareerScreenVisibility();
-  if(s==="freeagents"||s==="roster")window.scrollTo({top:0,behavior:'smooth'});
+  // Always reset scroll position when changing screens — the user expects
+  // to see the top of the new view, not whatever they'd scrolled to on the
+  // previous one.
+  window.scrollTo({top:0,behavior:'smooth'});
 }
 function updateCareerScreenVisibility(){
   const inCareer=(currentMode==="career");
@@ -1134,51 +1256,79 @@ function playNextGame(){
   }
   const ng=careerState.nextGame;
 
-  // Defensive: validate the cup target has a fillable opponent pool BEFORE
-  // committing to play. If not (e.g. a franchise whose data abbreviations
-  // don't appear in TEAMS), auto-complete this target so the cup doesn't
-  // keep re-rolling it, and try the next one.
+  // Build opponent first so we can validate the matchup is fair.
   const exclude=new Set([...careerState.roster,...careerState.slots.map(s=>s.name)]);
   let candidates=cupCandidates(ng.cup,ng.target)
-    .filter(n=>!exclude.has(n)&&playerIndex[n]&&playerIndex[n].length>=3);
-  if(candidates.length<6){
+    .filter(n=>!exclude.has(n)&&playerHasPlayableGames(n)&&(playerIndex[n]||[]).length>=3);
+
+  // Auto-complete cup targets with pools too small to field a balanced team
+  // (e.g., a franchise whose abbreviations don't match the dataset). The
+  // 12-player minimum here ensures buildBalancedRoster has enough material
+  // to hit 4G/4F/2C; below that we skip the target entirely.
+  if(candidates.length<12){
     console.warn("Cup target "+ng.cup+"/"+ng.target+" has only "+candidates.length+" candidates — auto-completing.");
-    moveCupTargetToCompleted(ng.cup,ng.target);
+    moveCupTargetToCompleted(ng.cup,ng.target,null);
     careerState.nextGame=pickNextGameTarget();
     saveCareer();
     renderCareer();
     if(ng.cup==="franchise"||ng.cup==="states"){
-      // Likely a data-mapping issue; mention it once so Alberto can investigate.
-      alert("'"+cupTargetLabel(ng.cup,ng.target)+"' has too few players in the dataset and was auto-completed. Click PLAY NEXT GAME to continue.");
+      alert("'"+cupTargetLabel(ng.cup,ng.target)+"' has too few players in the dataset and was auto-completed.");
     }
     return;
   }
 
-  // YOUR team: cup-constrained game roll (decade only). User team is NOT
-  // franchise-filtered — your roster plays whatever career games they want
-  // even when facing a specific franchise.
-  const userTeam=careerState.roster
-    .map(n=>({name:n,game:rollGameForTeam(n,ng.cup,ng.target,false)}))
-    .filter(p=>p.game);
-
-  // OPPONENT: drawn from the cup's candidate pool, with their game roll
-  // constrained both by decade AND franchise (whichever applies).
-  const oppSeed=shuffle(candidates).slice(0,24);
-  const oppRoster=buildRoster(oppSeed);
+  const oppShuffled=shuffle(candidates);
+  const oppRoster=buildBalancedRoster(oppShuffled);
+  if(!isValidRoster(oppRoster)){
+    console.warn("Opp pool for "+ng.cup+"/"+ng.target+" can't satisfy 4G/4F/2C; auto-completing.");
+    moveCupTargetToCompleted(ng.cup,ng.target,null);
+    careerState.nextGame=pickNextGameTarget();
+    saveCareer();
+    renderCareer();
+    alert("'"+cupTargetLabel(ng.cup,ng.target)+"' couldn't field a position-balanced roster and was auto-completed.");
+    return;
+  }
   const oppTeam=oppRoster
     .map(n=>({name:n,game:rollGameForTeam(n,ng.cup,ng.target,true)}))
     .filter(p=>p.game);
 
-  if(oppTeam.length<3||userTeam.length<3){
-    // Truly degenerate matchup (e.g. Decade Cup where your roster has no
-    // games in that decade, or franchise where opp candidates rolled
-    // nothing). Auto-complete the target so it doesn't loop forever.
+  // YOUR team rolls games under the cup's rules (decade-constrained or
+  // free). The Decade Cup is special: if YOUR roster can't field 5+
+  // players who have games in that decade, we push the target back into
+  // pending and pick a different next-game instead of locking the user
+  // into a guaranteed loss. (They'll get a chance once they pick up a
+  // free agent from that era.)
+  const userTeam=careerState.roster
+    .map(n=>({name:n,game:rollGameForTeam(n,ng.cup,ng.target,false)}))
+    .filter(p=>p.game);
+
+  if(ng.cup==="decades"&&userTeam.length<5){
+    console.info("User can't field for "+ng.target+"s; deferring this matchup.");
+    // Cycle: pick a different next game, keep this one pending.
+    const alt=pickNextGameTargetExcluding(ng.cup,ng.target);
+    if(alt){
+      careerState.nextGame=alt;
+      saveCareer();
+      renderCareer();
+      alert("Your roster has no players from the "+(parseInt(ng.target))+"s — that matchup is on hold until you sign someone from that era. Click PLAY NEXT GAME for a different opponent.");
+    }else{
+      // No other targets available — auto-complete this one so the loop
+      // can resolve.
+      moveCupTargetToCompleted(ng.cup,ng.target,null);
+      careerState.nextGame=pickNextGameTarget();
+      saveCareer();
+      renderCareer();
+    }
+    return;
+  }
+
+  if(userTeam.length<3||oppTeam.length<3){
     console.warn("Couldn't field both teams for "+ng.cup+"/"+ng.target+" (user="+userTeam.length+" opp="+oppTeam.length+"); auto-completing.");
-    moveCupTargetToCompleted(ng.cup,ng.target);
+    moveCupTargetToCompleted(ng.cup,ng.target,null);
     careerState.nextGame=pickNextGameTarget();
     saveCareer();
     renderCareer();
-    alert("'"+cupTargetLabel(ng.cup,ng.target)+"' couldn't field a full matchup with the current dataset and was auto-completed. Click PLAY NEXT GAME to continue.");
+    alert("'"+cupTargetLabel(ng.cup,ng.target)+"' couldn't field a full matchup and was auto-completed.");
     return;
   }
 
@@ -1194,9 +1344,8 @@ function playNextGame(){
   pA=Math.round(pA);pB=Math.round(pB);
   careerState.games++;
 
-  // Capture each user player's PTS/REB/AST into rolling-5 history. Players
-  // who didn't play (no qualifying game) don't get an entry — their last-5
-  // stays "stale" relative to other players. Acceptable trade-off.
+  // Capture each user player's PTS/REB/AST into rolling-5 history for the
+  // L5 averages shown in the replace modal.
   if(!careerState.playerStats)careerState.playerStats={};
   teams[0].forEach((p,i)=>{
     const stats=careerState.playerStats[p.name]||[];
@@ -1214,7 +1363,7 @@ function playNextGame(){
   if(pA>pB){
     careerState.wins++;
     revealedSlotIdx=revealNextClue();
-    cupCompleted=moveCupTargetToCompleted(ng.cup,ng.target);
+    cupCompleted=moveCupTargetToCompleted(ng.cup,ng.target,{pA,pB,gameNum:careerState.games});
   }else if(pB>pA){
     careerState.losses++;
   }
@@ -1225,14 +1374,34 @@ function playNextGame(){
   setCareerScreen("boxscore");
 }
 
-// Mark a target as completed in its cup. Returns the cup key if the cup
-// itself just became fully completed (zero pending) — used to surface the
-// "Cup won!" message in the boxscore result banner.
-function moveCupTargetToCompleted(cup,target){
+// Like pickNextGameTarget but won't return the (cup, target) we just
+// tried (used when the user can't field for a decade and we need to
+// substitute a different matchup).
+function pickNextGameTargetExcluding(excludeCup,excludeTarget){
+  if(!careerState||!careerState.cups)return null;
+  const pool=[];
+  for(const cup of ["franchise","states","continents","decades"]){
+    for(const tgt of careerState.cups[cup].pending){
+      if(cup===excludeCup&&tgt===excludeTarget)continue;
+      pool.push({cup,target:tgt});
+    }
+  }
+  if(!pool.length)return null;
+  const pick=pool[Math.floor(Math.random()*pool.length)];
+  return {cup:pick.cup,target:pick.target,label:cupTargetLabel(pick.cup,pick.target)};
+}
+
+// Mark a target as completed in its cup. resultRec optionally carries
+// {pA, pB, gameNum} so the cup detail view can show scores; null means
+// auto-completion (no playable matchup available).
+function moveCupTargetToCompleted(cup,target,resultRec){
   const c=careerState.cups[cup];
   if(!c)return null;
   const i=c.pending.indexOf(target);
-  if(i>=0){c.pending.splice(i,1);c.completed.push(target)}
+  if(i>=0){
+    c.pending.splice(i,1);
+    c.completed.push(resultRec?{target,...resultRec}:{target,autoCompleted:true});
+  }
   return c.pending.length===0?cup:null;
 }
 
@@ -1271,28 +1440,49 @@ function lastFiveAverages(name){
 }
 
 function openReplaceModal(slotIdx){
+  // NEW FLOW: PICK now reveals the mystery FIRST so the user sees who
+  // they're signing before deciding who to release. The reveal modal's
+  // CONTINUE button is what actually opens the roster-picker step.
   pendingPickSlotIdx=slotIdx;
+  const slot=careerState.slots[slotIdx];
+  if(!slot)return;
+  openRevealModal({mode:"pick",name:slot.name,preDecision:true});
+}
+function actuallyOpenReplaceChooser(){
+  // Called when the user dismisses the pre-decision reveal modal. The
+  // mystery's identity is now known to them; they pick who to release.
+  if(pendingPickSlotIdx==null)return;
+  const slot=careerState.slots[pendingPickSlotIdx];
+  if(!slot)return;
+  const mysteryName=slot.name;
   const modal=document.getElementById("replaceModal");
   const grid=document.getElementById("modalRoster");
+  const title=modal.querySelector(".modal-title");
+  if(title)title.innerHTML="Release a player to sign <span style=\"color:#ffd700\">"+escapeHtmlS(mysteryName)+"</span>";
   grid.innerHTML=careerState.roster.map((name,i)=>{
     const bi=bioByName[name];
     const pos=bi!=null?bioData[bi][3]:"";
     const avg=lastFiveAverages(name);
-    // Show last-5 averages prominently — that's the "is this guy
-    // contributing?" gut-check that matters when deciding who to drop.
-    // New roster picks (haven't played yet) get a gold "NEW" tag instead.
+    const valid=swapWouldBeValid(careerState.roster,i,mysteryName);
     const statHTML=avg
       ? '<span class="modal-stat-line">L'+avg.gp+' avg · <b>'+avg.pts+'</b> pts · <b>'+avg.reb+'</b> reb · <b>'+avg.ast+'</b> ast</span>'
       : '<span class="modal-stat-line modal-stat-new">NEW · No games yet</span>';
-    return '<div class="modal-roster-player" onclick="confirmReplace('+i+')">'+
+    // Disabled rows show why they're blocked (releasing them would drop
+    // the roster below the 4G/4F/2C minimum after adding the mystery).
+    const cls='modal-roster-player'+(valid?'':' disabled');
+    const handler=valid?'onclick="confirmReplace('+i+')"':'';
+    const lockHTML=valid?'':'<span class="modal-row-lock">⚠ would break 4G·4F·2C rule</span>';
+    return '<div class="'+cls+'" '+handler+'>'+
       '<div class="modal-roster-left">'+
         '<div class="modal-roster-name">'+escapeHtmlS(name)+'</div>'+
         statHTML+
+        lockHTML+
       '</div>'+
       '<span class="roster-pos">'+escapeHtmlS(pos)+'</span>'+
     '</div>';
   }).join("");
   modal.classList.add("active");
+  window.scrollTo({top:0,behavior:'smooth'});
 }
 function closeReplaceModal(){
   pendingPickSlotIdx=null;
@@ -1302,9 +1492,19 @@ function confirmReplace(rosterIdx){
   if(pendingPickSlotIdx==null)return;
   const slot=careerState.slots[pendingPickSlotIdx];
   const slotIdx=pendingPickSlotIdx;
-  const revealedName=slot.name;       // remember for the reveal modal
+  // Safety check — if somehow the swap would be invalid, refuse (the UI
+  // should have disabled this row but defense in depth).
+  if(!swapWouldBeValid(careerState.roster,rosterIdx,slot.name)){
+    alert("Can't release this player — your roster would fall below the 4 G / 4 F / 2 C minimum.");
+    return;
+  }
+  const revealedName=slot.name;
   const released=careerState.roster[rosterIdx];
   careerState.roster[rosterIdx]=slot.name;
+  // The new arrival starts with no game history yet; their last-5 stats
+  // accumulate from their next game on.
+  if(!careerState.playerStats)careerState.playerStats={};
+  delete careerState.playerStats[released]; // released player's L5 doesn't follow them out
   const used=new Set([...careerState.roster,...careerState.slots.map(s=>s.name)]);
   used.delete(slot.name);
   const newSlot=freshMysterySlot(used);
@@ -1314,21 +1514,28 @@ function confirmReplace(rosterIdx){
   }
   saveCareer();
   closeReplaceModal();
-  // Trigger the dramatic reveal BEFORE redrawing the freeagents screen.
-  // After the user dismisses, renderCareer() runs so the swapped roster
-  // and fresh mystery slot land all at once.
-  openRevealModal({mode:"pick",name:revealedName,replaced:released});
+  renderCareer();
 }
 function discardSlot(slotIdx){
+  // DISCARD also reveals the player — but no roster swap follows. After
+  // the reveal modal closes, a fresh mystery takes the slot.
   const slot=careerState.slots[slotIdx];
   if(!slot)return;
-  const revealedName=slot.name;
+  pendingDiscardSlotIdx=slotIdx;
+  openRevealModal({mode:"discard",name:slot.name,preDecision:true});
+}
+function performDiscard(){
+  if(pendingDiscardSlotIdx==null)return;
+  const slotIdx=pendingDiscardSlotIdx;
+  const slot=careerState.slots[slotIdx];
+  pendingDiscardSlotIdx=null;
+  if(!slot)return;
   const used=new Set([...careerState.roster,...careerState.slots.map(s=>s.name)]);
   used.delete(slot.name);
   const fresh=freshMysterySlot(used);
   if(fresh){careerState.slots[slotIdx]=fresh}
   saveCareer();
-  openRevealModal({mode:"discard",name:revealedName});
+  renderCareer();
 }
 
 // --- Dramatic reveal modal -------------------------------------------
@@ -1342,14 +1549,17 @@ function openRevealModal(opts){
   const sub=document.getElementById("revealSubheader");
   const scramble=document.getElementById("revealScramble");
   const card=document.getElementById("revealCard");
+  const closeBtn=document.getElementById("revealCloseBtn");
   if(opts.mode==="pick"){
-    header.textContent="SIGNED";
+    header.textContent="REVEALED";
     header.classList.remove("missed");
-    sub.innerHTML="Welcome to the squad &middot; "+escapeHtmlS(opts.replaced||"")+" released";
+    sub.textContent="Choose a player to release in the next step";
+    if(closeBtn)closeBtn.textContent="CHOOSE WHO TO RELEASE ▶";
   }else{
     header.textContent="MISSED";
     header.classList.add("missed");
     sub.textContent="You discarded this player";
+    if(closeBtn)closeBtn.textContent="CONTINUE";
   }
   // Reveal animation: scramble for ~700ms then settle on the real name.
   card.classList.remove("visible");
@@ -1367,7 +1577,6 @@ function openRevealModal(opts){
     }else{
       scramble.textContent=realName;
       scramble.classList.remove("scrambling");
-      // After settle, fade in the bio + stats card
       setTimeout(()=>{
         card.innerHTML=buildRevealCardHTML(realName);
         card.classList.add("visible");
@@ -1378,7 +1587,15 @@ function openRevealModal(opts){
 }
 function closeRevealModal(){
   document.getElementById("revealModal").classList.remove("active");
-  renderCareer();
+  // If the modal was a pre-decision reveal (PICK or DISCARD), branch to
+  // the next step. Otherwise just re-render normally.
+  if(pendingPickSlotIdx!=null){
+    actuallyOpenReplaceChooser();
+  }else if(pendingDiscardSlotIdx!=null){
+    performDiscard();
+  }else{
+    renderCareer();
+  }
 }
 function scrambleString(target){
   // Random characters, same length pattern as target (spaces preserved).
@@ -1460,6 +1677,59 @@ function buildRosterCardHTML(name,compact){
   '</div>';
 }
 
+// --- Cup detail modal -------------------------------------------------
+// Opens when the user clicks a cup-progress card. Lists every matchup in
+// that cup with status: pending, won (with final score and game number),
+// or auto-completed (data-mapping issues — surfaced so the user knows
+// some matchups weren't actually played).
+function openCupModal(cupKey){
+  const c=careerState&&careerState.cups&&careerState.cups[cupKey];
+  if(!c)return;
+  const modal=document.getElementById("cupModal");
+  const title=document.getElementById("cupModalTitle");
+  const summary=document.getElementById("cupModalSummary");
+  const list=document.getElementById("cupModalList");
+  title.textContent=cupTitle(cupKey);
+  const done=c.total-c.pending.length;
+  const wins=c.completed.filter(x=>typeof x==="object"&&!x.autoCompleted).length+c.completed.filter(x=>typeof x==="string").length;
+  const autos=c.completed.filter(x=>typeof x==="object"&&x.autoCompleted).length;
+  summary.innerHTML=
+    '<span>'+done+' / '+c.total+' completed</span>'+
+    (wins?' &middot; <span style="color:#34c759">'+wins+' wins</span>':'')+
+    (autos?' &middot; <span style="color:#888">'+autos+' auto-completed</span>':'');
+  // Pending first (alphabetical by label), then completed in order they were finished
+  const rows=[];
+  const pending=[...c.pending].sort((a,b)=>cupTargetLabel(cupKey,a).localeCompare(cupTargetLabel(cupKey,b)));
+  for(const t of pending){
+    rows.push('<div class="cup-detail-row pending">'+
+      '<span class="cup-detail-target">'+escapeHtmlS(cupTargetLabel(cupKey,t))+'</span>'+
+      '<span class="cup-detail-status">Pending</span>'+
+    '</div>');
+  }
+  for(const item of c.completed){
+    const tgt=typeof item==="string"?item:item.target;
+    const tgtLabel=cupTargetLabel(cupKey,tgt);
+    let status,cls;
+    if(typeof item==="string"){
+      status="Won";cls="won";
+    }else if(item.autoCompleted){
+      status="Auto-completed";cls="auto";
+    }else{
+      status="Won "+item.pA+"–"+item.pB+(item.gameNum?" · Game "+item.gameNum:"");
+      cls="won";
+    }
+    rows.push('<div class="cup-detail-row '+cls+'">'+
+      '<span class="cup-detail-target">'+escapeHtmlS(tgtLabel)+'</span>'+
+      '<span class="cup-detail-status">'+escapeHtmlS(status)+'</span>'+
+    '</div>');
+  }
+  list.innerHTML=rows.join("");
+  modal.classList.add("active");
+}
+function closeCupModal(){
+  document.getElementById("cupModal").classList.remove("active");
+}
+
 function renderCareer(justRevealedSlotIdx,pA,pB,gameCup,cupCompleted){
   if(!careerState)return;
   document.getElementById("emptyMsg").style.display="none";
@@ -1484,7 +1754,7 @@ function renderCareer(justRevealedSlotIdx,pA,pB,gameCup,cupCompleted){
     document.getElementById("resultBannerFA").innerHTML=bannerHTML;
   }
 
-  // Cup progress bars
+  // Cup progress bars — each card is clickable to open the cup detail modal.
   const cupWrap=document.getElementById("cupProgressWrap");
   if(cupWrap&&careerState.cups){
     cupWrap.innerHTML=["franchise","states","continents","decades"].map(k=>{
@@ -1492,7 +1762,7 @@ function renderCareer(justRevealedSlotIdx,pA,pB,gameCup,cupCompleted){
       const done=c.total-c.pending.length;
       const pct=c.total>0?Math.round(done/c.total*100):0;
       const isDone=c.pending.length===0;
-      return '<div class="cup-progress'+(isDone?' done':'')+'">'+
+      return '<div class="cup-progress clickable'+(isDone?' done':'')+'" onclick="openCupModal(\''+k+'\')">'+
         '<div class="cup-progress-head">'+
           '<span class="cup-progress-name">'+escapeHtmlS(cupTitle(k))+'</span>'+
           '<span class="cup-progress-pct">'+done+'/'+c.total+(isDone?' 🏆':'')+'</span>'+
