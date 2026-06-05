@@ -90,6 +90,14 @@ body{background:#0a0a1a;color:#c8c8e0;font-family:'JetBrains Mono',monospace;min
 #careerMode{display:none}
 .career-bar{display:flex;flex-wrap:wrap;gap:14px;align-items:center;justify-content:center;margin-bottom:16px;padding:12px 16px;background:linear-gradient(135deg,#1a1a3e 0%,#0e0e24 100%);border-radius:8px;border:1px solid #2a2a55}
 .career-record{display:flex;gap:18px;align-items:baseline}
+.team-name-input{background:transparent;border:none;border-bottom:1px dashed #3a3a55;color:#ffd700;font-family:'Oswald',sans-serif;font-size:16px;letter-spacing:2px;text-transform:uppercase;font-weight:700;padding:4px 6px;outline:none;width:200px;transition:border-color 0.15s;text-align:left}
+.team-name-input::placeholder{color:#555577;letter-spacing:1px;text-transform:none;font-weight:500;font-size:14px}
+.team-name-input:hover{border-bottom-color:#5a5a7a}
+.team-name-input:focus{border-bottom-color:#ffd700;border-bottom-style:solid}
+.career-streak{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:11px;font-family:'Oswald',sans-serif;font-size:11px;letter-spacing:1.5px;font-weight:700;background:#0e0e2a;border:1px solid #2a2a55;color:#888899;align-self:center}
+.career-streak.hot{color:#22c55e;border-color:#22c55e44;background:#0a1f0f}
+.career-streak.cold{color:#ff6b6b;border-color:#ff6b6b44;background:#1f0a0a}
+.career-streak.idle{display:none}
 .record-num{font-family:'Oswald',sans-serif;font-size:28px;font-weight:700;line-height:1}
 .record-label{font-family:'Oswald',sans-serif;font-size:10px;letter-spacing:2px;color:#666688;text-transform:uppercase}
 .record-w{color:#34c759}
@@ -127,7 +135,9 @@ body{background:#0a0a1a;color:#c8c8e0;font-family:'JetBrains Mono',monospace;min
 .cup-progress{background:#111128;border:1px solid #1a1a3e;border-radius:6px;padding:10px 12px}
 .cup-progress.done{border-color:#34c759;background:linear-gradient(135deg,#0e2a14 0%,#111128 100%)}
 .cup-progress-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px}
-.cup-progress-name{font-family:'Oswald',sans-serif;font-size:11px;letter-spacing:2px;color:#aaaadd;text-transform:uppercase;font-weight:600}
+.cup-progress-name{font-family:'Oswald',sans-serif;font-size:11px;letter-spacing:2px;color:#aaaadd;text-transform:uppercase;font-weight:600;display:inline-flex;align-items:center;gap:7px}
+.cup-progress-name svg{flex-shrink:0;color:#7777aa}
+.cup-progress.done .cup-progress-name svg{color:#ffd700}
 .cup-progress-pct{font-family:'JetBrains Mono',monospace;font-size:10px;color:#ffd700;font-weight:700}
 .cup-progress.done .cup-progress-pct{color:#34c759}
 .cup-progress-bar{height:6px;background:#0a0a1a;border-radius:3px;overflow:hidden}
@@ -139,12 +149,36 @@ body{background:#0a0a1a;color:#c8c8e0;font-family:'JetBrains Mono',monospace;min
 .next-game-cup{font-family:'Oswald',sans-serif;font-size:13px;letter-spacing:2px;color:#ffd700;text-transform:uppercase;font-weight:700;margin-bottom:2px}
 .next-game-target{font-family:'Oswald',sans-serif;font-size:20px;letter-spacing:2px;color:#fff;text-transform:uppercase;font-weight:700}
 
+/* ===== Cup celebration modal (per-cup + all-cups overdrive variants) ===== */
+.celebration-modal{background:linear-gradient(135deg,#1a1a3e 0%,#0a0a1a 100%);border:2px solid #ffd700;border-radius:14px;padding:32px 28px 22px;max-width:560px;width:100%;text-align:center;animation:revealPop 0.5s cubic-bezier(0.34,1.56,0.64,1);box-shadow:0 0 80px rgba(255,215,0,0.4);position:relative;overflow:hidden}
+.celebration-modal.all-cups{border-color:#ff6b35;box-shadow:0 0 120px rgba(255,107,53,0.6);animation:revealPop 0.6s cubic-bezier(0.34,1.56,0.64,1),allCupsPulse 2.5s ease-in-out infinite}
+@keyframes allCupsPulse{0%,100%{box-shadow:0 0 80px rgba(255,107,53,0.45)}50%{box-shadow:0 0 140px rgba(255,215,0,0.7)}}
+.celebration-confetti{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+.celebration-confetti span{position:absolute;width:6px;height:10px;background:#ffd700;opacity:0.85;animation:confettiFall 3s linear infinite}
+.celebration-modal.all-cups .celebration-confetti span{width:8px;height:14px}
+@keyframes confettiFall{0%{transform:translateY(-30px) rotate(0deg);opacity:1}100%{transform:translateY(560px) rotate(720deg);opacity:0}}
+.celebration-trophy{font-size:58px;margin-bottom:6px;animation:trophyBob 1.6s ease-in-out infinite;text-shadow:0 0 30px rgba(255,215,0,0.7)}
+.celebration-modal.all-cups .celebration-trophy{font-size:78px;animation:trophyBob 1.2s ease-in-out infinite}
+@keyframes trophyBob{0%,100%{transform:translateY(0) rotate(-3deg)}50%{transform:translateY(-8px) rotate(3deg)}}
+.celebration-header{font-family:'Oswald',sans-serif;font-size:30px;font-weight:700;letter-spacing:5px;text-transform:uppercase;background:linear-gradient(135deg,#ff6b35 0%,#ffd700 50%,#ff6b35 100%);background-size:200% auto;-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;animation:shimmer 2.2s ease-in-out infinite;margin-bottom:4px}
+.celebration-modal.all-cups .celebration-header{font-size:38px;letter-spacing:8px}
+.celebration-sub{font-family:'Oswald',sans-serif;font-size:13px;letter-spacing:3px;color:#aaaadd;text-transform:uppercase;margin-bottom:10px}
+.celebration-record{font-family:'Oswald',sans-serif;font-size:11px;letter-spacing:2px;color:#7a7a99;margin-bottom:18px}
+.celebration-roster-title{font-family:'Oswald',sans-serif;font-size:11px;letter-spacing:3px;color:#666688;text-transform:uppercase;margin-bottom:10px}
+.celebration-roster{display:grid;grid-template-columns:1fr 1fr;gap:5px;max-height:240px;overflow-y:auto;margin-bottom:18px;padding:2px}
+.celebration-roster-row{background:#0e0e2a;border:1px solid #2a2a55;border-radius:5px;padding:7px 10px;display:flex;justify-content:space-between;align-items:center;gap:6px;font-size:11px}
+.celebration-roster-row .nm{font-family:'JetBrains Mono',monospace;color:#e0e0ff;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.celebration-roster-row .ps{font-family:'Oswald',sans-serif;color:#ffd700;font-weight:700;letter-spacing:1px;flex-shrink:0;font-size:10px}
+.celebration-actions{display:flex;gap:8px;justify-content:center}
+.celebration-actions .btn{padding:10px 22px;font-size:12px;letter-spacing:1.5px}
+@media(max-width:520px){.celebration-roster{grid-template-columns:1fr}}
+
 .career-victory{text-align:center;padding:40px 20px;background:linear-gradient(135deg,#1a1a3e 0%,#0a0a1a 100%);border:2px solid #ffd700;border-radius:12px;margin:20px 0;box-shadow:0 0 40px rgba(255,215,0,0.3)}
 .career-victory-title{font-family:'Oswald',sans-serif;font-size:32px;font-weight:700;letter-spacing:6px;background:linear-gradient(135deg,#ff6b35 0%,#ffd700 50%,#ff6b35 100%);background-size:200% auto;-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;animation:shimmer 2s ease-in-out infinite;text-transform:uppercase;margin-bottom:14px}
 .career-victory-sub{font-family:'Oswald',sans-serif;font-size:13px;color:#aaaadd;letter-spacing:3px;text-transform:uppercase;margin-bottom:20px}
 .clue-label{font-family:'Oswald',sans-serif;letter-spacing:1px;color:#666688;text-transform:uppercase;font-size:9px;font-weight:600}
 .clue-value{font-family:'JetBrains Mono',monospace;color:#444;font-weight:500;font-size:11px}
-.clue.revealed .clue-value{color:#ffd700;font-weight:700}
+/* (older "revealed = gold" rule removed — line 113 above handles muted/latest split) */
 .slot-actions{display:flex;gap:6px}
 .slot-actions .btn{flex:1;padding:7px 0;font-size:10px;letter-spacing:1px}
 .btn-pick{background:#34c759}
@@ -234,6 +268,47 @@ body{background:#0a0a1a;color:#c8c8e0;font-family:'JetBrains Mono',monospace;min
 .roster-cards-compact .roster-card-meta{font-size:9px;line-height:1.5}
 .roster-cards-compact .roster-card-stat-num{font-size:13px}
 
+/* ===== Guess mini-game modal ===== */
+/* Two-modal flow on PICK: first the user gets a shot at naming the player
+   from clues (revealed AND unrevealed shown — unrevealed dimmed so the
+   user knows what info is fair-game vs gambling on a hunch). Correct
+   guess unlocks the bonus modal where they pick an extra teammate from
+   the mystery's team/season; wrong guess or skip falls through to the
+   normal reveal → release flow. */
+.guess-modal{background:linear-gradient(135deg,#1a1a3e 0%,#0a0a1a 100%);border:1px solid #2a2a55;border-radius:12px;padding:28px 28px 22px;max-width:520px;width:100%;animation:revealPop 0.35s cubic-bezier(0.34,1.56,0.64,1);box-shadow:0 0 60px rgba(255,215,0,0.18)}
+.guess-header{font-family:'Oswald',sans-serif;font-size:24px;font-weight:700;letter-spacing:5px;text-transform:uppercase;background:linear-gradient(135deg,#ff6b35 0%,#ffd700 50%,#ff6b35 100%);background-size:200% auto;-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;animation:shimmer 2.5s ease-in-out infinite;text-align:center;margin-bottom:4px}
+.guess-sub{font-family:'Oswald',sans-serif;font-size:11px;letter-spacing:2px;color:#888899;text-align:center;text-transform:uppercase;margin-bottom:18px}
+.guess-clues{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:18px;font-size:10px}
+.guess-clue-row{background:#0e0e2a;border:1px solid #1a1a3e;border-radius:4px;padding:6px 8px;display:flex;justify-content:space-between;align-items:center;gap:8px;border-left:2px solid #3a3a55}
+.guess-clue-row.unrevealed{opacity:0.5}
+.guess-clue-row .lbl{font-family:'Oswald',sans-serif;letter-spacing:1px;color:#666688;font-size:9px;text-transform:uppercase;flex-shrink:0}
+.guess-clue-row .val{font-family:'JetBrains Mono',monospace;color:#e0e0ff;font-size:10px;font-weight:600;text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.guess-clue-row.unrevealed .val{color:#555577}
+.guess-input-wrap{position:relative;margin-bottom:12px}
+.guess-input{width:100%;padding:11px 14px;border-radius:6px;background:#0a0a1a;color:#fff;border:1.5px solid #2a2a55;font-family:'Oswald',sans-serif;font-size:15px;letter-spacing:1px;outline:none;transition:border-color 0.15s;box-sizing:border-box}
+.guess-input:focus{border-color:#ffd700}
+.guess-autocomplete{position:absolute;top:100%;left:0;right:0;background:#0e0e2a;border:1px solid #2a2a55;border-top:none;border-radius:0 0 6px 6px;max-height:200px;overflow-y:auto;z-index:20;display:none}
+.guess-autocomplete.active{display:block}
+.guess-autocomplete-row{padding:8px 14px;font-family:'JetBrains Mono',monospace;font-size:12px;color:#b8b8d0;cursor:pointer;transition:background 0.1s}
+.guess-autocomplete-row:hover,.guess-autocomplete-row.active{background:#1a1a3e;color:#ffd700}
+.guess-actions{display:flex;gap:8px;margin-bottom:10px}
+.guess-actions .btn{flex:1;padding:10px 0;font-size:12px;letter-spacing:1px}
+.guess-hint{font-family:'Oswald',sans-serif;font-size:10px;letter-spacing:1px;color:#555577;text-align:center}
+
+/* ===== Bonus teammate picker (after correct guess) ===== */
+.bonus-modal{background:linear-gradient(135deg,#1a1a3e 0%,#0a0a1a 100%);border:1px solid #ffd700;border-radius:12px;padding:24px 24px 20px;max-width:540px;width:100%;animation:revealPop 0.35s cubic-bezier(0.34,1.56,0.64,1);box-shadow:0 0 60px rgba(255,215,0,0.35)}
+.bonus-header{font-family:'Oswald',sans-serif;font-size:22px;font-weight:700;letter-spacing:4px;text-transform:uppercase;background:linear-gradient(135deg,#ffd700 0%,#ff6b35 50%,#ffd700 100%);background-size:200% auto;-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;animation:shimmer 2s ease-in-out infinite;text-align:center;margin-bottom:4px}
+.bonus-header span{display:block;font-size:13px;letter-spacing:2px;color:#fff;-webkit-text-fill-color:#fff;margin-top:6px;animation:none}
+.bonus-sub{font-family:'Oswald',sans-serif;font-size:11px;letter-spacing:2px;color:#888899;text-align:center;text-transform:uppercase;margin-bottom:14px}
+.bonus-list{max-height:360px;overflow-y:auto;display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:14px;padding:2px}
+.bonus-row{background:#0e0e2a;border:1px solid #2a2a55;border-radius:5px;padding:9px 11px;cursor:pointer;transition:all 0.12s;display:flex;justify-content:space-between;align-items:center;gap:6px}
+.bonus-row:hover{border-color:#ffd700;background:#1a1a3e;transform:translateY(-1px)}
+.bonus-row.disabled{opacity:0.45;cursor:not-allowed}
+.bonus-row.disabled:hover{transform:none;border-color:#2a2a55;background:#0e0e2a}
+.bonus-row-name{font-family:'JetBrains Mono',monospace;font-size:11px;color:#e0e0ff;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
+.bonus-row-pos{font-family:'Oswald',sans-serif;font-size:10px;color:#ffd700;font-weight:700;letter-spacing:1px;flex-shrink:0}
+@media(max-width:520px){.bonus-list{grid-template-columns:1fr}.guess-clues{grid-template-columns:1fr}}
+
 /* ===== First-game reveal — cards stagger in one by one ===== */
 /* The initial career screen plays a quick "meet your 12" beat: each card
    slides up + fades + scales in, delayed by its index so the eye reads
@@ -284,9 +359,9 @@ body{background:#0a0a1a;color:#c8c8e0;font-family:'JetBrains Mono',monospace;min
     <div class="logo-sm">BOX SCORE LAB</div>
     <div class="player-count" id="playerCount"></div>
   </div>
-  <div class="mode-tabs">
-    <button class="mode-tab" id="modeSandboxTab" onclick="setMode('sandbox')">🎲 Sandbox</button>
-    <button class="mode-tab active" id="modeCareerTab" onclick="setMode('career')">🏆 Career</button>
+  <div class="mode-tabs" style="display:none">
+    <button class="mode-tab" id="modeSandboxTab" onclick="setMode('sandbox')">Sandbox</button>
+    <button class="mode-tab active" id="modeCareerTab" onclick="setMode('career')">Career</button>
   </div>
 
   <!-- =========== SANDBOX MODE =========== -->
@@ -319,9 +394,11 @@ body{background:#0a0a1a;color:#c8c8e0;font-family:'JetBrains Mono',monospace;min
   <!-- =========== CAREER MODE =========== -->
   <div id="careerMode">
     <div class="career-bar">
+      <input type="text" id="teamNameInput" class="team-name-input" placeholder="Name your team…" maxlength="32" autocomplete="off">
       <div class="career-record">
         <div><span class="record-num record-w" id="careerW">0</span> <span class="record-label">W</span></div>
         <div><span class="record-num record-l" id="careerL">0</span> <span class="record-label">L</span></div>
+        <div id="careerStreak" class="career-streak"></div>
       </div>
       <div class="career-game-num" id="careerGameNum">GAME #1</div>
       <button class="btn btn-reset-career" onclick="resetCareer()">RESET</button>
@@ -419,6 +496,48 @@ body{background:#0a0a1a;color:#c8c8e0;font-family:'JetBrains Mono',monospace;min
     <button class="btn btn-play reveal-close" onclick="closeRevealModal()" id="revealCloseBtn">CONTINUE</button>
   </div>
 </div>
+<!-- =========== Guess mini-game (mystery → guess → bonus if right) =========== -->
+<div class="modal-backdrop" id="guessModal">
+  <div class="modal guess-modal">
+    <div class="guess-header">GUESS THE PLAYER</div>
+    <div class="guess-sub">Nail the name to pick a bonus teammate from their <span style="color:#ffd700">team/season</span></div>
+    <div class="guess-clues" id="guessClues"></div>
+    <div class="guess-input-wrap">
+      <input type="text" id="guessInput" class="guess-input" placeholder="Type a name…" autocomplete="off" spellcheck="false">
+      <div class="guess-autocomplete" id="guessAutocomplete"></div>
+    </div>
+    <div class="guess-actions">
+      <button class="btn btn-play" onclick="submitGuess()" id="guessSubmitBtn">GUESS</button>
+      <button class="btn btn-discard" onclick="skipGuess()">SKIP GUESS</button>
+    </div>
+    <div class="guess-hint">Tip: skip if you're not sure — the player still joins, you just don't get the bonus.</div>
+  </div>
+</div>
+<!-- =========== Bonus teammate picker (after correct guess) =========== -->
+<div class="modal-backdrop" id="bonusModal">
+  <div class="modal bonus-modal">
+    <div class="bonus-header">PERFECT! <span id="bonusGuessedName"></span></div>
+    <div class="bonus-sub">Pick a bonus teammate from <span id="bonusContext" style="color:#ffd700"></span></div>
+    <div class="bonus-list" id="bonusList"></div>
+    <button class="btn modal-close" onclick="closeBonusModal()">Cancel bonus</button>
+  </div>
+</div>
+<!-- =========== Cup celebration (per-cup + all-cups variants) =========== -->
+<div class="modal-backdrop" id="cupCelebrationModal">
+  <div class="modal celebration-modal" id="celebrationInner">
+    <div class="celebration-confetti" id="celebrationConfetti"></div>
+    <div class="celebration-trophy">🏆</div>
+    <div class="celebration-header" id="celebrationHeader">CUP WON</div>
+    <div class="celebration-sub" id="celebrationSub">— · —</div>
+    <div class="celebration-record" id="celebrationRecord"></div>
+    <div class="celebration-roster-title">YOUR ROSTER</div>
+    <div class="celebration-roster" id="celebrationRoster"></div>
+    <div class="celebration-actions">
+      <button class="btn btn-discard" onclick="shareCupRoster()" id="celebrationShareBtn">📋 COPY SUMMARY</button>
+      <button class="btn btn-play" onclick="closeCupCelebration()">CONTINUE ▶</button>
+    </div>
+  </div>
+</div>
 <!-- =========== Cup detail modal (shows all matchups for a cup) =========== -->
 <div class="modal-backdrop" id="cupModal">
   <div class="modal cup-detail-modal">
@@ -450,13 +569,19 @@ let careerState=null;       // see initCareerState() for shape
 let pendingPickSlotIdx=null; // mystery-slot index awaiting roster choice
 let pendingDiscardSlotIdx=null; // mystery-slot index awaiting discard confirmation
 let pendingResult=null;      // {pA, pB, justRevealedSlotIdx} held between game → continue
-const CLUE_LABELS=["STATE/COUNTRY","STATUS","COLLEGE","DRAFT YEAR","PICK","TEAM / SEASON"];
-// Mapping from clue index → which bio field it pulls. POSITION is shown
-// permanently in the slot header (not a rotating clue). STATUS reads
-// bio.json's accolade flags. Birth year was removed in v6 — it was rarely
-// a useful identifier (too many players share birth years), and 6 clues
-// feel tighter than 7 across the win-paced reveal.
-const CAREER_STORAGE_KEY="bsl_career_v6";  // v6 — BIRTH YEAR dropped from clue rotation; indices shifted
+let pendingBonusName=null;   // bonus teammate to add after a correct guess
+let pendingDismissedNames=null; // 4 mystery-slot names dismissed by the current pick (shown to user)
+const CLUE_LABELS=["STATE/COUNTRY","STATUS","PRE-DRAFT TEAM","PICK","TEAM / SEASON"];
+// Mapping from clue index → display value. POSITION lives in the slot
+// header (always visible). BIRTH YEAR was dropped in v6, DRAFT YEAR in v7.
+// COLLEGE was relabeled to "Pre-Draft Team" since the field also holds
+// international club teams for non-college players. Indices now:
+//   0 → STATE/COUNTRY  (player[2])
+//   1 → STATUS         (computed: HoopsHype Top-78 / MVP / All-NBA / All-Star)
+//   2 → PRE-DRAFT TEAM (player[4])
+//   3 → PICK           (player[6]) — UND/ND/T/SD expand to readable strings
+//   4 → TEAM / SEASON  (slot.rolledSeason)
+const CAREER_STORAGE_KEY="bsl_career_v7";  // v7 — guess mini-game; 5 clues; structured slot fields; G/F/C diversity
 
 function rawG(game,s){
   switch(s){
@@ -920,6 +1045,11 @@ function renderTeam(ti){
   const tot={};COUNT_STATS.forEach(s=>{tot[s]=0;team.forEach((_,i)=>{tot[s]+=av(ti,i,s)})});
   tot.MIN=0;team.forEach((_,i)=>{tot.MIN+=av(ti,i,"MIN")});
 
+  // Dice (re-roll) and × (remove) controls were Sandbox-only tools. In
+  // Career mode the box score is a result display, so we drop those
+  // columns entirely. Sandbox keeps them around for interactive use.
+  const showActions=(currentMode==="sandbox");
+
   let rows="";
   order.forEach((pi,di)=>{
     const p=team[pi],g=p.game;
@@ -941,12 +1071,29 @@ function renderTeam(ti){
       else if(isDbl&&["PTS","REB","AST","STL","BLK"].includes(s)&&av(ti,pi,s)>=10)cls+=" hl";
       cells+='<td class="'+cls+'">'+val+'</td>';
     });
-    rows+='<tr class="row-'+(di%2===0?"even":"odd")+'">'+'<td class="pname">'+p.name+'<span class="pos-tag">'+pos+'</span>'+(gameYr?'<span class="yr-tag">\''+String(gameYr).slice(2)+'</span>':'')+'</td>'+cells+'<td class="act" onclick="rerollPlayer('+ti+','+pi+')" title="Re-roll"><span class="dice">🎲</span></td>'+'<td class="act" onclick="removePlayer('+ti+','+pi+')" title="Remove"><span class="rm">×</span></td></tr>';
+    // Tooltip: source game context for the box-score line. data.bin
+    // doesn't carry exact dates or final scores — only player stats +
+    // team/opp/year/type — so we surface what's available.
+    const tipParts=[];
+    const teamStr=TEAMS[g[G.TM]]||"";
+    const oppStr=TEAMS[g[G.OP]]||"";
+    if(teamStr&&oppStr)tipParts.push(teamStr+" vs "+oppStr);
+    const seasonStr=formatSeasonYear(g[G.SY]);
+    if(seasonStr)tipParts.push(seasonStr);
+    const tyLabel=TYPE_LABELS[g[G.TY]]||"";
+    if(tyLabel)tipParts.push(tyLabel);
+    const tipAttr=tipParts.length?(' title="'+escapeHtmlS(tipParts.join(" · "))+'"'):'';
+    const actCells=showActions
+      ? '<td class="act" onclick="rerollPlayer('+ti+','+pi+')" title="Re-roll"><span class="dice">🎲</span></td><td class="act" onclick="removePlayer('+ti+','+pi+')" title="Remove"><span class="rm">×</span></td>'
+      : '';
+    rows+='<tr class="row-'+(di%2===0?"even":"odd")+'"'+tipAttr+'>'+'<td class="pname">'+p.name+'<span class="pos-tag">'+pos+'</span>'+(gameYr?'<span class="yr-tag">\''+String(gameYr).slice(2)+'</span>':'')+'</td>'+cells+actCells+'</tr>';
   });
   let tc="";
   STAT_KEYS.forEach(s=>{let v;if(s==="MIN")v=fmtMin(tot.MIN);else if(s==="FG%")v=tot.FGA>0?(tot.FGM/tot.FGA).toFixed(3).replace(/^0/,""):".000";else if(s==="FT%")v=tot.FTA>0?(tot.FTM/tot.FTA).toFixed(3).replace(/^0/,""):".000";else v=Math.round(tot[s]||0);tc+='<td class="r">'+v+'</td>'});
   const hc=STAT_KEYS.map(s=>'<th class="r">'+s+'</th>').join("");
-  el.innerHTML='<div class="team-section"><div class="team-hdr" style="background:'+COLORS[ti]+'"><span class="team-hdr-name">'+teamNames[ti]+'</span><span class="team-hdr-pts">'+Math.round(tot.PTS)+'</span></div><div class="tbl-wrap"><table class="box-tbl"><thead><tr><th style="min-width:140px">PLAYER</th>'+hc+'<th></th><th></th></tr></thead><tbody>'+rows+'<tr class="totals" style="background:'+COLORS[ti]+'22;border-top:2px solid '+COLORS[ti]+'"><td style="font-weight:700;color:#fff">TOTALS</td>'+tc+'<td></td><td></td></tr></tbody></table></div></div>';
+  const actHdrs=showActions?'<th></th><th></th>':'';
+  const actTotals=showActions?'<td></td><td></td>':'';
+  el.innerHTML='<div class="team-section"><div class="team-hdr" style="background:'+COLORS[ti]+'"><span class="team-hdr-name">'+teamNames[ti]+'</span><span class="team-hdr-pts">'+Math.round(tot.PTS)+'</span></div><div class="tbl-wrap"><table class="box-tbl"><thead><tr><th style="min-width:140px">PLAYER</th>'+hc+actHdrs+'</tr></thead><tbody>'+rows+'<tr class="totals" style="background:'+COLORS[ti]+'22;border-top:2px solid '+COLORS[ti]+'"><td style="font-weight:700;color:#fff">TOTALS</td>'+tc+actTotals+'</tr></tbody></table></div></div>';
 }
 function render(){
   updateTabs();renderTeam(0);renderTeam(1);
@@ -1014,13 +1161,17 @@ function formatSeasonYear(sy){
 // — used as the seventh mystery clue. Locked in at slot creation so it
 // doesn't change across re-renders, only when the slot is replaced.
 function rollSeasonClue(name){
-  const games=playerIndex[name]||[];
-  if(!games.length)return "—";
+  // Returns {display, seasonYr, team} — display is the human-readable
+  // "1991-92: Bulls" string, while seasonYr and team are kept separately
+  // so the bonus-teammate feature can find teammates without re-parsing.
+  const games=(playerIndex[name]||[]).filter(isPlayableGame);
+  if(!games.length)return {display:"—",seasonYr:null,team:""};
   const g=games[Math.floor(Math.random()*games.length)];
-  const season=formatSeasonYear(g[G.SY]);
+  const seasonYr=g[G.SY];
   const team=TEAMS[g[G.TM]]||"";
-  if(season&&team)return season+": "+team;
-  return season||team||"—";
+  const season=formatSeasonYear(seasonYr);
+  const display=(season&&team)?(season+": "+team):(season||team||"—");
+  return {display,seasonYr,team};
 }
 
 function freshMysterySlot(usedNames){
@@ -1028,12 +1179,12 @@ function freshMysterySlot(usedNames){
   const pool=bioEligibleNames().filter(n=>!usedNames.has(n));
   if(!pool.length)return null;
   const name=pool[Math.floor(Math.random()*pool.length)];
-  // Randomize reveal order across all 7 clues per slot so two slots with
+  // Randomize reveal order across all 6 clues per slot so two slots with
   // the same player (across separate careers) won't always reveal the
   // same clue first.
-  const order=shuffle([0,1,2,3,4,5]);
-  const rolledSeason=rollSeasonClue(name);
-  return {name,order,revealed:0,rolledSeason};
+  const order=shuffle([0,1,2,3,4]);
+  const sc=rollSeasonClue(name);
+  return {name,order,revealed:0,rolledSeason:sc.display,rolledSeasonYear:sc.seasonYr,rolledTeam:sc.team};
 }
 function initCareerState(){
   if(!bioData.length){
@@ -1055,12 +1206,12 @@ function initCareerState(){
     roster=buildBalancedRoster(shuffle(bioEligibleNames().filter(playerHasPlayableGames)).slice(0,60));
   }
   const used=new Set(roster);
-  const slots=[];
-  for(let i=0;i<5;i++){
-    const s=freshMysterySlot(used);
-    if(s){slots.push(s);used.add(s.name)}
-  }
-  careerState={roster,slots,wins:0,losses:0,games:0,cups:emptyCups(),nextGame:null,playerStats:{}};
+  // Position-diverse mystery slots — at least one G, one F, one C among
+  // the 5 so the user always has options across the positional spectrum.
+  // (regenerateAllMysterySlots does the same thing post-pick; this is
+  // just the initial seed.)
+  careerState={roster,slots:[],wins:0,losses:0,games:0,cups:emptyCups(),nextGame:null,playerStats:{},streak:{type:"none",count:0}};
+  regenerateAllMysterySlots();
   careerState.nextGame=pickNextGameTarget();
   saveCareer();
 }
@@ -1086,43 +1237,65 @@ function initCareerState(){
 // abbreviation has no candidates we just skip it from the active cup.
 // data.bin stores team names as nicknames ("Hawks", "Lakers", "SuperSonics"
 // etc.), with era-disambiguation suffixes for nicknames shared with defunct
-// teams ("Nuggets (1950)" for the 1949-50 Denver Nuggets that aren't part of
-// the modern franchise; "Hornets (1988)" for the original Charlotte Hornets
-// that moved to New Orleans and now race under the Pelicans branding).
-// Each franchise's `alts` list contains the nicknames that map to it across
-// its full lineage. Matching is case-insensitive / whitespace-tolerant.
+// teams. Each franchise's `alts` list can mix plain strings (no year
+// constraint) with objects {name, yearMin?, yearMax?} that bound the
+// matching to certain seasons. The Hornets (1988) name is split this way:
+// the original franchise played in Charlotte 1988-2001 (under that label
+// the modern Charlotte Hornets claim as heritage), then moved to NOLA in
+// 2002 and now lives on as the Pelicans.
 const NBA_FRANCHISES=[
-  {abbr:"ATL",name:"Atlanta Hawks",alts:["Hawks","Blackhawks"]},                  // Tri-Cities Blackhawks → Milwaukee/St.Louis/Atlanta
+  {abbr:"ATL",name:"Atlanta Hawks",alts:["Hawks","Blackhawks"]},
   {abbr:"BOS",name:"Boston Celtics",alts:["Celtics"]},
-  {abbr:"BKN",name:"Brooklyn Nets",alts:["Nets"]},                                // Nets covers NJ/NY/BKN
-  {abbr:"CHA",name:"Charlotte Hornets",alts:["Hornets"]},                         // current franchise (the Bobcats lineage, rebranded 2014)
-  {abbr:"CHI",name:"Chicago Bulls",alts:["Bulls"]},                               // Chicago Stags were a different defunct franchise — not included
+  {abbr:"BKN",name:"Brooklyn Nets",alts:["Nets"]},
+  {abbr:"CHA",name:"Charlotte Hornets",alts:["Hornets",{name:"Hornets (1988)",yearMax:2001}]},
+  {abbr:"CHI",name:"Chicago Bulls",alts:["Bulls"]},
   {abbr:"CLE",name:"Cleveland Cavaliers",alts:["Cavaliers"]},
   {abbr:"DAL",name:"Dallas Mavericks",alts:["Mavericks"]},
-  {abbr:"DEN",name:"Denver Nuggets",alts:["Nuggets"]},                            // "Nuggets (1950)" is a different defunct franchise — not included
-  {abbr:"DET",name:"Detroit Pistons",alts:["Pistons"]},                           // Detroit Falcons were a different defunct franchise — not included
+  {abbr:"DEN",name:"Denver Nuggets",alts:["Nuggets"]},
+  {abbr:"DET",name:"Detroit Pistons",alts:["Pistons"]},
   {abbr:"GSW",name:"Golden State Warriors",alts:["Warriors"]},
   {abbr:"HOU",name:"Houston Rockets",alts:["Rockets"]},
-  {abbr:"IND",name:"Indiana Pacers",alts:["Pacers"]},                             // Indianapolis Jets/Olympians were different defunct franchises
-  {abbr:"LAC",name:"LA Clippers",alts:["Clippers","Braves"]},                     // Buffalo Braves → San Diego/LA Clippers
-  {abbr:"LAL",name:"LA Lakers",alts:["Lakers"]},                                  // Minneapolis Lakers retained the Lakers name
-  {abbr:"MEM",name:"Memphis Grizzlies",alts:["Grizzlies"]},                       // Vancouver Grizzlies retained the name
+  {abbr:"IND",name:"Indiana Pacers",alts:["Pacers"]},
+  {abbr:"LAC",name:"LA Clippers",alts:["Clippers","Braves"]},
+  {abbr:"LAL",name:"LA Lakers",alts:["Lakers"]},
+  {abbr:"MEM",name:"Memphis Grizzlies",alts:["Grizzlies"]},
   {abbr:"MIA",name:"Miami Heat",alts:["Heat"]},
   {abbr:"MIL",name:"Milwaukee Bucks",alts:["Bucks"]},
   {abbr:"MIN",name:"Minnesota Timberwolves",alts:["Timberwolves"]},
-  {abbr:"NOP",name:"New Orleans Pelicans",alts:["Pelicans","Hornets (1988)"]},    // original 1988 Hornets franchise relocated to NOLA, renamed Pelicans 2013
+  {abbr:"NOP",name:"New Orleans Pelicans",alts:["Pelicans",{name:"Hornets (1988)",yearMin:2002}]},
   {abbr:"NYK",name:"New York Knicks",alts:["Knicks"]},
-  {abbr:"OKC",name:"Oklahoma City Thunder",alts:["Thunder","SuperSonics"]},       // Seattle SuperSonics relocated 2008
+  {abbr:"OKC",name:"Oklahoma City Thunder",alts:["Thunder","SuperSonics"]},
   {abbr:"ORL",name:"Orlando Magic",alts:["Magic"]},
-  {abbr:"PHI",name:"Philadelphia 76ers",alts:["Sixers","Nationals"]},             // Syracuse Nationals → Philadelphia 76ers
+  {abbr:"PHI",name:"Philadelphia 76ers",alts:["Sixers","Nationals"]},
   {abbr:"PHX",name:"Phoenix Suns",alts:["Suns"]},
   {abbr:"POR",name:"Portland Trail Blazers",alts:["Trail Blazers"]},
-  {abbr:"SAC",name:"Sacramento Kings",alts:["Kings","Royals"]},                   // Rochester/Cincinnati Royals → Kansas City/Sacramento Kings
+  {abbr:"SAC",name:"Sacramento Kings",alts:["Kings","Royals"]},
   {abbr:"SAS",name:"San Antonio Spurs",alts:["Spurs"]},
-  {abbr:"TOR",name:"Toronto Raptors",alts:["Raptors"]},                           // 1946-47 Toronto Huskies were a different defunct franchise
-  {abbr:"UTA",name:"Utah Jazz",alts:["Jazz"]},                                    // New Orleans Jazz retained the name
-  {abbr:"WAS",name:"Washington Wizards",alts:["Wizards","Bullets","Packers","Zephyrs"]} // Chicago Packers → Chicago Zephyrs → Baltimore/Capital/Washington Bullets → Wizards
+  {abbr:"TOR",name:"Toronto Raptors",alts:["Raptors"]},
+  {abbr:"UTA",name:"Utah Jazz",alts:["Jazz"]},
+  {abbr:"WAS",name:"Washington Wizards",alts:["Wizards","Bullets","Packers","Zephyrs"]}
 ];
+
+// Checks if a single game belongs to a franchise. Handles year-bounded
+// alts (e.g. Hornets (1988) only counts for CHA up to 2001 and NOP from
+// 2002 on, since the franchise relocated mid-name).
+function gameMatchesFranchise(g,abbr){
+  const tn=String(TEAMS[g[G.TM]]||"").trim().toUpperCase();
+  if(!tn)return false;
+  const yr=g[G.SY];
+  const f=NBA_FRANCHISES.find(x=>x.abbr===abbr);
+  if(!f)return false;
+  for(const alt of (f.alts||[])){
+    const name=(typeof alt==="string"?alt:alt.name);
+    if(String(name).toUpperCase()!==tn)continue;
+    if(typeof alt==="object"){
+      if(alt.yearMin!=null&&yr<alt.yearMin)continue;
+      if(alt.yearMax!=null&&yr>alt.yearMax)continue;
+    }
+    return true;
+  }
+  return false;
+}
 const CONTINENT_INFO={
   americas:"The Americas",
   europe:"Europe",
@@ -1135,32 +1308,43 @@ const DECADE_LABELS={
 };
 
 function eligibleStates(){
-  // States with >=20 players, US-only. Computed once from bio data.
+  // States with the most US-born NBA players. Capped at 20 so the cup
+  // stays focused on the meaningful talent pools (CA/TX/NY/IL etc.) rather
+  // than including every state with ≥1 player. Computed once at career init.
   const ct={};
   for(const r of bioData){if(r[7]==="us"&&r[2])ct[r[2]]=(ct[r[2]]||0)+1}
-  return Object.keys(ct).filter(s=>ct[s]>=20).sort();
+  return Object.entries(ct)
+    .sort((a,b)=>b[1]-a[1])
+    .slice(0,20)
+    .map(e=>e[0])
+    .sort();
 }
 
-// Colleges with at least 20 players AND a candidate pool that can fill
-// 4G/4F/2C. Recomputed once at career init. Schools that have lots of
-// guards but no centers (e.g. small backcourt-heavy programs) wouldn't
-// be able to field a balanced opponent and are excluded.
+// Colleges/pre-draft teams capped at 16, picked by player count. Each
+// must also have a candidate pool that can fill 4G/4F/2C — schools heavy
+// on guards with no centers (small backcourt programs) wouldn't be able
+// to field a balanced opponent, so they're filtered out before the cap.
 function eligibleColleges(){
   const ct={};
   for(const r of bioData){if(r[4])ct[r[4]]=(ct[r[4]]||0)+1}
-  const result=[];
-  for(const college in ct){
-    if(ct[college]<20)continue;
+  // First pass: keep only colleges with enough players + position balance
+  const qualified=[];
+  for(const [college,count] of Object.entries(ct)){
+    if(count<20)continue;
     const names=bioData.filter(r=>r[4]===college).map(r=>r[0]);
-    // Need 4 G, 4 F, 2 C among them to satisfy the position-balance rule
     let gC=0,fC=0,cC=0;
     for(const n of names){
       const p=playerPositions(n);
       if(p.g)gC++;if(p.f)fC++;if(p.c)cC++;
     }
-    if(gC>=4&&fC>=4&&cC>=2)result.push(college);
+    if(gC>=4&&fC>=4&&cC>=2)qualified.push([college,count]);
   }
-  return result.sort();
+  // Second pass: take top 16 by count, sorted alphabetically for display
+  return qualified
+    .sort((a,b)=>b[1]-a[1])
+    .slice(0,16)
+    .map(e=>e[0])
+    .sort();
 }
 
 /* ===== Player status (Top-78 / MVP / All-NBA / All-Star) =====
@@ -1228,6 +1412,139 @@ function cupTitle(cup){
   return {franchise:"Franchise Cup",states:"States Cup",college:"College Cup",continents:"Continents Cup",decades:"Decade Cup"}[cup]||cup;
 }
 
+// ===== Cup celebration =====
+// Fires when a cup completes (one cup → standard tone; all cups → louder
+// variant with bigger confetti). The roster snapshot inside the modal is
+// the team that EARNED the cup, so it's a natural "share this lineup"
+// moment. The Copy Summary button writes a plain-text recap to the
+// clipboard — image rendering is a separate iteration.
+
+function openCupCelebration(cupKey,allCupsWon){
+  const modal=document.getElementById("cupCelebrationModal");
+  const inner=document.getElementById("celebrationInner");
+  const header=document.getElementById("celebrationHeader");
+  const sub=document.getElementById("celebrationSub");
+  const rec=document.getElementById("celebrationRecord");
+  const rosterEl=document.getElementById("celebrationRoster");
+  if(!modal||!header)return;
+  // Confetti dots (re-rendered each open with random positions/colors).
+  const conf=document.getElementById("celebrationConfetti");
+  if(conf){
+    const colors=["#ffd700","#ff6b35","#e63946","#22c55e","#3b82f6","#a855f7","#fff"];
+    const count=allCupsWon?60:32;
+    let html="";
+    for(let i=0;i<count;i++){
+      const left=Math.random()*100;
+      const delay=Math.random()*3;
+      const dur=2.2+Math.random()*2;
+      const col=colors[Math.floor(Math.random()*colors.length)];
+      html+='<span style="left:'+left+'%;background:'+col+';animation-duration:'+dur.toFixed(2)+'s;animation-delay:-'+delay.toFixed(2)+'s"></span>';
+    }
+    conf.innerHTML=html;
+  }
+  // Header/sub vary by celebration tier. All-cups uses larger font + the
+  // "all-cups" body class for the pulsing border / extra confetti.
+  if(allCupsWon){
+    inner.classList.add("all-cups");
+    header.textContent="CAREER DYNASTY";
+    sub.textContent="All cups won";
+  }else{
+    inner.classList.remove("all-cups");
+    header.textContent=cupTitle(cupKey).toUpperCase()+" WON";
+    sub.textContent="One cup closed — keep going";
+  }
+  const teamName=careerState.teamName||"YOUR SQUAD";
+  rec.textContent=teamName+" · "+careerState.wins+"–"+careerState.losses+" across "+careerState.games+" games";
+  // Snapshot the current roster in position-sorted order.
+  const sorted=[...careerState.roster].sort((a,b)=>positionSortKey(a)-positionSortKey(b));
+  rosterEl.innerHTML=sorted.map(n=>{
+    const bi=bioByName[n];
+    const pos=bi!=null?(bioData[bi][3]||""):"";
+    return '<div class="celebration-roster-row">'+
+      '<span class="nm">'+escapeHtmlS(n)+'</span>'+
+      '<span class="ps">'+escapeHtmlS(pos)+'</span>'+
+    '</div>';
+  }).join("");
+  // Stash context for the share button.
+  modal.dataset.cup=cupKey||"";
+  modal.dataset.allCups=allCupsWon?"1":"0";
+  modal.classList.add("active");
+}
+function closeCupCelebration(){
+  document.getElementById("cupCelebrationModal").classList.remove("active");
+}
+// Generate a plain-text summary (team name, cup, record, roster) and
+// copy to clipboard. Image-export is a separate feature deferred to a
+// later iteration — sharing the text recap covers most "post on social"
+// use cases for now.
+function shareCupRoster(){
+  const modal=document.getElementById("cupCelebrationModal");
+  const cupKey=modal.dataset.cup||"";
+  const all=modal.dataset.allCups==="1";
+  const teamName=careerState.teamName||"My Career Squad";
+  const sorted=[...careerState.roster].sort((a,b)=>positionSortKey(a)-positionSortKey(b));
+  const cupLine=all
+    ? "🏆🏆🏆 ALL CUPS WON 🏆🏆🏆"
+    : "🏆 "+cupTitle(cupKey).toUpperCase()+" WON";
+  const lines=[
+    cupLine,
+    teamName,
+    careerState.wins+"–"+careerState.losses+" across "+careerState.games+" games",
+    "",
+    "ROSTER:"
+  ];
+  sorted.forEach(n=>{
+    const bi=bioByName[n];
+    const pos=bi!=null?(bioData[bi][3]||""):"";
+    lines.push("  "+n+(pos?" ("+pos+")":""));
+  });
+  lines.push("");
+  lines.push("— Box Score Lab career");
+  const text=lines.join("\n");
+  // Try the modern clipboard API; fall back to the legacy textarea trick.
+  const btn=document.getElementById("celebrationShareBtn");
+  const restore=()=>{if(btn){setTimeout(()=>{btn.textContent="📋 COPY SUMMARY"},1800)}};
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text).then(()=>{if(btn)btn.textContent="✓ COPIED";restore()},
+      ()=>{legacyCopy(text);if(btn)btn.textContent="✓ COPIED";restore()});
+  }else{
+    legacyCopy(text);
+    if(btn)btn.textContent="✓ COPIED";
+    restore();
+  }
+}
+function legacyCopy(text){
+  const ta=document.createElement("textarea");
+  ta.value=text;ta.style.position="fixed";ta.style.opacity="0";
+  document.body.appendChild(ta);ta.focus();ta.select();
+  try{document.execCommand("copy")}catch(e){}
+  document.body.removeChild(ta);
+}
+
+// Inline SVG icons for the cup progress cards. 16x16, currentColor-tinted
+// so the icon color follows .cup-progress-name's text color (gold when
+// the cup is completed, muted blue-grey otherwise).
+function cupIconSVG(cup){
+  const w='width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"';
+  switch(cup){
+    case "franchise":
+      return '<svg '+w+'><path d="M12 2L4 5v6c0 5 3.5 9 8 11 4.5-2 8-6 8-11V5l-8-3z"/></svg>';
+    case "states":
+      // Stylized US map outline
+      return '<svg '+w+'><path d="M2 8l3-2 4 1 3-2 4 1 3-1 3 2v8l-3 2-4-1-3 2-4-1-3 1-3-2z"/><line x1="2" y1="11" x2="22" y2="11"/></svg>';
+    case "college":
+      // Graduation cap
+      return '<svg '+w+'><path d="M2 9l10-5 10 5-10 5z"/><path d="M6 11v5c2 2 10 2 12 0v-5"/><line x1="22" y1="9" x2="22" y2="14"/></svg>';
+    case "continents":
+      // Globe
+      return '<svg '+w+'><circle cx="12" cy="12" r="9"/><ellipse cx="12" cy="12" rx="9" ry="4"/><line x1="12" y1="3" x2="12" y2="21"/></svg>';
+    case "decades":
+      // Calendar
+      return '<svg '+w+'><rect x="3" y="5" width="18" height="16" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="3" x2="8" y2="7"/><line x1="16" y1="3" x2="16" y2="7"/></svg>';
+  }
+  return '';
+}
+
 // Returns the set of team abbreviations associated with a current franchise
 // (including historical predecessors). Matching is case-insensitive and
 // whitespace-tolerant — data.bin may store team names with quirks ("hou",
@@ -1246,10 +1563,9 @@ function teamInSet(teamName,franchiseSet){
 // out the user's current roster or active mysteries.
 function cupCandidates(cup,target){
   if(cup==="franchise"){
-    const tmSet=franchiseTeamSet(target);
     return playerNames.filter(n=>{
       const games=playerIndex[n]||[];
-      return games.some(g=>isPlayableGame(g)&&teamInSet(TEAMS[g[G.TM]],tmSet));
+      return games.some(g=>isPlayableGame(g)&&gameMatchesFranchise(g,target));
     });
   }
   if(cup==="states"){
@@ -1292,8 +1608,7 @@ function rollGameForTeam(name,cup,target,isOpp){
     const start=parseInt(target),end=start+10;
     games=games.filter(g=>{const gy=g[G.GY];return gy>=start&&gy<end});
   }else if(cup==="franchise"&&isOpp){
-    const tmSet=franchiseTeamSet(target);
-    games=games.filter(g=>teamInSet(TEAMS[g[G.TM]],tmSet));
+    games=games.filter(g=>gameMatchesFranchise(g,target));
   }
   return games.length?games[Math.floor(Math.random()*games.length)]:null;
 }
@@ -1448,7 +1763,7 @@ function playNextGame(){
   }
 
   teams[0]=userTeam;teams[1]=oppTeam;
-  teamNames[0]="YOUR SQUAD";
+  teamNames[0]=careerState.teamName||"YOUR SQUAD";
   teamNames[1]=cupTargetLabel(ng.cup,ng.target).toUpperCase();
   processAll();
   render();
@@ -1458,6 +1773,20 @@ function playNextGame(){
   teams[0].forEach((_,i)=>{pA+=av(0,i,"PTS")});
   teams[1].forEach((_,i)=>{pB+=av(1,i,"PTS")});
   pA=Math.round(pA);pB=Math.round(pB);
+  // No ties — if regulation ended even, simulate overtime period(s) by
+  // adding a small random delta to each side until one team leads. Each
+  // OT contributes 8-14 points per team scaled by team scoring rate; we
+  // iterate up to 6 times to converge (should resolve in 1-2 normally).
+  let otPeriods=0;
+  while(pA===pB&&otPeriods<6){
+    otPeriods++;
+    const otA=Math.round(8+Math.random()*7+(pA/48)*0.5);
+    const otB=Math.round(8+Math.random()*7+(pB/48)*0.5);
+    pA+=otA;pB+=otB;
+  }
+  // Pathological convergence — if still tied after 6 OTs, give it one
+  // deterministic +1 to a randomly chosen side. Won't happen in practice.
+  if(pA===pB){Math.random()<0.5?pA++:pB++}
   careerState.games++;
 
   // Capture each user player's PTS/REB/AST into rolling-5 history for the
@@ -1476,18 +1805,33 @@ function playNextGame(){
 
   let revealedSlotIdx=-1;
   let cupCompleted=null;
+  // Streak tracking — used by the record bar to show "3W" or "5L" runs.
+  if(!careerState.streak)careerState.streak={type:"none",count:0};
   if(pA>pB){
     careerState.wins++;
     revealedSlotIdx=revealNextClue();
     cupCompleted=moveCupTargetToCompleted(ng.cup,ng.target,{pA,pB,gameNum:careerState.games});
-  }else if(pB>pA){
+    careerState.streak=(careerState.streak.type==="W")
+      ?{type:"W",count:careerState.streak.count+1}
+      :{type:"W",count:1};
+  }else{
     careerState.losses++;
+    careerState.streak=(careerState.streak.type==="L")
+      ?{type:"L",count:careerState.streak.count+1}
+      :{type:"L",count:1};
   }
   careerState.nextGame=pickNextGameTarget();
   saveCareer();
   pendingResult={pA,pB,justRevealedSlotIdx:revealedSlotIdx,cup:ng,cupCompleted};
   renderCareer(revealedSlotIdx,pA,pB,ng,cupCompleted);
   setCareerScreen("boxscore");
+  // Pop the celebration on top of the box score if a cup just closed.
+  // All-cups variant fires when this completion drained every cup's
+  // pending list — i.e. the user's career is done.
+  if(cupCompleted){
+    const allDone=!careerState.nextGame; // no next game means all cups closed
+    setTimeout(()=>{openCupCelebration(cupCompleted,allDone)},400);
+  }
 }
 
 // Like pickNextGameTarget but won't return the (cup, target) we just
@@ -1557,29 +1901,223 @@ function lastFiveAverages(name){
   };
 }
 
+function closeReplaceModal(){
+  // Don't clear pendingPickSlotIdx here — the bonus chain may still need it.
+  document.getElementById("replaceModal").classList.remove("active");
+}
+function confirmReplace(rosterIdx){
+  if(pendingPickSlotIdx==null)return;
+  const slot=careerState.slots[pendingPickSlotIdx];
+  if(!swapWouldBeValid(careerState.roster,rosterIdx,slot.name)){
+    alert("Can't release this player — your roster would fall below the 4 G / 4 F / 2 C minimum.");
+    return;
+  }
+  const released=careerState.roster[rosterIdx];
+  careerState.roster[rosterIdx]=slot.name;
+  if(!careerState.playerStats)careerState.playerStats={};
+  delete careerState.playerStats[released]; // released player's L5 doesn't follow them out
+  // Slot regeneration is deferred to showDismissedRevealAndRegen() — all
+  // 5 slots get refreshed at the same time so the round feels atomic.
+  saveCareer();
+  closeReplaceModal();
+  if(pendingBonusName){
+    // Correct guess: user picked a bonus teammate from the team/season.
+    // Run a second release pass for them.
+    const bn=pendingBonusName;
+    openReplaceModalForBonus(bn);
+  }else{
+    showDismissedRevealAndRegen();
+  }
+}
+// ===== PICK FLOW (mini-game) =====
+// New flow per design: PICK is now the only action on a mystery slot.
+// Picking opens a guess modal where the user names the player; correct
+// guess unlocks a bonus teammate from the slot's team/season. The other
+// four mystery slots are dismissed and revealed to the user at the end
+// of the round, then all five regenerate with fresh names + G/F/C
+// diversity. There is no separate DISCARD button anymore.
+
+let pendingRoundDismissed=[]; // names of the 4 dismissed slots (carried across modals)
+let pendingPickPlayerName=""; // the picked slot's player (cached for the bonus picker)
+
 function openReplaceModal(slotIdx){
-  // NEW FLOW: PICK now reveals the mystery FIRST so the user sees who
-  // they're signing before deciding who to release. The reveal modal's
-  // CONTINUE button is what actually opens the roster-picker step.
+  // Entry point from the PICK button on a mystery card. The slot index
+  // is captured globally; everything downstream reads from careerState.
   pendingPickSlotIdx=slotIdx;
+  pendingBonusName=null;
   const slot=careerState.slots[slotIdx];
   if(!slot)return;
-  openRevealModal({mode:"pick",name:slot.name,preDecision:true});
+  pendingPickPlayerName=slot.name;
+  // Capture the OTHER 4 mystery names now so we can reveal them at the
+  // end of the round even after the slots get regenerated.
+  pendingRoundDismissed=careerState.slots
+    .map((s,i)=>(i!==slotIdx&&s)?s.name:null)
+    .filter(Boolean);
+  openGuessModal(slotIdx);
 }
-function actuallyOpenReplaceChooser(){
-  // Called when the user dismisses the pre-decision reveal modal. The
-  // mystery's identity is now known to them; they pick who to release.
+
+function openGuessModal(slotIdx){
+  const slot=careerState.slots[slotIdx];
+  if(!slot)return;
+  const player=bioData[bioByName[slot.name]];
+  if(!player){
+    // Bail to direct reveal if bio is missing (shouldn't happen, but
+    // be defensive — the guess UI needs bio data to render clues).
+    openRevealModal({mode:"pick",name:slot.name,preDecision:true});
+    return;
+  }
+  const modal=document.getElementById("guessModal");
+  const input=document.getElementById("guessInput");
+  const ac=document.getElementById("guessAutocomplete");
+  if(input)input.value="";
+  if(ac){ac.innerHTML="";ac.classList.remove("active")}
+  // Render the 5 clue rows: revealed clues fully visible, unrevealed ones
+  // listed but dimmed (so the user knows what info exists but hasn't
+  // been earned yet — they CAN still gamble on it).
+  const revealedSet=new Set(slot.order.slice(0,slot.revealed));
+  const pos=player[3]||"";
+  const cluesHTML=
+    '<div class="guess-clue-row"><span class="lbl">POSITION</span><span class="val">'+escapeHtmlS(pos||"—")+'</span></div>'+
+    CLUE_LABELS.map((label,ci)=>{
+      const isRevealed=revealedSet.has(ci);
+      const val=isRevealed?clueValueFor(player,ci,slot):"???";
+      return '<div class="guess-clue-row'+(isRevealed?'':' unrevealed')+'"><span class="lbl">'+label+'</span><span class="val">'+escapeHtmlS(val)+'</span></div>';
+    }).join("");
+  document.getElementById("guessClues").innerHTML=cluesHTML;
+  modal.classList.add("active");
+  setTimeout(()=>{if(input)input.focus()},80);
+}
+function closeGuessModal(){document.getElementById("guessModal").classList.remove("active")}
+
+function updateGuessAutocomplete(){
+  const input=document.getElementById("guessInput");
+  const ac=document.getElementById("guessAutocomplete");
+  if(!input||!ac)return;
+  const q=String(input.value||"").trim().toLowerCase();
+  if(q.length<2){ac.classList.remove("active");ac.innerHTML="";return;}
+  const matches=[];
+  for(let i=0;i<bioData.length&&matches.length<8;i++){
+    const nm=bioData[i][0];
+    if(nm&&nm.toLowerCase().includes(q))matches.push(nm);
+  }
+  if(!matches.length){ac.classList.remove("active");ac.innerHTML="";return;}
+  ac.innerHTML=matches.map(n=>'<div class="guess-autocomplete-row" onclick="pickAutocompleteName(this.textContent)">'+escapeHtmlS(n)+'</div>').join("");
+  ac.classList.add("active");
+}
+function pickAutocompleteName(name){
+  const input=document.getElementById("guessInput");
+  if(input)input.value=name;
+  document.getElementById("guessAutocomplete").classList.remove("active");
+}
+function normalizeName(s){
+  return String(s||"").trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"");
+}
+function submitGuess(){
+  if(pendingPickSlotIdx==null)return;
+  const input=document.getElementById("guessInput");
+  const guess=normalizeName(input?input.value:"");
+  const actual=normalizeName(pendingPickPlayerName);
+  const correct=(guess.length>0&&guess===actual);
+  closeGuessModal();
+  // Reveal the picked player. Header reflects the guess outcome so the
+  // user gets feedback before the bonus picker (if correct) opens.
+  openRevealModal({
+    mode:"pick",
+    name:pendingPickPlayerName,
+    preDecision:true,
+    guessCorrect:correct,
+    awardBonus:correct
+  });
+}
+function skipGuess(){
+  if(pendingPickSlotIdx==null)return;
+  closeGuessModal();
+  openRevealModal({
+    mode:"pick",
+    name:pendingPickPlayerName,
+    preDecision:true,
+    guessCorrect:null,
+    awardBonus:false
+  });
+}
+
+// Find players who shared a team/season with the picked player. Used by
+// the bonus modal after a correct guess. The slot's rolledSeasonYear +
+// rolledTeam are the source of truth (stored at slot generation time so
+// the bonus works even if the TEAM/SEASON clue isn't revealed yet).
+function findTeammates(seasonYr,teamName,excludeName){
+  if(seasonYr==null||!teamName)return [];
+  const tn=String(teamName).trim().toUpperCase();
+  const out=[];
+  for(const name of playerNames){
+    if(name===excludeName)continue;
+    const games=playerIndex[name]||[];
+    if(games.some(g=>isPlayableGame(g)&&g[G.SY]===seasonYr&&String(TEAMS[g[G.TM]]||"").trim().toUpperCase()===tn)){
+      out.push(name);
+    }
+  }
+  return out.sort();
+}
+
+function openBonusModal(){
   if(pendingPickSlotIdx==null)return;
   const slot=careerState.slots[pendingPickSlotIdx];
   if(!slot)return;
-  const mysteryName=slot.name;
+  const yr=slot.rolledSeasonYear;
+  const tm=slot.rolledTeam;
+  const teammates=findTeammates(yr,tm,slot.name);
+  document.getElementById("bonusGuessedName").textContent=slot.name;
+  document.getElementById("bonusContext").textContent=slot.rolledSeason||(tm+" "+yr);
+  const list=document.getElementById("bonusList");
+  if(!teammates.length){
+    list.innerHTML='<div style="grid-column:1/-1;text-align:center;padding:14px;color:#888;font-size:11px;letter-spacing:1px;font-family:\'Oswald\',sans-serif">No teammates found for this team/season. Skipping bonus.</div>';
+    setTimeout(()=>{document.getElementById("bonusModal").classList.remove("active");proceedToReplaceForPickedSlot()},1400);
+  }else{
+    // Show teammates, but each row checks roster swap validity — we won't
+    // let the user pick a teammate the roster can't accommodate alongside
+    // the primary swap.
+    list.innerHTML=teammates.map(n=>{
+      const bi=bioByName[n];
+      const pos=bi!=null?(bioData[bi][3]||""):"";
+      return '<div class="bonus-row" onclick="selectBonusTeammate(\''+n.replace(/'/g,"\\'")+'\')">'+
+        '<span class="bonus-row-name">'+escapeHtmlS(n)+'</span>'+
+        '<span class="bonus-row-pos">'+escapeHtmlS(pos)+'</span>'+
+      '</div>';
+    }).join("");
+  }
+  document.getElementById("bonusModal").classList.add("active");
+}
+function closeBonusModal(){
+  // User skipped the bonus — proceed to single replace.
+  document.getElementById("bonusModal").classList.remove("active");
+  proceedToReplaceForPickedSlot();
+}
+function selectBonusTeammate(name){
+  pendingBonusName=name;
+  document.getElementById("bonusModal").classList.remove("active");
+  proceedToReplaceForPickedSlot();
+}
+
+// First release: pick who to drop for the primary signing (the picked
+// slot's player). After this completes, confirmReplace's tail handles
+// the bonus signing (if pendingBonusName is set) via openReplaceModalForBonus.
+function proceedToReplaceForPickedSlot(){
+  if(pendingPickSlotIdx==null)return;
+  const slot=careerState.slots[pendingPickSlotIdx];
+  if(!slot)return;
+  openReplaceChooserFor(slot.name,"primary");
+}
+function openReplaceModalForBonus(bonusName){
+  openReplaceChooserFor(bonusName,"bonus");
+}
+function openReplaceChooserFor(mysteryName,kind){
   const modal=document.getElementById("replaceModal");
   const grid=document.getElementById("modalRoster");
   const title=modal.querySelector(".modal-title");
-  if(title)title.innerHTML="Release a player to sign <span style=\"color:#ffd700\">"+escapeHtmlS(mysteryName)+"</span>";
-  // Sort by position spectrum (G → C) for display, but track each row's
-  // original roster index so confirmReplace operates on careerState.roster
-  // correctly regardless of display order.
+  if(title){
+    const lead=kind==="bonus"?"Release a player to sign the bonus":"Release a player to sign";
+    title.innerHTML=lead+" <span style=\"color:#ffd700\">"+escapeHtmlS(mysteryName)+"</span>";
+  }
   const sortedRows=careerState.roster
     .map((name,origIdx)=>({name,origIdx}))
     .sort((a,b)=>positionSortKey(a.name)-positionSortKey(b.name));
@@ -1592,13 +2130,13 @@ function actuallyOpenReplaceChooser(){
       ? '<span class="modal-stat-line">L'+avg.gp+' avg · <b>'+avg.pts+'</b> pts · <b>'+avg.reb+'</b> reb · <b>'+avg.ast+'</b> ast</span>'
       : '<span class="modal-stat-line modal-stat-new">NEW · No games yet</span>';
     const cls='modal-roster-player'+(valid?'':' disabled');
-    const handler=valid?'onclick="confirmReplace('+origIdx+')"':'';
+    const fn=(kind==="bonus")?"confirmReplaceBonus":"confirmReplace";
+    const handler=valid?'onclick="'+fn+'('+origIdx+')"':'';
     const lockHTML=valid?'':'<span class="modal-row-lock">⚠ would break 4G·4F·2C rule</span>';
     return '<div class="'+cls+'" '+handler+'>'+
       '<div class="modal-roster-left">'+
         '<div class="modal-roster-name">'+escapeHtmlS(name)+'</div>'+
-        statHTML+
-        lockHTML+
+        statHTML+lockHTML+
       '</div>'+
       '<span class="roster-pos">'+escapeHtmlS(pos)+'</span>'+
     '</div>';
@@ -1606,59 +2144,111 @@ function actuallyOpenReplaceChooser(){
   modal.classList.add("active");
   window.scrollTo({top:0,behavior:'smooth'});
 }
-function closeReplaceModal(){
-  pendingPickSlotIdx=null;
-  document.getElementById("replaceModal").classList.remove("active");
-}
-function confirmReplace(rosterIdx){
-  if(pendingPickSlotIdx==null)return;
-  const slot=careerState.slots[pendingPickSlotIdx];
-  const slotIdx=pendingPickSlotIdx;
-  // Safety check — if somehow the swap would be invalid, refuse (the UI
-  // should have disabled this row but defense in depth).
-  if(!swapWouldBeValid(careerState.roster,rosterIdx,slot.name)){
+
+// Called when the user picks a teammate from the bonus modal's release
+// chooser. Performs the swap then advances to the dismissed-reveal step.
+function confirmReplaceBonus(rosterIdx){
+  if(!pendingBonusName)return;
+  if(!swapWouldBeValid(careerState.roster,rosterIdx,pendingBonusName)){
     alert("Can't release this player — your roster would fall below the 4 G / 4 F / 2 C minimum.");
     return;
   }
-  const revealedName=slot.name;
   const released=careerState.roster[rosterIdx];
-  careerState.roster[rosterIdx]=slot.name;
-  // The new arrival starts with no game history yet; their last-5 stats
-  // accumulate from their next game on.
+  careerState.roster[rosterIdx]=pendingBonusName;
   if(!careerState.playerStats)careerState.playerStats={};
-  delete careerState.playerStats[released]; // released player's L5 doesn't follow them out
-  const used=new Set([...careerState.roster,...careerState.slots.map(s=>s.name)]);
-  used.delete(slot.name);
-  const newSlot=freshMysterySlot(used);
-  if(newSlot){careerState.slots[slotIdx]=newSlot}
-  else{
-    careerState.slots[slotIdx]={name:released,order:shuffle([0,1,2,3,4,5]),revealed:0,rolledSeason:rollSeasonClue(released)};
-  }
+  delete careerState.playerStats[released];
+  pendingBonusName=null;
   saveCareer();
   closeReplaceModal();
-  renderCareer();
+  showDismissedRevealAndRegen();
 }
-function discardSlot(slotIdx){
-  // DISCARD also reveals the player — but no roster swap follows. After
-  // the reveal modal closes, a fresh mystery takes the slot.
-  const slot=careerState.slots[slotIdx];
-  if(!slot)return;
-  pendingDiscardSlotIdx=slotIdx;
-  openRevealModal({mode:"discard",name:slot.name,preDecision:true});
-}
-function performDiscard(){
-  if(pendingDiscardSlotIdx==null)return;
-  const slotIdx=pendingDiscardSlotIdx;
-  const slot=careerState.slots[slotIdx];
-  pendingDiscardSlotIdx=null;
-  if(!slot)return;
-  const used=new Set([...careerState.roster,...careerState.slots.map(s=>s.name)]);
-  used.delete(slot.name);
-  const fresh=freshMysterySlot(used);
-  if(fresh){careerState.slots[slotIdx]=fresh}
+
+// After all releases finish, show the 4 dismissed players to the user
+// (per the new mini-game rules) and regenerate all 5 mystery slots.
+function showDismissedRevealAndRegen(){
+  const names=pendingRoundDismissed.slice();
+  pendingRoundDismissed=[];
+  pendingPickSlotIdx=null;
+  pendingPickPlayerName="";
+  // Regenerate slots first so the user can see fresh mysteries behind
+  // the modal as soon as they continue.
+  regenerateAllMysterySlots();
   saveCareer();
-  renderCareer();
+  if(!names.length){renderCareer();return}
+  openDismissedRevealModal(names);
 }
+function openDismissedRevealModal(names){
+  const modal=document.getElementById("bonusModal"); // reuse modal shell
+  document.getElementById("bonusGuessedName").textContent="";
+  document.getElementById("bonusContext").textContent="";
+  const header=modal.querySelector(".bonus-header");
+  const sub=modal.querySelector(".bonus-sub");
+  if(header)header.innerHTML="ROUND CLOSED";
+  if(sub)sub.textContent="The other four mysteries are dismissed:";
+  const list=document.getElementById("bonusList");
+  list.innerHTML=names.map(n=>{
+    const bi=bioByName[n];
+    const pos=bi!=null?(bioData[bi][3]||""):"";
+    return '<div class="bonus-row disabled">'+
+      '<span class="bonus-row-name" style="color:#888899">'+escapeHtmlS(n)+'</span>'+
+      '<span class="bonus-row-pos" style="color:#666688">'+escapeHtmlS(pos)+'</span>'+
+    '</div>';
+  }).join("");
+  // Swap the Cancel button to a CONTINUE-style action.
+  const closeBtn=modal.querySelector(".modal-close");
+  if(closeBtn){closeBtn.textContent="CONTINUE";closeBtn.onclick=function(){
+    modal.classList.remove("active");
+    // Restore default labels for next bonus opening.
+    if(header)header.innerHTML='PERFECT! <span id="bonusGuessedName"></span>';
+    if(sub){sub.innerHTML='Pick a bonus teammate from <span id="bonusContext" style="color:#ffd700"></span>';}
+    closeBtn.textContent="Cancel bonus";
+    closeBtn.onclick=closeBonusModal;
+    renderCareer();
+  }}
+  modal.classList.add("active");
+}
+
+// Regenerate every mystery slot, guaranteeing at least one G, one F,
+// and one C among the five so the user always has a position-diverse
+// pool of free agents to choose from.
+function regenerateAllMysterySlots(){
+  const used=new Set(careerState.roster);
+  const newSlots=[];
+  const need={g:true,f:true,c:true};
+  // First, fill one slot for each of G/F/C. Then fill the remaining 2
+  // with any position. Position diversity is enforced here only — once
+  // a position need is met, subsequent slots can be anything.
+  for(const pos of ["g","f","c"]){
+    const slot=freshMysterySlotMatchingPosition(used,pos);
+    if(slot){newSlots.push(slot);used.add(slot.name);need[pos]=false}
+  }
+  while(newSlots.length<5){
+    const slot=freshMysterySlot(used);
+    if(!slot)break;
+    newSlots.push(slot);
+    used.add(slot.name);
+  }
+  careerState.slots=newSlots;
+}
+function freshMysterySlotMatchingPosition(usedNames,pos){
+  // Pick a bio-eligible player not in use whose position spectrum covers
+  // the requested slot (g/f/c). Falls back to null if no candidate exists.
+  const pool=bioEligibleNames().filter(n=>{
+    if(usedNames.has(n))return false;
+    const p=playerPositions(n);
+    return p[pos];
+  });
+  if(!pool.length)return null;
+  const name=pool[Math.floor(Math.random()*pool.length)];
+  const order=shuffle([0,1,2,3,4]);
+  const sc=rollSeasonClue(name);
+  return {name,order,revealed:0,rolledSeason:sc.display,rolledSeasonYear:sc.seasonYr,rolledTeam:sc.team};
+}
+
+// Legacy stubs kept so any leftover handlers don't blow up. DISCARD is
+// gone from the UI; if something still calls these, treat as no-op.
+function discardSlot(slotIdx){/* removed — PICK is the only action now */}
+function performDiscard(){/* no-op */}
 
 // --- Dramatic reveal modal -------------------------------------------
 // Used for both "pick" and "discard" actions. Shows a brief scramble
@@ -1672,18 +2262,34 @@ function openRevealModal(opts){
   const scramble=document.getElementById("revealScramble");
   const card=document.getElementById("revealCard");
   const closeBtn=document.getElementById("revealCloseBtn");
+  // Header reflects guess outcome on PICK:
+  //   guessCorrect === true  → PERFECT (with sub-text about bonus)
+  //   guessCorrect === false → MISSED (wrong guess, player still joins)
+  //   guessCorrect === null  → REVEALED (user skipped guessing)
+  // discard mode kept around for legacy callers, currently unused since
+  // DISCARD as a UI action was removed in v7.
   if(opts.mode==="pick"){
-    header.textContent="REVEALED";
-    header.classList.remove("missed");
-    sub.textContent="Choose a player to release in the next step";
-    if(closeBtn)closeBtn.textContent="CHOOSE WHO TO RELEASE ▶";
+    if(opts.guessCorrect===true){
+      header.textContent="PERFECT!";
+      header.classList.remove("missed");
+      sub.textContent=opts.awardBonus?"Pick a bonus teammate next, then release someone":"Choose a player to release in the next step";
+    }else if(opts.guessCorrect===false){
+      header.textContent="MISSED";
+      header.classList.add("missed");
+      sub.textContent="Wrong guess — but they still join. Release someone next.";
+    }else{
+      header.textContent="REVEALED";
+      header.classList.remove("missed");
+      sub.textContent="Choose a player to release in the next step";
+    }
+    if(closeBtn)closeBtn.textContent=(opts.guessCorrect===true&&opts.awardBonus)?"PICK BONUS TEAMMATE ▶":"CHOOSE WHO TO RELEASE ▶";
+    closeBtn.dataset.next=(opts.guessCorrect===true&&opts.awardBonus)?"bonus":"release";
   }else{
     header.textContent="MISSED";
     header.classList.add("missed");
     sub.textContent="You discarded this player";
-    if(closeBtn)closeBtn.textContent="CONTINUE";
+    if(closeBtn){closeBtn.textContent="CONTINUE";closeBtn.dataset.next="discard"}
   }
-  // Reveal animation: scramble for ~700ms then settle on the real name.
   card.classList.remove("visible");
   card.innerHTML="";
   const realName=opts.name;
@@ -1709,15 +2315,12 @@ function openRevealModal(opts){
 }
 function closeRevealModal(){
   document.getElementById("revealModal").classList.remove("active");
-  // If the modal was a pre-decision reveal (PICK or DISCARD), branch to
-  // the next step. Otherwise just re-render normally.
-  if(pendingPickSlotIdx!=null){
-    actuallyOpenReplaceChooser();
-  }else if(pendingDiscardSlotIdx!=null){
-    performDiscard();
-  }else{
-    renderCareer();
-  }
+  const closeBtn=document.getElementById("revealCloseBtn");
+  const next=closeBtn?closeBtn.dataset.next:null;
+  if(next==="bonus"){openBonusModal()}
+  else if(next==="release"){proceedToReplaceForPickedSlot()}
+  else if(next==="discard"){performDiscard()}
+  else{renderCareer()}
 }
 function scrambleString(target){
   // Random characters, same length pattern as target (spaces preserved).
@@ -1769,19 +2372,24 @@ function careerAverages(name){
 function escapeHtmlS(s){return String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]))}
 
 function clueValueFor(player,clueIdx,slot){
-  // Maps clue index → display value. Position is shown permanently in the
-  // slot header. Birth year was removed in v6. Indices now:
+  // Indices:
   //   0 → STATE/COUNTRY  (player[2])
-  //   1 → STATUS         (computed: HoopsHype Top-78 / MVP / All-NBA / All-Star / "no All-Star")
-  //   2 → COLLEGE        (player[4])
-  //   3 → DRAFT YEAR     (player[5])
-  //   4 → PICK           (player[6])
-  //   5 → TEAM / SEASON  (slot.rolledSeason)
-  if(clueIdx===5)return (slot&&slot.rolledSeason)?slot.rolledSeason:"—";
+  //   1 → STATUS         (statusLabel)
+  //   2 → PRE-DRAFT TEAM (player[4])
+  //   3 → PICK           (player[6]) — UND/ND/T/SD expand
+  //   4 → TEAM / SEASON  (slot.rolledSeason)
+  if(clueIdx===4)return (slot&&slot.rolledSeason)?slot.rolledSeason:"—";
   if(clueIdx===1)return statusLabel(player[0]);
-  const fieldIdx=clueIdx===0?2:clueIdx===2?4:clueIdx===3?5:6;
+  const fieldIdx=clueIdx===0?2:clueIdx===2?4:6;
   const v=player[fieldIdx];
   if(v===""||v==null)return "—";
+  if(clueIdx===3){
+    const s=String(v).trim();
+    if(s==="UND"||s==="ND")return "Undrafted";
+    if(s==="T")return "Territorial Draft";
+    if(s==="SD")return "Supplemental Draft";
+    return s;
+  }
   return String(v);
 }
 
@@ -1900,18 +2508,49 @@ function renderCareer(justRevealedSlotIdx,pA,pB,gameCup,cupCompleted){
   document.getElementById("careerW").textContent=careerState.wins;
   document.getElementById("careerL").textContent=careerState.losses;
   document.getElementById("careerGameNum").textContent="GAME #"+(careerState.games+1);
+  // Team name — persisted on input. Default empty (placeholder shows
+  // "Name your team…"). Used as Team A's label in the box score and
+  // recap if the user has set one.
+  const tnInput=document.getElementById("teamNameInput");
+  if(tnInput&&!tnInput.dataset.wired){
+    tnInput.value=careerState.teamName||"";
+    tnInput.addEventListener("input",function(){
+      careerState.teamName=String(tnInput.value||"").trim().slice(0,32);
+      saveCareer();
+      // Live-update the team-name label in the box-score / recap so the
+      // user sees the rename immediately.
+      const inCareerBox=(currentMode==="career"&&careerScreen==="boxscore");
+      if(inCareerBox&&teamNames[0]){
+        teamNames[0]=careerState.teamName||"YOUR SQUAD";
+        try{render();renderRecap()}catch(e){}
+      }
+    });
+    tnInput.dataset.wired="1";
+  }else if(tnInput){
+    if(document.activeElement!==tnInput)tnInput.value=careerState.teamName||"";
+  }
+  // Streak chip — green when on a winning streak, red when losing. Only
+  // shows after the streak is 2+ in either direction (single-game runs
+  // would clutter the bar without conveying much).
+  const sChip=document.getElementById("careerStreak");
+  if(sChip){
+    const s=careerState.streak||{type:"none",count:0};
+    if(s.type==="W"&&s.count>=2){sChip.className="career-streak hot";sChip.textContent=s.count+" CONSECUTIVE W"}
+    else if(s.type==="L"&&s.count>=2){sChip.className="career-streak cold";sChip.textContent=s.count+" CONSECUTIVE L"}
+    else{sChip.className="career-streak idle";sChip.textContent=""}
+  }
 
   // Result banners — placed on both boxscore and freeagents screens so
   // the result stays visible across the Continue handoff. Include cup
   // context when we know it (post-game) and a "Cup won!" banner when the
-  // cup itself just completed.
+  // cup itself just completed. No tie branch — overtime is run during
+  // game sim if scores end equal, so we always have a winner.
   const bannerHTML=(()=>{
     if(pA==null||pB==null)return '';
     const cupCtx=gameCup?(' &middot; '+escapeHtmlS(cupTitle(gameCup.cup))+' vs '+escapeHtmlS(cupTargetLabel(gameCup.cup,gameCup.target))):'';
     const cupWon=cupCompleted?'<div class="win-banner" style="background:#1a1a3e;border-color:#ffd70077;color:#ffd700;margin-top:6px">🏆 '+escapeHtmlS(cupTitle(cupCompleted))+' COMPLETED!</div>':'';
-    if(pA>pB)return '<div class="win-banner">✦ VICTORY '+pA+'–'+pB+cupCtx+' · One clue revealed</div>'+cupWon;
-    if(pB>pA)return '<div class="loss-banner">✗ DEFEAT '+pA+'–'+pB+cupCtx+' · Rematch later</div>';
-    return '<div class="loss-banner">⟁ TIE '+pA+'–'+pB+cupCtx+'</div>';
+    if(pA>pB)return '<div class="win-banner">VICTORY '+pA+'–'+pB+cupCtx+'</div>'+cupWon;
+    return '<div class="loss-banner">DEFEAT '+pA+'–'+pB+cupCtx+'</div>';
   })();
   if(bannerHTML){
     document.getElementById("resultBanner").innerHTML=bannerHTML;
@@ -1927,9 +2566,12 @@ function renderCareer(justRevealedSlotIdx,pA,pB,gameCup,cupCompleted){
       const done=c.total-c.pending.length;
       const pct=c.total>0?Math.round(done/c.total*100):0;
       const isDone=c.pending.length===0;
+      // SVG icons per cup type — inline so they inherit color via stroke
+      // (gold when the card is hovered/done, muted otherwise). 18×18.
+      const iconHTML=cupIconSVG(k);
       return '<div class="cup-progress clickable'+(isDone?' done':'')+'" onclick="openCupModal(\''+k+'\')">'+
         '<div class="cup-progress-head">'+
-          '<span class="cup-progress-name">'+escapeHtmlS(cupTitle(k))+'</span>'+
+          '<span class="cup-progress-name">'+iconHTML+'<span>'+escapeHtmlS(cupTitle(k))+'</span></span>'+
           '<span class="cup-progress-pct">'+done+'/'+c.total+(isDone?' 🏆':'')+'</span>'+
         '</div>'+
         '<div class="cup-progress-bar"><div class="cup-progress-fill" style="width:'+pct+'%"></div></div>'+
@@ -2020,16 +2662,35 @@ function renderCareer(justRevealedSlotIdx,pA,pB,gameCup,cupCompleted){
       return '<div class="mystery-slot">'+
         '<div class="slot-header">'+
           '<span>MYSTERY #'+(idx+1)+(pos?' &middot; <span class="slot-pos">'+escapeHtmlS(pos)+'</span>':'')+'</span>'+
-          '<span class="slot-progress">'+slot.revealed+'/6</span>'+
+          '<span class="slot-progress">'+slot.revealed+'/5</span>'+
         '</div>'+
         '<div class="clues">'+clues+'</div>'+
         '<div class="slot-actions">'+
           '<button class="btn btn-pick" onclick="openReplaceModal('+idx+')">PICK</button>'+
-          '<button class="btn btn-discard" onclick="discardSlot('+idx+')">DISCARD</button>'+
         '</div></div>';
     }).join("");
   }
 }
+
+// Wire the guess input — autocomplete on every keystroke (≥2 chars) and
+// Enter-to-submit. Attached once at script-load; it doesn't matter that
+// the input isn't visible yet, the listener fires only when used.
+(function wireGuessInput(){
+  const tryAttach=()=>{
+    const input=document.getElementById("guessInput");
+    if(!input)return false;
+    input.addEventListener("input",updateGuessAutocomplete);
+    input.addEventListener("keydown",function(e){
+      if(e.key==="Enter"){e.preventDefault();submitGuess()}
+      else if(e.key==="Escape"){
+        const ac=document.getElementById("guessAutocomplete");
+        if(ac)ac.classList.remove("active");
+      }
+    });
+    return true;
+  };
+  if(!tryAttach())document.addEventListener("DOMContentLoaded",tryAttach);
+})();
 </script>
 </body>
 </html>
