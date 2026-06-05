@@ -1131,15 +1131,15 @@ function eligibleColleges(){
   return result.sort();
 }
 
-/* ===== Player status (HOF / MVP / All-NBA / All-Star) =====
+/* ===== Player status (Top-78 / MVP / All-NBA / All-Star) =====
    Sourced from the verified accolade list (bio.json's 9th column, packed
-   as bits: 1=HOF, 2=MVP, 4=All-NBA, 8=All-Star). The flags are precomputed
+   as bits: 1=Top-78, 2=MVP, 4=All-NBA, 8=All-Star). The flags are precomputed
    in the data prep step from the official awards roster:
-   - HOF = appears in NBA Top-50 / Top-75 / HoopsHype Top-78
+   - HoopsHype Top-78 = appears on the HoopsHype Top-78 all-time list
    - MVP = won the regular-season MVP at least once
    - All-NBA = made an All-NBA First / Second / Third Team at least once
    - All-Star = selected to the All-Star Game at least once
-   Cascade rule: HOF/MVP imply All-NBA + All-Star; All-NBA implies All-Star.
+   Cascade rule: Top-78/MVP imply All-NBA + All-Star; All-NBA implies All-Star.
    (Already applied at data-prep time so the bits are self-consistent.)
    Players not in the accolade list show "no All-Star" — most non-stars
    in the 5,000+ player set fall here. */
@@ -1148,7 +1148,7 @@ function statusLabel(name){
   if(bi==null)return "no All-Star";
   const flags=bioData[bi][8]||0;
   const tags=[];
-  if(flags&1)tags.push("Hall of Fame");
+  if(flags&1)tags.push("HoopsHype Top-78");
   if(flags&2)tags.push("MVP");
   if(flags&4)tags.push("All-NBA");
   if(flags&8)tags.push("All-Star");
@@ -1252,7 +1252,11 @@ function cupCandidates(cup,target){
 //     candidate pool), not which game they roll.
 function rollGameForTeam(name,cup,target,isOpp){
   let games=(playerIndex[name]||[]).filter(isPlayableGame);
-  if(cup==="decades"){
+  // Both decade and franchise constraints apply ONLY to the opponent team.
+  // The user's career roster always rolls from their full game pool —
+  // they never need to "field a 1960s player" or "field a Lakers player"
+  // to make a matchup work. The opponent is what's era/franchise-specific.
+  if(cup==="decades"&&isOpp){
     const start=parseInt(target),end=start+10;
     games=games.filter(g=>{const gy=g[G.GY];return gy>=start&&gy<end});
   }else if(cup==="franchise"&&isOpp){
@@ -1356,7 +1360,28 @@ function playNextGame(){
     careerState.nextGame=pickNextGameTarget();
     saveCareer();
     renderCareer();
-    if(ng.cup==="franchise"||ng.cup==="states"){
+    // Surface diagnostic info IN the alert for franchise auto-completes —
+    // most franchise auto-completes mean data.bin uses a team code we don't
+    // recognize. Showing what we looked for and what TEAMS actually contains
+    // (in the similar-codes list) gives Alberto enough to either patch the
+    // alts list in NBA_FRANCHISES or share back so we can.
+    if(ng.cup==="franchise"){
+      const tmSet=franchiseTeamSet(ng.target);
+      const allCodes=[...new Set(TEAMS.filter(t=>t).map(t=>String(t).trim()))];
+      const targets=[...tmSet];
+      const prefix=ng.target.slice(0,2).toUpperCase();
+      const similar=allCodes.filter(c=>{
+        const cu=String(c).toUpperCase();
+        return !tmSet.has(cu)&&(cu.startsWith(prefix)||cu.includes(ng.target));
+      }).sort().slice(0,15);
+      const msg="'"+cupTargetLabel(ng.cup,ng.target)+"' has too few players in the dataset and was auto-completed."+
+        "\n\n--- DEBUG (share with Claude) ---"+
+        "\nLooking for: "+targets.join(", ")+
+        "\nCandidates found: "+candidates.length+
+        "\nSimilar codes in data: "+(similar.length?similar.join(", "):"(none)")+
+        "\nTotal unique team codes in data: "+allCodes.length;
+      alert(msg);
+    }else if(ng.cup==="states"||ng.cup==="college"){
       alert("'"+cupTargetLabel(ng.cup,ng.target)+"' has too few players in the dataset and was auto-completed.");
     }
     return;
@@ -1377,35 +1402,13 @@ function playNextGame(){
     .map(n=>({name:n,game:rollGameForTeam(n,ng.cup,ng.target,true)}))
     .filter(p=>p.game);
 
-  // YOUR team rolls games under the cup's rules (decade-constrained or
-  // free). The Decade Cup is special: if YOUR roster can't field 5+
-  // players who have games in that decade, we push the target back into
-  // pending and pick a different next-game instead of locking the user
-  // into a guaranteed loss. (They'll get a chance once they pick up a
-  // free agent from that era.)
+  // YOUR team rolls from the full game pool (no decade or franchise
+  // constraint on the user side). That's why Decade and Franchise cups
+  // never get put "on hold" anymore — the opponent is what's
+  // era/franchise-specific, your roster always works.
   const userTeam=careerState.roster
     .map(n=>({name:n,game:rollGameForTeam(n,ng.cup,ng.target,false)}))
     .filter(p=>p.game);
-
-  if(ng.cup==="decades"&&userTeam.length<5){
-    console.info("User can't field for "+ng.target+"s; deferring this matchup.");
-    // Cycle: pick a different next game, keep this one pending.
-    const alt=pickNextGameTargetExcluding(ng.cup,ng.target);
-    if(alt){
-      careerState.nextGame=alt;
-      saveCareer();
-      renderCareer();
-      alert("Your roster has no players from the "+(parseInt(ng.target))+"s — that matchup is on hold until you sign someone from that era. Click PLAY NEXT GAME for a different opponent.");
-    }else{
-      // No other targets available — auto-complete this one so the loop
-      // can resolve.
-      moveCupTargetToCompleted(ng.cup,ng.target,null);
-      careerState.nextGame=pickNextGameTarget();
-      saveCareer();
-      renderCareer();
-    }
-    return;
-  }
 
   if(userTeam.length<3||oppTeam.length<3){
     console.warn("Couldn't field both teams for "+ng.cup+"/"+ng.target+" (user="+userTeam.length+" opp="+oppTeam.length+"); auto-completing.");
