@@ -142,7 +142,56 @@ body{background:#0a0a1a;color:#c8c8e0;font-family:'JetBrains Mono',monospace;min
 .win-banner{font-family:'Oswald',sans-serif;font-size:14px;letter-spacing:2px;color:#34c759;text-align:center;padding:8px;margin-bottom:12px;background:#0e2a14;border-radius:6px;border:1px solid #34c75944;animation:fadeIn 0.4s}
 .loss-banner{font-family:'Oswald',sans-serif;font-size:14px;letter-spacing:2px;color:#ff4444;text-align:center;padding:8px;margin-bottom:12px;background:#2a0e0e;border-radius:6px;border:1px solid #ff444444;animation:fadeIn 0.4s}
 
-@media(max-width:600px){.logo-main{font-size:32px;letter-spacing:3px}.controls{padding:10px;gap:6px}.search-wrap{max-width:100%;flex:1 1 100%}.score-pts{font-size:40px}.scoreboard{gap:20px}.slots-grid{grid-template-columns:1fr 1fr}}
+/* ===== Career screens ===== */
+.career-screen{display:none;animation:screenIn 0.35s ease-out}
+.career-screen.active{display:block}
+@keyframes screenIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.screen-title{font-family:'Oswald',sans-serif;font-size:22px;font-weight:700;letter-spacing:4px;color:#ffd700;text-transform:uppercase;text-align:center;margin-bottom:6px}
+.screen-subtitle{font-family:'Oswald',sans-serif;font-size:11px;letter-spacing:2px;color:#666688;text-align:center;text-transform:uppercase;margin-bottom:18px}
+.screen-title-sm{font-family:'Oswald',sans-serif;font-size:13px;letter-spacing:3px;color:#aaaadd;text-transform:uppercase;margin-bottom:10px;text-align:center}
+.screen-title-hint{color:#555577;font-size:11px;letter-spacing:1px}
+.screen-section{margin-bottom:22px}
+.screen-action{text-align:center;margin:22px 0}
+.btn-play-big{font-size:16px;padding:14px 36px;letter-spacing:3px}
+
+/* Roster cards (richer than the old simple chips) */
+.roster-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px}
+.roster-cards-compact{grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px}
+.roster-card{background:linear-gradient(160deg,#16213e 0%,#0e0e24 100%);border:1px solid #2a2a55;border-radius:8px;padding:12px;transition:transform 0.15s,border-color 0.15s}
+.roster-card:hover{transform:translateY(-1px);border-color:#3a3a77}
+.roster-card-name{font-family:'Oswald',sans-serif;font-size:14px;font-weight:700;color:#fff;letter-spacing:1px;text-transform:uppercase;margin-bottom:6px;line-height:1.1}
+.roster-card-meta{font-family:'JetBrains Mono',monospace;font-size:10px;color:#8888aa;line-height:1.6;margin-bottom:8px}
+.roster-card-meta .pos{color:#ffd700;font-weight:700;margin-right:6px}
+.roster-card-stats{display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px;padding-top:8px;border-top:1px solid #1a1a3e}
+.roster-card-stat{text-align:center}
+.roster-card-stat-num{font-family:'Oswald',sans-serif;font-size:16px;font-weight:700;color:#fff;line-height:1}
+.roster-card-stat-lbl{font-family:'Oswald',sans-serif;font-size:8px;color:#666688;letter-spacing:1px;text-transform:uppercase;margin-top:2px}
+.roster-cards-compact .roster-card{padding:10px}
+.roster-cards-compact .roster-card-name{font-size:12px}
+.roster-cards-compact .roster-card-meta{font-size:9px;line-height:1.5}
+.roster-cards-compact .roster-card-stat-num{font-size:13px}
+
+/* ===== Dramatic reveal modal ===== */
+.reveal-backdrop{background:rgba(0,0,0,0.92)}
+.reveal-modal{background:linear-gradient(135deg,#1a1a3e 0%,#0a0a1a 100%);border:1px solid #2a2a55;border-radius:12px;padding:36px 32px;max-width:480px;width:100%;text-align:center;animation:revealPop 0.4s cubic-bezier(0.34,1.56,0.64,1);box-shadow:0 0 60px rgba(255,107,53,0.3)}
+@keyframes revealPop{0%{transform:scale(0.85);opacity:0}100%{transform:scale(1);opacity:1}}
+.reveal-header{font-family:'Oswald',sans-serif;font-size:34px;font-weight:700;letter-spacing:8px;text-transform:uppercase;background:linear-gradient(135deg,#ff6b35 0%,#ffd700 50%,#ff6b35 100%);background-size:200% auto;-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;animation:shimmer 2s ease-in-out infinite;margin-bottom:6px}
+.reveal-header.missed{background:linear-gradient(135deg,#ff4444 0%,#888 50%,#ff4444 100%);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+.reveal-subheader{font-family:'Oswald',sans-serif;font-size:11px;letter-spacing:3px;color:#666688;text-transform:uppercase;margin-bottom:22px}
+.reveal-scramble{font-family:'Oswald',sans-serif;font-size:30px;font-weight:700;letter-spacing:3px;color:#ffd700;text-transform:uppercase;min-height:36px;margin-bottom:18px;transition:opacity 0.2s}
+.reveal-scramble.scrambling{color:#555577;letter-spacing:8px}
+.reveal-card{background:#0a0a1a;border:1px solid #2a2a55;border-radius:8px;padding:18px;margin-bottom:22px;opacity:0;transition:opacity 0.5s 0.3s}
+.reveal-card.visible{opacity:1}
+.reveal-card-meta{font-family:'JetBrains Mono',monospace;font-size:11px;color:#aaaadd;line-height:1.8;margin-bottom:10px;display:grid;grid-template-columns:1fr 1fr;gap:6px;text-align:left}
+.reveal-card-meta .lbl{color:#555577;font-size:9px;letter-spacing:1px;text-transform:uppercase}
+.reveal-card-meta .val{color:#ffd700;font-weight:700}
+.reveal-card-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding-top:10px;border-top:1px solid #1a1a3e}
+.reveal-card-stats .num{font-family:'Oswald',sans-serif;font-size:22px;font-weight:700;color:#fff;line-height:1}
+.reveal-card-stats .lbl{font-family:'Oswald',sans-serif;font-size:9px;color:#666688;letter-spacing:1px;text-transform:uppercase;margin-top:2px}
+.reveal-card-stats .stat{text-align:center}
+.reveal-close{padding:12px 32px;font-size:13px;letter-spacing:2px}
+
+@media(max-width:600px){.logo-main{font-size:32px;letter-spacing:3px}.controls{padding:10px;gap:6px}.search-wrap{max-width:100%;flex:1 1 100%}.score-pts{font-size:40px}.scoreboard{gap:20px}.slots-grid{grid-template-columns:1fr 1fr}.roster-cards{grid-template-columns:1fr 1fr}.roster-cards-compact{grid-template-columns:1fr 1fr}.reveal-header{font-size:24px;letter-spacing:5px}.reveal-card-meta{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -161,12 +210,12 @@ body{background:#0a0a1a;color:#c8c8e0;font-family:'JetBrains Mono',monospace;min
     <div class="player-count" id="playerCount"></div>
   </div>
   <div class="mode-tabs">
-    <button class="mode-tab active" id="modeSandboxTab" onclick="setMode('sandbox')">🎲 Sandbox</button>
-    <button class="mode-tab" id="modeCareerTab" onclick="setMode('career')">🏆 Career</button>
+    <button class="mode-tab" id="modeSandboxTab" onclick="setMode('sandbox')">🎲 Sandbox</button>
+    <button class="mode-tab active" id="modeCareerTab" onclick="setMode('career')">🏆 Career</button>
   </div>
 
   <!-- =========== SANDBOX MODE =========== -->
-  <div id="sandboxMode">
+  <div id="sandboxMode" style="display:none">
     <div class="controls">
       <div class="team-tabs">
         <button class="team-tab" id="tabA" onclick="setActiveTeam(0)">TEAM A (0)</button>
@@ -200,17 +249,43 @@ body{background:#0a0a1a;color:#c8c8e0;font-family:'JetBrains Mono',monospace;min
         <div><span class="record-num record-l" id="careerL">0</span> <span class="record-label">L</span></div>
       </div>
       <div class="career-game-num" id="careerGameNum">GAME #1</div>
-      <button class="btn btn-play" id="btnPlayNext" onclick="playNextGame()">▶ PLAY NEXT GAME</button>
       <button class="btn btn-reset-career" onclick="resetCareer()">RESET</button>
     </div>
-    <div id="resultBanner"></div>
-    <div class="career-roster" id="careerRoster">
-      <div class="roster-title">Your Squad</div>
-      <div class="roster-grid" id="careerRosterGrid"></div>
+
+    <!-- Screen 1: ROSTER (initial only, before any games) -->
+    <div id="careerScreenRoster" class="career-screen">
+      <div class="screen-title">Your Starting Squad</div>
+      <div class="screen-subtitle">Scout your 12-man rotation, then take the floor</div>
+      <div class="roster-cards" id="rosterCardsInitial"></div>
+      <div class="screen-action">
+        <button class="btn btn-play btn-play-big" onclick="playNextGame()">▶ PLAY GAME</button>
+      </div>
     </div>
-    <div class="slots-wrap">
-      <div class="slots-title">Mystery Free Agents · Win games to reveal clues</div>
-      <div class="slots-grid" id="mysterySlots"></div>
+
+    <!-- Screen 2: BOXSCORE (after each game) -->
+    <div id="careerScreenBoxscore" class="career-screen">
+      <div id="resultBanner"></div>
+      <!-- scoreboard + teamASection + teamBSection rendered below this div via the shared
+           shared block; visibility is toggled in JS so they line up with this screen. -->
+      <div class="screen-action" id="continueBtnWrap">
+        <button class="btn btn-play btn-play-big" id="btnContinue" onclick="goToFreeAgents()">CONTINUE ▶</button>
+      </div>
+    </div>
+
+    <!-- Screen 3: FREE AGENTS (post-game roster + mystery slots) -->
+    <div id="careerScreenFreeagents" class="career-screen">
+      <div id="resultBannerFA"></div>
+      <div class="screen-section">
+        <div class="screen-title-sm">Your Squad</div>
+        <div class="roster-cards roster-cards-compact" id="rosterCardsFA"></div>
+      </div>
+      <div class="screen-section">
+        <div class="screen-title-sm">Mystery Free Agents <span class="screen-title-hint">· Win games to reveal clues</span></div>
+        <div class="slots-grid" id="mysterySlots"></div>
+      </div>
+      <div class="screen-action">
+        <button class="btn btn-play btn-play-big" onclick="playNextGame()">▶ PLAY NEXT GAME</button>
+      </div>
     </div>
   </div>
 
@@ -242,6 +317,17 @@ body{background:#0a0a1a;color:#c8c8e0;font-family:'JetBrains Mono',monospace;min
     <button class="btn modal-close" onclick="closeReplaceModal()">Cancel</button>
   </div>
 </div>
+
+<!-- =========== Dramatic player-reveal modal (pick / discard) =========== -->
+<div class="modal-backdrop reveal-backdrop" id="revealModal">
+  <div class="reveal-modal">
+    <div class="reveal-header" id="revealHeader">SIGNED</div>
+    <div class="reveal-subheader" id="revealSubheader">Welcome to the squad</div>
+    <div class="reveal-scramble" id="revealScramble">??????</div>
+    <div class="reveal-card" id="revealCard"></div>
+    <button class="btn btn-play reveal-close" onclick="closeRevealModal()" id="revealCloseBtn">CONTINUE</button>
+  </div>
+</div>
 <script>
 // [TEAM,OPP,POS,MIN,PTS,FGM,FGA,3PM,3PA,FTM,FTA,ORB,DRB,REB,AST,STL,BLK,TOV,PF,TYPE,SEASON_YR,GAME_YR]
 const G={TM:0,OP:1,PS:2,MN:3,PT:4,FM:5,FA:6,PM:7,PA:8,FT:9,TA:10,OR:11,DR:12,RB:13,AS:14,ST:15,BK:16,TO:17,PF:18,TY:19,SY:20,GY:21};
@@ -258,9 +344,11 @@ let adjusted=[[],[]];
 // bioData is array of [name, birthYear, state, pos, college, draftYear, pick]
 // bioByName is name → index in bioData for fast lookup.
 let bioData=[],bioByName={};
-let currentMode="sandbox";  // "sandbox" or "career"
+let currentMode="career";   // default landing tab — was "sandbox"
+let careerScreen="roster";  // "roster" | "boxscore" | "freeagents"
 let careerState=null;       // see initCareerState() for shape
 let pendingPickSlotIdx=null; // mystery-slot index awaiting roster choice
+let pendingResult=null;      // {pA, pB, justRevealedSlotIdx} held between game → continue
 const CLUE_LABELS=["BIRTH YEAR","STATE/COUNTRY","POSITION","COLLEGE","DRAFT YEAR","PICK","TEAM / SEASON"];
 const CAREER_STORAGE_KEY="bsl_career_v2";  // bumped from v1 — added 7th clue
 
@@ -503,7 +591,16 @@ function processAll(){normalizeTeam(0);normalizeTeam(1);applyDefensiveImpact();r
       document.getElementById("app").style.display="block";
       const gc=Object.values(playerIndex).reduce((s,g)=>s+g.length,0);
       document.getElementById("playerCount").textContent=playerNames.length+" PLAYERS · "+gc.toLocaleString()+" GAMES · 1947-2025"+(bioData.length?(" · "+bioData.length+" with bio"):"");
-      updateTabs();randomizeTeams();
+      updateTabs();
+      // Career is now the default mode. Bootstrap or restore career state
+      // and surface the appropriate screen (roster for game 1, freeagents
+      // for any in-progress save).
+      const saved=loadCareer();
+      if(saved&&saved.roster.length===12){careerState=saved}
+      else{initCareerState()}
+      careerScreen=(careerState.games>0)?"freeagents":"roster";
+      renderCareer();
+      updateCareerScreenVisibility();
     },400);
   }catch(err){label.textContent="Error loading data";text.textContent=err.message;fill.style.background="#e63946";fill.style.width="100%";console.error(err)}
 })();
@@ -769,15 +866,45 @@ function setMode(mode){
       if(saved&&saved.roster.length===12){careerState=saved}
       else{initCareerState()}
     }
-    // Career uses its own team naming; clear the sandbox box score so we
-    // don't show stale state when switching tabs.
+    if(!careerScreen)careerScreen=(careerState.games>0)?"freeagents":"roster";
     teams=[[],[]];adjusted=[[],[]];render();
     renderCareer();
+    updateCareerScreenVisibility();
   }else{
-    // Coming back to sandbox: drop the career box-score view and
-    // re-randomize so the sandbox feels alive.
     teams=[[],[]];adjusted=[[],[]];
     if(playerNames.length)randomizeTeams();else render();
+    updateCareerScreenVisibility(); // hides career screens so sandbox is clean
+  }
+}
+
+// --- Screen control ---------------------------------------------------
+// Career mode is a 3-screen flow:
+//   "roster"     → initial scout view (only before game 1)
+//   "boxscore"   → post-game box score + Continue button
+//   "freeagents" → roster + mystery slots + Play Next Game
+// updateCareerScreenVisibility centralizes display toggling so the
+// shared scoreboard/box-score divs line up with the right screen.
+function setCareerScreen(s){
+  careerScreen=s;
+  updateCareerScreenVisibility();
+  if(s==="freeagents"||s==="roster")window.scrollTo({top:0,behavior:'smooth'});
+}
+function updateCareerScreenVisibility(){
+  const inCareer=(currentMode==="career");
+  const screens=["roster","boxscore","freeagents"];
+  screens.forEach(s=>{
+    const id="careerScreen"+s.charAt(0).toUpperCase()+s.slice(1);
+    const el=document.getElementById(id);
+    if(el)el.style.display=(inCareer&&careerScreen===s)?"block":"none";
+  });
+  // Shared box-score elements: visible in career boxscore screen, OR in
+  // sandbox mode (where their own render() controls visibility).
+  const showBox=inCareer&&careerScreen==="boxscore";
+  if(inCareer){
+    document.getElementById("scoreboard").style.display=showBox?"flex":"none";
+    document.getElementById("teamASection").style.display=showBox?"block":"none";
+    document.getElementById("teamBSection").style.display=showBox?"block":"none";
+    document.getElementById("emptyMsg").style.display="none";
   }
 }
 
@@ -787,9 +914,6 @@ function playNextGame(){
     alert("No roster yet — try resetting your career.");
     return;
   }
-  // Disable the button briefly so a double-click can't double-process.
-  const btn=document.getElementById("btnPlayNext");
-  btn.disabled=true;
 
   // YOUR TEAM: your career roster, each player rolling a fresh game
   const userTeam=careerState.roster
@@ -807,15 +931,12 @@ function playNextGame(){
     .map(n=>({name:n,game:getRandomGame(n)}))
     .filter(p=>p.game);
 
-  // Plug into the sandbox engine and run the same processAll pipeline.
   teams[0]=userTeam;teams[1]=oppTeam;
   teamNames[0]="YOUR SQUAD";
   teamNames[1]="OPPONENT";
   processAll();
   render();
 
-  // Decide the result and (on win) reveal one clue. Use the same PTS sum
-  // that the scoreboard uses so the banner always agrees with the score.
   let pA=0,pB=0;
   teams[0].forEach((_,i)=>{pA+=av(0,i,"PTS")});
   teams[1].forEach((_,i)=>{pB+=av(1,i,"PTS")});
@@ -827,13 +948,17 @@ function playNextGame(){
     revealedSlotIdx=revealNextClue();
   }else if(pB>pA){
     careerState.losses++;
-  }else{
-    // Tie — count as a non-win, no clue revealed. Rare enough that we
-    // don't bother with overtime modeling.
   }
   saveCareer();
+  pendingResult={pA,pB,justRevealedSlotIdx:revealedSlotIdx};
+  // Render the freeagents/roster panels too so the data is fresh when
+  // the user hits Continue — but immediately switch to the boxscore screen.
   renderCareer(revealedSlotIdx,pA,pB);
-  btn.disabled=false;
+  setCareerScreen("boxscore");
+}
+
+function goToFreeAgents(){
+  setCareerScreen("freeagents");
 }
 
 function revealNextClue(){
@@ -869,38 +994,129 @@ function closeReplaceModal(){
 function confirmReplace(rosterIdx){
   if(pendingPickSlotIdx==null)return;
   const slot=careerState.slots[pendingPickSlotIdx];
+  const slotIdx=pendingPickSlotIdx;
+  const revealedName=slot.name;       // remember for the reveal modal
   const released=careerState.roster[rosterIdx];
-  // Swap the mystery's revealed identity onto the roster, send the
-  // displaced player back into circulation. The displaced player can
-  // re-appear as a future mystery (consistent with Alberto's "discarded
-  // back to the pool" semantics).
   careerState.roster[rosterIdx]=slot.name;
-  // Replace the now-empty slot with a fresh mystery — using updated used
-  // set so the released player isn't immediately re-drawn.
   const used=new Set([...careerState.roster,...careerState.slots.map(s=>s.name)]);
-  used.delete(slot.name); // it just moved to roster, already in used via that path
+  used.delete(slot.name);
   const newSlot=freshMysterySlot(used);
-  if(newSlot){careerState.slots[pendingPickSlotIdx]=newSlot}
+  if(newSlot){careerState.slots[slotIdx]=newSlot}
   else{
-    // Pool exhausted (basically impossible) — recycle the released player
-    // back into the empty slot with a fresh reveal order + rolled season.
-    careerState.slots[pendingPickSlotIdx]={name:released,order:shuffle([0,1,2,3,4,5,6]),revealed:0,rolledSeason:rollSeasonClue(released)};
+    careerState.slots[slotIdx]={name:released,order:shuffle([0,1,2,3,4,5,6]),revealed:0,rolledSeason:rollSeasonClue(released)};
   }
   saveCareer();
   closeReplaceModal();
-  renderCareer();
+  // Trigger the dramatic reveal BEFORE redrawing the freeagents screen.
+  // After the user dismisses, renderCareer() runs so the swapped roster
+  // and fresh mystery slot land all at once.
+  openRevealModal({mode:"pick",name:revealedName,replaced:released});
 }
 function discardSlot(slotIdx){
   const slot=careerState.slots[slotIdx];
   if(!slot)return;
-  // No confirmation: discards are cheap and reversible (the player goes
-  // back to the pool and can reappear).
+  const revealedName=slot.name;
   const used=new Set([...careerState.roster,...careerState.slots.map(s=>s.name)]);
-  used.delete(slot.name); // ensure the discarded player CAN come back later
+  used.delete(slot.name);
   const fresh=freshMysterySlot(used);
   if(fresh){careerState.slots[slotIdx]=fresh}
   saveCareer();
+  openRevealModal({mode:"discard",name:revealedName});
+}
+
+// --- Dramatic reveal modal -------------------------------------------
+// Used for both "pick" and "discard" actions. Shows a brief scramble
+// animation on the player's name, then expands the full bio + career
+// stats card. The "missed" variant uses a red-tinted header so a discard
+// feels like a stakes-bearing decision rather than a quiet undo.
+function openRevealModal(opts){
+  const modal=document.getElementById("revealModal");
+  const header=document.getElementById("revealHeader");
+  const sub=document.getElementById("revealSubheader");
+  const scramble=document.getElementById("revealScramble");
+  const card=document.getElementById("revealCard");
+  if(opts.mode==="pick"){
+    header.textContent="SIGNED";
+    header.classList.remove("missed");
+    sub.innerHTML="Welcome to the squad &middot; "+escapeHtmlS(opts.replaced||"")+" released";
+  }else{
+    header.textContent="MISSED";
+    header.classList.add("missed");
+    sub.textContent="You discarded this scout";
+  }
+  // Reveal animation: scramble for ~700ms then settle on the real name.
+  card.classList.remove("visible");
+  card.innerHTML="";
+  const realName=opts.name;
+  scramble.textContent=scrambleString(realName);
+  scramble.classList.add("scrambling");
+  modal.classList.add("active");
+  const t0=performance.now();
+  function tick(now){
+    const elapsed=now-t0;
+    if(elapsed<700){
+      scramble.textContent=scrambleString(realName);
+      requestAnimationFrame(tick);
+    }else{
+      scramble.textContent=realName;
+      scramble.classList.remove("scrambling");
+      // After settle, fade in the bio + stats card
+      setTimeout(()=>{
+        card.innerHTML=buildRevealCardHTML(realName);
+        card.classList.add("visible");
+      },120);
+    }
+  }
+  requestAnimationFrame(tick);
+}
+function closeRevealModal(){
+  document.getElementById("revealModal").classList.remove("active");
   renderCareer();
+}
+function scrambleString(target){
+  // Random characters, same length pattern as target (spaces preserved).
+  const chars="ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+  return Array.from(target).map(c=>c===" "?" ":chars[Math.floor(Math.random()*chars.length)]).join("");
+}
+function buildRevealCardHTML(name){
+  const bi=bioByName[name];
+  const player=bi!=null?bioData[bi]:null;
+  const avg=careerAverages(name);
+  // Bio meta (paired into a 2-col grid: label / value)
+  const meta=[];
+  if(player){
+    if(player[1])meta.push({lbl:"Born",val:player[1]+(player[2]?" · "+player[2]:"")});
+    if(player[3])meta.push({lbl:"Position",val:player[3]});
+    if(player[4])meta.push({lbl:"College",val:player[4]});
+    if(player[5])meta.push({lbl:"Draft",val:player[5]+(player[6]?" · #"+player[6]:"")});
+  }
+  const metaHTML='<div class="reveal-card-meta">'+
+    meta.flatMap(m=>['<span class="lbl">'+escapeHtmlS(m.lbl)+'</span>','<span class="val">'+escapeHtmlS(m.val)+'</span>']).join("")+
+    '</div>';
+  const statsHTML='<div class="reveal-card-stats">'+
+    '<div class="stat"><div class="num">'+avg.ppg+'</div><div class="lbl">PPG</div></div>'+
+    '<div class="stat"><div class="num">'+avg.rpg+'</div><div class="lbl">RPG</div></div>'+
+    '<div class="stat"><div class="num">'+avg.apg+'</div><div class="lbl">APG</div></div>'+
+    '</div>';
+  return metaHTML+statsHTML;
+}
+
+// Career averages computed once on demand from the player's full game log
+// in playerIndex (independent of which specific game is rolled per turn).
+// Returns rounded PPG / RPG / APG strings — fine to recompute each time
+// since the per-player game list is already in memory.
+function careerAverages(name){
+  const games=playerIndex[name]||[];
+  if(!games.length)return {ppg:"—",rpg:"—",apg:"—",gp:0};
+  let pts=0,reb=0,ast=0;
+  games.forEach(g=>{pts+=g[G.PT]||0;reb+=g[G.RB]||0;ast+=g[G.AS]||0});
+  const gp=games.length;
+  return {
+    ppg:(pts/gp).toFixed(1),
+    rpg:(reb/gp).toFixed(1),
+    apg:(ast/gp).toFixed(1),
+    gp
+  };
 }
 
 // --- Rendering --------------------------------------------------------
@@ -915,63 +1131,82 @@ function clueValueFor(player,clueIdx,slot){
   return String(v);
 }
 
+function buildRosterCardHTML(name,compact){
+  const bi=bioByName[name];
+  const player=bi!=null?bioData[bi]:null;
+  const avg=careerAverages(name);
+  const pos=player?player[3]:"";
+  const yr=player&&player[1]?player[1]:"";
+  const state=player&&player[2]?player[2]:"";
+  const college=player&&player[4]?player[4]:"";
+  const meta1=[pos&&'<span class="pos">'+escapeHtmlS(pos)+'</span>',yr,state].filter(Boolean).join(" · ");
+  const meta2=college?escapeHtmlS(college):"";
+  return '<div class="roster-card">'+
+    '<div class="roster-card-name">'+escapeHtmlS(name)+'</div>'+
+    (meta1?'<div class="roster-card-meta">'+meta1+'</div>':'')+
+    (meta2?'<div class="roster-card-meta" style="margin-top:-4px">'+meta2+'</div>':'')+
+    '<div class="roster-card-stats">'+
+      '<div class="roster-card-stat"><div class="roster-card-stat-num">'+avg.ppg+'</div><div class="roster-card-stat-lbl">PPG</div></div>'+
+      '<div class="roster-card-stat"><div class="roster-card-stat-num">'+avg.rpg+'</div><div class="roster-card-stat-lbl">RPG</div></div>'+
+      '<div class="roster-card-stat"><div class="roster-card-stat-num">'+avg.apg+'</div><div class="roster-card-stat-lbl">APG</div></div>'+
+    '</div>'+
+  '</div>';
+}
+
 function renderCareer(justRevealedSlotIdx,pA,pB){
   if(!careerState)return;
-  // Career mode handles its own empty-state messaging via the slot grid
-  // and roster panel, so hide the sandbox "Search and add players..." text.
   document.getElementById("emptyMsg").style.display="none";
-  // Header counters
   document.getElementById("careerW").textContent=careerState.wins;
   document.getElementById("careerL").textContent=careerState.losses;
   document.getElementById("careerGameNum").textContent="GAME #"+(careerState.games+1);
 
-  // Result banner (only shown right after a game)
-  const banner=document.getElementById("resultBanner");
-  if(pA!=null&&pB!=null){
-    if(pA>pB){
-      banner.innerHTML='<div class="win-banner">✦ VICTORY '+pA+'–'+pB+' · One clue revealed</div>';
-    }else if(pB>pA){
-      banner.innerHTML='<div class="loss-banner">✗ DEFEAT '+pA+'–'+pB+' · No clue this game</div>';
-    }else{
-      banner.innerHTML='<div class="loss-banner">⟁ TIE '+pA+'–'+pB+' · No clue this game</div>';
-    }
+  // Result banners — placed on both boxscore and freeagents screens so
+  // the result stays visible across the Continue handoff.
+  const bannerHTML=(()=>{
+    if(pA==null||pB==null)return '';
+    if(pA>pB)return '<div class="win-banner">✦ VICTORY '+pA+'–'+pB+' · One clue revealed</div>';
+    if(pB>pA)return '<div class="loss-banner">✗ DEFEAT '+pA+'–'+pB+' · No clue this game</div>';
+    return '<div class="loss-banner">⟁ TIE '+pA+'–'+pB+' · No clue this game</div>';
+  })();
+  if(bannerHTML){
+    document.getElementById("resultBanner").innerHTML=bannerHTML;
+    document.getElementById("resultBannerFA").innerHTML=bannerHTML;
   }
-  // (Don't auto-clear the banner; it stays until next game, which is fine.)
 
-  // Roster grid (read-only display)
-  const rosterEl=document.getElementById("careerRosterGrid");
-  rosterEl.innerHTML=careerState.roster.map(name=>{
-    const bi=bioByName[name];
-    const pos=bi!=null?bioData[bi][3]:"";
-    return '<div class="roster-player"><span>'+escapeHtmlS(name)+'</span>'+
-      (pos?'<span class="roster-pos">'+escapeHtmlS(pos)+'</span>':'')+'</div>';
-  }).join("");
+  // Initial roster screen — richer cards
+  const initialEl=document.getElementById("rosterCardsInitial");
+  if(initialEl){
+    initialEl.innerHTML=careerState.roster.map(n=>buildRosterCardHTML(n,false)).join("");
+  }
+  // FA screen — compact roster cards
+  const faEl=document.getElementById("rosterCardsFA");
+  if(faEl){
+    faEl.innerHTML=careerState.roster.map(n=>buildRosterCardHTML(n,true)).join("");
+  }
 
-  // Mystery slot cards
+  // Mystery slot cards (only shown on freeagents screen)
   const slotsEl=document.getElementById("mysterySlots");
-  slotsEl.innerHTML=careerState.slots.map((slot,idx)=>{
-    const player=bioData[bioByName[slot.name]];
-    if(!player)return ''; // safety
-    // Which clue indices are revealed? slot.order.slice(0, slot.revealed)
-    const revealedSet=new Set(slot.order.slice(0,slot.revealed));
-    const clues=CLUE_LABELS.map((label,ci)=>{
-      const isRevealed=revealedSet.has(ci);
-      // Animate only the clue that was just revealed this turn (last
-      // entry in order array, when slot.revealed > 0 and this is the
-      // newly-revealed clue index).
-      const isNewest=(idx===justRevealedSlotIdx)&&isRevealed&&ci===slot.order[slot.revealed-1];
-      return '<div class="clue'+(isRevealed?' revealed':'')+(isNewest?' just-revealed':'')+'">'+
-        '<span class="clue-label">'+label+'</span>'+
-        '<span class="clue-value">'+(isRevealed?escapeHtmlS(clueValueFor(player,ci,slot)):"???")+'</span></div>';
+  if(slotsEl){
+    slotsEl.innerHTML=careerState.slots.map((slot,idx)=>{
+      const player=bioData[bioByName[slot.name]];
+      if(!player)return '';
+      const revealedSet=new Set(slot.order.slice(0,slot.revealed));
+      const clues=CLUE_LABELS.map((label,ci)=>{
+        const isRevealed=revealedSet.has(ci);
+        const isNewest=(idx===justRevealedSlotIdx)&&isRevealed&&ci===slot.order[slot.revealed-1];
+        return '<div class="clue'+(isRevealed?' revealed':'')+(isNewest?' just-revealed':'')+'">'+
+          '<span class="clue-label">'+label+'</span>'+
+          '<span class="clue-value">'+(isRevealed?escapeHtmlS(clueValueFor(player,ci,slot)):"???")+'</span></div>';
+      }).join("");
+      return '<div class="mystery-slot">'+
+        '<div class="slot-header"><span>MYSTERY #'+(idx+1)+'</span><span class="slot-progress">'+slot.revealed+'/7</span></div>'+
+        '<div class="clues">'+clues+'</div>'+
+        '<div class="slot-actions">'+
+          '<button class="btn btn-pick" onclick="openReplaceModal('+idx+')">PICK</button>'+
+          '<button class="btn btn-discard" onclick="discardSlot('+idx+')">DISCARD</button>'+
+        '</div></div>';
     }).join("");
-    return '<div class="mystery-slot">'+
-      '<div class="slot-header"><span>MYSTERY #'+(idx+1)+'</span><span class="slot-progress">'+slot.revealed+'/7</span></div>'+
-      '<div class="clues">'+clues+'</div>'+
-      '<div class="slot-actions">'+
-        '<button class="btn btn-pick" onclick="openReplaceModal('+idx+')">PICK</button>'+
-        '<button class="btn btn-discard" onclick="discardSlot('+idx+')">DISCARD</button>'+
-      '</div></div>';
-  }).join("");
+  }
 }
 </script>
 </body>
