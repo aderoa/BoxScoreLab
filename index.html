@@ -98,6 +98,9 @@ body{background:#0a0a1a;color:#c8c8e0;font-family:'JetBrains Mono',monospace;min
 .career-streak.hot{color:#22c55e;border-color:#22c55e44;background:#0a1f0f}
 .career-streak.cold{color:#ff6b6b;border-color:#ff6b6b44;background:#1f0a0a}
 .career-streak.idle{display:none}
+.difficulty-pill{background:#0e0e2a;border:1px solid #3a3a5a;color:#aaaadd;font-family:'Oswald',sans-serif;font-size:11px;letter-spacing:2px;font-weight:700;padding:5px 12px;border-radius:11px;cursor:pointer;text-transform:uppercase;transition:all 0.15s;align-self:center}
+.difficulty-pill:hover{border-color:#5a5a8a;color:#fff}
+.difficulty-pill.hard{background:linear-gradient(135deg,#3a0a0a 0%,#1a0a1a 100%);border-color:#e63946;color:#ff6b6b;text-shadow:0 0 8px rgba(230,57,70,0.4)}
 .record-num{font-family:'Oswald',sans-serif;font-size:28px;font-weight:700;line-height:1}
 .record-label{font-family:'Oswald',sans-serif;font-size:10px;letter-spacing:2px;color:#666688;text-transform:uppercase}
 .record-w{color:#34c759}
@@ -148,6 +151,19 @@ body{background:#0a0a1a;color:#c8c8e0;font-family:'JetBrains Mono',monospace;min
 .next-game-label{font-family:'Oswald',sans-serif;font-size:10px;letter-spacing:3px;color:#666688;text-transform:uppercase;margin-bottom:4px}
 .next-game-cup{font-family:'Oswald',sans-serif;font-size:13px;letter-spacing:2px;color:#ffd700;text-transform:uppercase;font-weight:700;margin-bottom:2px}
 .next-game-target{font-family:'Oswald',sans-serif;font-size:20px;letter-spacing:2px;color:#fff;text-transform:uppercase;font-weight:700}
+
+/* ===== Free-agency mechanic explainer (above the mystery slots) ===== */
+.fa-mechanic-note{background:#0e0e2a;border-left:3px solid #ffd700;border-radius:0 6px 6px 0;padding:10px 14px;margin:0 0 14px;font-family:'Inter','Segoe UI',sans-serif;font-size:12px;line-height:1.6;color:#aaaadd}
+.fa-mechanic-note b{color:#ffd700;font-weight:600}
+
+/* ===== Discarded-four reveal modal ===== */
+.dismissed-modal{background:linear-gradient(135deg,#1a1a3e 0%,#0a0a1a 100%);border:1px solid #3a3a55;border-radius:12px;padding:24px 24px 18px;max-width:920px;width:100%;max-height:88vh;overflow-y:auto;animation:revealPop 0.35s cubic-bezier(0.34,1.56,0.64,1);box-shadow:0 0 60px rgba(100,100,150,0.25)}
+.dismissed-header{font-family:'Oswald',sans-serif;font-size:22px;font-weight:700;letter-spacing:5px;color:#ff8888;text-align:center;text-transform:uppercase;margin-bottom:4px;text-shadow:0 0 12px rgba(255,107,107,0.3)}
+.dismissed-sub{font-family:'Oswald',sans-serif;font-size:12px;color:#8888aa;letter-spacing:2px;text-align:center;text-transform:uppercase;margin-bottom:18px}
+.dismissed-cards{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+.dismissed-card{position:relative;background:#0e0e2a;border:1px solid #2a2a55;border-radius:8px;padding:14px;opacity:0.85;filter:grayscale(20%)}
+.dismissed-card-tag{position:absolute;top:6px;right:8px;font-family:'Oswald',sans-serif;font-size:9px;letter-spacing:2px;color:#ff8888;background:rgba(255,107,107,0.12);padding:2px 6px;border-radius:3px;border:1px solid rgba(255,107,107,0.3);z-index:2}
+@media(max-width:760px){.dismissed-cards{grid-template-columns:1fr}}
 
 /* ===== Cup celebration modal (per-cup + all-cups overdrive variants) ===== */
 .celebration-modal{background:linear-gradient(135deg,#1a1a3e 0%,#0a0a1a 100%);border:2px solid #ffd700;border-radius:14px;padding:32px 28px 22px;max-width:560px;width:100%;text-align:center;animation:revealPop 0.5s cubic-bezier(0.34,1.56,0.64,1);box-shadow:0 0 80px rgba(255,215,0,0.4);position:relative;overflow:hidden}
@@ -399,6 +415,7 @@ body{background:#0a0a1a;color:#c8c8e0;font-family:'JetBrains Mono',monospace;min
         <div><span class="record-num record-l" id="careerL">0</span> <span class="record-label">L</span></div>
         <div id="careerStreak" class="career-streak"></div>
       </div>
+      <button class="difficulty-pill" id="difficultyPill" onclick="toggleDifficulty()" title="Switch difficulty">NORMAL</button>
       <div class="career-game-num" id="careerGameNum">GAME #1</div>
       <button class="btn btn-reset-career" onclick="resetCareer()">RESET</button>
     </div>
@@ -438,6 +455,9 @@ body{background:#0a0a1a;color:#c8c8e0;font-family:'JetBrains Mono',monospace;min
       </div>
       <div class="screen-section">
         <div class="screen-title-sm">Mystery Free Agents <span class="screen-title-hint">· Win games to reveal clues</span></div>
+        <div class="fa-mechanic-note">
+          PICK a mystery to try to guess who it is. A correct guess earns you a <b>bonus teammate</b> from that player's team/season. Either way, the other four mysteries are <b>discarded</b> and shown to you at the end of the round.
+        </div>
         <div class="slots-grid" id="mysterySlots"></div>
       </div>
       <div class="next-game-banner" id="nextGameBanner">
@@ -521,6 +541,17 @@ body{background:#0a0a1a;color:#c8c8e0;font-family:'JetBrains Mono',monospace;min
     <button class="btn modal-close" onclick="closeBonusModal()">Cancel bonus</button>
   </div>
 </div>
+<!-- =========== Discarded-four reveal modal =========== -->
+<div class="modal-backdrop" id="dismissedModal">
+  <div class="modal dismissed-modal">
+    <div class="dismissed-header">YOU DISCARDED</div>
+    <div class="dismissed-sub">The four mysteries you passed on this round</div>
+    <div class="dismissed-cards" id="dismissedCards"></div>
+    <div style="text-align:center;margin-top:12px">
+      <button class="btn btn-play" onclick="closeDismissedModal()">CONTINUE ▶</button>
+    </div>
+  </div>
+</div>
 <!-- =========== Cup celebration (per-cup + all-cups variants) =========== -->
 <div class="modal-backdrop" id="cupCelebrationModal">
   <div class="modal celebration-modal" id="celebrationInner">
@@ -580,7 +611,7 @@ const CLUE_LABELS=["STATE/COUNTRY","STATUS","PRE-DRAFT TEAM","PICK","TEAM / SEAS
 //   2 → PRE-DRAFT TEAM (player[4])
 //   3 → PICK           (player[6]) — UND/ND/T/SD expand to readable strings
 //   4 → TEAM / SEASON  (slot.rolledSeason)
-const CAREER_STORAGE_KEY="bsl_career_v7";  // v7 — guess mini-game; 5 clues; structured slot fields; G/F/C diversity
+const CAREER_STORAGE_KEY="bsl_career_v8";  // v8 — difficulty modes (normal/hard); bio.json now has AN1/AN2/AS counts at cols 9/10/11
 
 function rawG(game,s){
   switch(s){
@@ -1202,34 +1233,90 @@ function freshMysterySlot(usedNames){
   const sc=rollSeasonClue(name);
   return {name,order,revealed:0,rolledSeason:sc.display,rolledSeasonYear:sc.seasonYr,rolledTeam:sc.team};
 }
-function initCareerState(){
+function initCareerState(difficulty){
   if(!bioData.length){
-    careerState={roster:[],slots:[],wins:0,losses:0,games:0,cups:emptyCups(),nextGame:null,playerStats:{}};
+    careerState={roster:[],slots:[],wins:0,losses:0,games:0,cups:emptyCups(),nextGame:null,playerStats:{},difficulty:difficulty||"normal"};
     return;
   }
-  // Position-balanced random roster (4G/4F/2C minimum). Re-roll seeds up
-  // to 5 times if the first seed can't satisfy the minimums (rare but
-  // possible with unlucky shuffles).
+  // Difficulty selects the candidate pool the position-balanced roster
+  // is built from. NORMAL = shuffled bio-eligible pool (status quo).
+  // HARD = pool pre-sorted by the priority chain so the top 12 are the
+  // most-accoladed available players (HH-78 first, then most All-NBA
+  // First Teams, then All-NBA Second Teams, then All-Stars, then career
+  // PPG). The position balancer still has to satisfy 4G/4F/2C; it pulls
+  // candidates in priority order until that's met.
+  const diff=(difficulty||"normal").toLowerCase();
   let roster=null;
-  for(let attempt=0;attempt<5;attempt++){
-    const candidates=bioEligibleNames().filter(playerHasPlayableGames);
-    const seed=shuffle(candidates).slice(0,40);
-    const r=buildBalancedRoster(seed);
-    if(isValidRoster(r)){roster=r;break}
+  if(diff==="hard"){
+    const all=bioEligibleNames().filter(playerHasPlayableGames);
+    const sorted=all.slice().sort((a,b)=>hardModeCompare(a,b));
+    // Use the top 60 by ranking as the seed (gives the balancer room to
+    // satisfy position minimums while staying near the top of the list).
+    roster=buildBalancedRoster(sorted.slice(0,60));
+    if(!isValidRoster(roster)){
+      // Widen the pool if balance constraints aren't met in the top 60
+      roster=buildBalancedRoster(sorted.slice(0,150));
+    }
+  }else{
+    for(let attempt=0;attempt<5;attempt++){
+      const candidates=bioEligibleNames().filter(playerHasPlayableGames);
+      const seed=shuffle(candidates).slice(0,40);
+      const r=buildBalancedRoster(seed);
+      if(isValidRoster(r)){roster=r;break}
+    }
+    if(!roster||roster.length<12){
+      roster=buildBalancedRoster(shuffle(bioEligibleNames().filter(playerHasPlayableGames)).slice(0,60));
+    }
   }
-  if(!roster||roster.length<12){
-    // Fallback — use whatever the last attempt produced, even if not perfectly balanced.
-    roster=buildBalancedRoster(shuffle(bioEligibleNames().filter(playerHasPlayableGames)).slice(0,60));
-  }
-  const used=new Set(roster);
-  // Position-diverse mystery slots — at least one G, one F, one C among
-  // the 5 so the user always has options across the positional spectrum.
-  // (regenerateAllMysterySlots does the same thing post-pick; this is
-  // just the initial seed.)
-  careerState={roster,slots:[],wins:0,losses:0,games:0,cups:emptyCups(),nextGame:null,playerStats:{},streak:{type:"none",count:0}};
+  careerState={roster,slots:[],wins:0,losses:0,games:0,cups:emptyCups(),nextGame:null,playerStats:{},streak:{type:"none",count:0},difficulty:diff};
   regenerateAllMysterySlots();
   careerState.nextGame=pickNextGameTarget();
   saveCareer();
+}
+
+// Hard-mode ranking — returns a comparator value. Order priority:
+//   1. HoopsHype Top-78 (bit 0 of status_packed)
+//   2. All-NBA First Team count (bio col 9)
+//   3. All-NBA Second Team count (bio col 10)
+//   4. All-Star count (bio col 11)
+//   5. Career PPG (computed from playerIndex)
+// Tie-breaks fall through to the next criterion. Players without bio data
+// rank last across all criteria.
+function hardModeCompare(a,b){
+  const ra=hardModeKey(a),rb=hardModeKey(b);
+  for(let i=0;i<ra.length;i++){
+    if(rb[i]!==ra[i])return rb[i]-ra[i];
+  }
+  return 0;
+}
+function hardModeKey(name){
+  const bi=bioByName[name];
+  if(bi==null)return [0,0,0,0,0];
+  const r=bioData[bi];
+  const hh=(r[8]||0)&1;
+  const an1=r[9]||0;
+  const an2=r[10]||0;
+  const as=r[11]||0;
+  const ppg=careerPPG(name);
+  return [hh,an1,an2,as,ppg];
+}
+
+// Simple career PPG — total points across all playable games divided by
+// game count. Cached per-name so the Hard-mode sort doesn't re-scan
+// every player's game log on every comparator call (would be O(n² × g)
+// without the cache).
+const _ppgCache={};
+function careerPPG(name){
+  if(name in _ppgCache)return _ppgCache[name];
+  const games=playerIndex[name];
+  if(!games||!games.length){_ppgCache[name]=0;return 0}
+  let pts=0,gp=0;
+  for(const g of games){
+    if(isPlayableGame(g)){pts+=g[G.PT]||0;gp++}
+  }
+  const v=gp>0?pts/gp:0;
+  _ppgCache[name]=v;
+  return v;
 }
 
 /* =====================================================================
@@ -1630,10 +1717,32 @@ function rollGameForTeam(name,cup,target,isOpp){
 }
 function resetCareer(){
   if(!confirm("Reset career? Your record, roster, and revealed clues will be lost."))return;
+  const diff=(careerState&&careerState.difficulty)||"normal";
   localStorage.removeItem(CAREER_STORAGE_KEY);
-  initCareerState();
+  careerScreen="roster";
+  initCareerState(diff);
   renderCareer();
-  // Clear any visible box score from the prior game.
+  setCareerScreen("roster");
+  teams=[[],[]];adjusted=[[],[]];render();
+}
+
+// Difficulty toggle. Pre-game-1 (no games played yet) it just re-rolls
+// the roster at the new difficulty — no confirmation needed since the
+// user hasn't invested anything yet. Mid-career it asks first because
+// switching tier rebuilds the whole roster.
+function toggleDifficulty(){
+  if(!careerState)return;
+  const current=careerState.difficulty||"normal";
+  const next=(current==="normal")?"hard":"normal";
+  const inProgress=(careerState.games>0||careerState.wins>0||careerState.losses>0);
+  if(inProgress){
+    if(!confirm("Switch to "+next.toUpperCase()+" mode? This re-rolls your roster and clears your record."))return;
+  }
+  localStorage.removeItem(CAREER_STORAGE_KEY);
+  careerScreen="roster";
+  initCareerState(next);
+  renderCareer();
+  setCareerScreen("roster");
   teams=[[],[]];adjusted=[[],[]];render();
 }
 
@@ -1930,6 +2039,10 @@ function confirmReplace(rosterIdx){
   }
   const released=careerState.roster[rosterIdx];
   careerState.roster[rosterIdx]=slot.name;
+  // Remember which roster index just got the primary signing — used
+  // by the bonus release step to lock that row (can't release the
+  // player you literally just signed).
+  pendingJustSignedIdx=rosterIdx;
   if(!careerState.playerStats)careerState.playerStats={};
   delete careerState.playerStats[released]; // released player's L5 doesn't follow them out
   // Slot regeneration is deferred to showDismissedRevealAndRegen() — all
@@ -1942,6 +2055,7 @@ function confirmReplace(rosterIdx){
     const bn=pendingBonusName;
     openReplaceModalForBonus(bn);
   }else{
+    pendingJustSignedIdx=null;
     showDismissedRevealAndRegen();
   }
 }
@@ -1955,6 +2069,7 @@ function confirmReplace(rosterIdx){
 
 let pendingRoundDismissed=[]; // names of the 4 dismissed slots (carried across modals)
 let pendingPickPlayerName=""; // the picked slot's player (cached for the bonus picker)
+let pendingJustSignedIdx=null; // roster index that just received the primary signing (locked during bonus release)
 
 function openReplaceModal(slotIdx){
   // Entry point from the PICK button on a mystery card. The slot index
@@ -2081,7 +2196,14 @@ function openBonusModal(){
   if(!slot)return;
   const yr=slot.rolledSeasonYear;
   const tm=slot.rolledTeam;
-  const teammates=findTeammates(yr,tm,slot.name);
+  // Exclude the just-picked player AND every player already on the
+  // user's roster. Otherwise the bonus could hand them a duplicate of
+  // someone they already have (was happening with players who showed
+  // up on multiple team/season clues, e.g. Victor Oladipo on a 21-22
+  // Rockets slot and again on a 17-18 Thunder slot).
+  const rosterSet=new Set(careerState.roster);
+  rosterSet.add(slot.name);
+  const teammates=findTeammates(yr,tm,slot.name).filter(n=>!rosterSet.has(n));
   document.getElementById("bonusGuessedName").textContent=slot.name;
   document.getElementById("bonusContext").textContent=slot.rolledSeason||(tm+" "+yr);
   const list=document.getElementById("bonusList");
@@ -2141,14 +2263,24 @@ function openReplaceChooserFor(mysteryName,kind){
     const bi=bioByName[name];
     const pos=bi!=null?bioData[bi][3]:"";
     const avg=lastFiveAverages(name);
-    const valid=swapWouldBeValid(careerState.roster,origIdx,mysteryName);
+    let valid=swapWouldBeValid(careerState.roster,origIdx,mysteryName);
+    // In bonus mode the slot that was just filled by the primary signing
+    // is locked — releasing the player you just got would defeat the
+    // point of winning a bonus teammate.
+    let lockReason="";
+    if(kind==="bonus"&&pendingJustSignedIdx!=null&&origIdx===pendingJustSignedIdx){
+      valid=false;
+      lockReason="⚠ just signed — can't release";
+    }else if(!valid){
+      lockReason="⚠ would break 4G·4F·2C rule";
+    }
     const statHTML=avg
       ? '<span class="modal-stat-line">L'+avg.gp+' avg · <b>'+avg.pts+'</b> pts · <b>'+avg.reb+'</b> reb · <b>'+avg.ast+'</b> ast</span>'
       : '<span class="modal-stat-line modal-stat-new">NEW · No games yet</span>';
     const cls='modal-roster-player'+(valid?'':' disabled');
     const fn=(kind==="bonus")?"confirmReplaceBonus":"confirmReplace";
     const handler=valid?'onclick="'+fn+'('+origIdx+')"':'';
-    const lockHTML=valid?'':'<span class="modal-row-lock">⚠ would break 4G·4F·2C rule</span>';
+    const lockHTML=lockReason?'<span class="modal-row-lock">'+lockReason+'</span>':'';
     return '<div class="'+cls+'" '+handler+'>'+
       '<div class="modal-roster-left">'+
         '<div class="modal-roster-name">'+escapeHtmlS(name)+'</div>'+
@@ -2165,6 +2297,13 @@ function openReplaceChooserFor(mysteryName,kind){
 // chooser. Performs the swap then advances to the dismissed-reveal step.
 function confirmReplaceBonus(rosterIdx){
   if(!pendingBonusName)return;
+  // Double-check the just-signed lock at confirm time too (defense in
+  // depth — the onclick won't fire on a disabled row, but a manual JS
+  // call could still slip through).
+  if(pendingJustSignedIdx!=null&&rosterIdx===pendingJustSignedIdx){
+    alert("Can't release the player you just signed for the bonus.");
+    return;
+  }
   if(!swapWouldBeValid(careerState.roster,rosterIdx,pendingBonusName)){
     alert("Can't release this player — your roster would fall below the 4 G / 4 F / 2 C minimum.");
     return;
@@ -2174,6 +2313,7 @@ function confirmReplaceBonus(rosterIdx){
   if(!careerState.playerStats)careerState.playerStats={};
   delete careerState.playerStats[released];
   pendingBonusName=null;
+  pendingJustSignedIdx=null;
   saveCareer();
   closeReplaceModal();
   showDismissedRevealAndRegen();
@@ -2194,34 +2334,24 @@ function showDismissedRevealAndRegen(){
   openDismissedRevealModal(names);
 }
 function openDismissedRevealModal(names){
-  const modal=document.getElementById("bonusModal"); // reuse modal shell
-  document.getElementById("bonusGuessedName").textContent="";
-  document.getElementById("bonusContext").textContent="";
-  const header=modal.querySelector(".bonus-header");
-  const sub=modal.querySelector(".bonus-sub");
-  if(header)header.innerHTML="ROUND CLOSED";
-  if(sub)sub.textContent="The other four mysteries are dismissed:";
-  const list=document.getElementById("bonusList");
-  list.innerHTML=names.map(n=>{
-    const bi=bioByName[n];
-    const pos=bi!=null?(bioData[bi][3]||""):"";
-    return '<div class="bonus-row disabled">'+
-      '<span class="bonus-row-name" style="color:#888899">'+escapeHtmlS(n)+'</span>'+
-      '<span class="bonus-row-pos" style="color:#666688">'+escapeHtmlS(pos)+'</span>'+
+  // Dedicated modal showing the four dismissed players as full reveal
+  // cards (bio meta + career averages), the same buildRevealCardHTML
+  // layout used when a player is picked. The user sees what they passed
+  // on — useful for learning who matched which clues.
+  const modal=document.getElementById("dismissedModal");
+  const cardsEl=document.getElementById("dismissedCards");
+  if(!modal||!cardsEl){renderCareer();return}
+  cardsEl.innerHTML=names.map(n=>{
+    return '<div class="dismissed-card">'+
+      '<div class="dismissed-card-tag">PASSED</div>'+
+      buildRevealCardHTML(n)+
     '</div>';
   }).join("");
-  // Swap the Cancel button to a CONTINUE-style action.
-  const closeBtn=modal.querySelector(".modal-close");
-  if(closeBtn){closeBtn.textContent="CONTINUE";closeBtn.onclick=function(){
-    modal.classList.remove("active");
-    // Restore default labels for next bonus opening.
-    if(header)header.innerHTML='PERFECT! <span id="bonusGuessedName"></span>';
-    if(sub){sub.innerHTML='Pick a bonus teammate from <span id="bonusContext" style="color:#ffd700"></span>';}
-    closeBtn.textContent="Cancel bonus";
-    closeBtn.onclick=closeBonusModal;
-    renderCareer();
-  }}
   modal.classList.add("active");
+}
+function closeDismissedModal(){
+  document.getElementById("dismissedModal").classList.remove("active");
+  renderCareer();
 }
 
 // Regenerate every mystery slot, guaranteeing at least one G, one F,
@@ -2554,6 +2684,14 @@ function renderCareer(justRevealedSlotIdx,pA,pB,gameCup,cupCompleted){
     if(s.type==="W"&&s.count>=2){sChip.className="career-streak hot";sChip.textContent=s.count+" CONSECUTIVE W"}
     else if(s.type==="L"&&s.count>=2){sChip.className="career-streak cold";sChip.textContent=s.count+" CONSECUTIVE L"}
     else{sChip.className="career-streak idle";sChip.textContent=""}
+  }
+  // Difficulty pill — shows current mode (NORMAL or HARD) and toggles
+  // on click. Hard mode gets the red-tinted styling.
+  const diffPill=document.getElementById("difficultyPill");
+  if(diffPill){
+    const diff=(careerState.difficulty||"normal").toLowerCase();
+    diffPill.textContent=diff.toUpperCase();
+    diffPill.classList.toggle("hard",diff==="hard");
   }
 
   // Result banners — placed on both boxscore and freeagents screens so
