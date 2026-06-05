@@ -234,6 +234,18 @@ body{background:#0a0a1a;color:#c8c8e0;font-family:'JetBrains Mono',monospace;min
 .roster-cards-compact .roster-card-meta{font-size:9px;line-height:1.5}
 .roster-cards-compact .roster-card-stat-num{font-size:13px}
 
+/* ===== First-game reveal — cards stagger in one by one ===== */
+/* The initial career screen plays a quick "meet your 12" beat: each card
+   slides up + fades + scales in, delayed by its index so the eye reads
+   them as a wave from top-left to bottom-right. Cubic-bezier overshoot
+   gives a tiny bounce on the landing. Total runtime ≈ 1.6s. */
+.roster-cards-reveal .roster-card{opacity:0;animation:rosterCardIn 0.55s cubic-bezier(0.34,1.56,0.64,1) forwards;animation-delay:calc(var(--reveal-i,0) * 0.09s + 0.15s)}
+@keyframes rosterCardIn{0%{opacity:0;transform:translateY(28px) scale(0.9)}100%{opacity:1;transform:translateY(0) scale(1)}}
+/* Title + subtitle settle in just before the cards start arriving */
+#careerScreenRoster .screen-title{animation:revealTitleIn 0.45s ease-out backwards}
+#careerScreenRoster .screen-subtitle{animation:revealTitleIn 0.45s ease-out 0.08s backwards}
+@keyframes revealTitleIn{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)}}
+
 /* ===== Dramatic reveal modal ===== */
 .reveal-backdrop{background:rgba(0,0,0,0.92)}
 .reveal-modal{background:linear-gradient(135deg,#1a1a3e 0%,#0a0a1a 100%);border:1px solid #2a2a55;border-radius:12px;padding:36px 32px;max-width:480px;width:100%;text-align:center;animation:revealPop 0.4s cubic-bezier(0.34,1.56,0.64,1);box-shadow:0 0 60px rgba(255,107,53,0.3)}
@@ -438,11 +450,13 @@ let careerState=null;       // see initCareerState() for shape
 let pendingPickSlotIdx=null; // mystery-slot index awaiting roster choice
 let pendingDiscardSlotIdx=null; // mystery-slot index awaiting discard confirmation
 let pendingResult=null;      // {pA, pB, justRevealedSlotIdx} held between game → continue
-const CLUE_LABELS=["BIRTH YEAR","STATE/COUNTRY","STATUS","COLLEGE","DRAFT YEAR","PICK","TEAM / SEASON"];
-// Mapping from clue index → which bio field it pulls. POSITION is now
-// shown permanently in the slot header (not a rotating clue), so it's
-// out of this list entirely. STATUS reads bio.json's accolade flags.
-const CAREER_STORAGE_KEY="bsl_career_v5";  // v5 — position always revealed, new STATUS clue, College Cup
+const CLUE_LABELS=["STATE/COUNTRY","STATUS","COLLEGE","DRAFT YEAR","PICK","TEAM / SEASON"];
+// Mapping from clue index → which bio field it pulls. POSITION is shown
+// permanently in the slot header (not a rotating clue). STATUS reads
+// bio.json's accolade flags. Birth year was removed in v6 — it was rarely
+// a useful identifier (too many players share birth years), and 6 clues
+// feel tighter than 7 across the win-paced reveal.
+const CAREER_STORAGE_KEY="bsl_career_v6";  // v6 — BIRTH YEAR dropped from clue rotation; indices shifted
 
 function rawG(game,s){
   switch(s){
@@ -1017,7 +1031,7 @@ function freshMysterySlot(usedNames){
   // Randomize reveal order across all 7 clues per slot so two slots with
   // the same player (across separate careers) won't always reveal the
   // same clue first.
-  const order=shuffle([0,1,2,3,4,5,6]);
+  const order=shuffle([0,1,2,3,4,5]);
   const rolledSeason=rollSeasonClue(name);
   return {name,order,revealed:0,rolledSeason};
 }
@@ -1618,7 +1632,7 @@ function confirmReplace(rosterIdx){
   const newSlot=freshMysterySlot(used);
   if(newSlot){careerState.slots[slotIdx]=newSlot}
   else{
-    careerState.slots[slotIdx]={name:released,order:shuffle([0,1,2,3,4,5,6]),revealed:0,rolledSeason:rollSeasonClue(released)};
+    careerState.slots[slotIdx]={name:released,order:shuffle([0,1,2,3,4,5]),revealed:0,rolledSeason:rollSeasonClue(released)};
   }
   saveCareer();
   closeReplaceModal();
@@ -1755,25 +1769,23 @@ function careerAverages(name){
 function escapeHtmlS(s){return String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]))}
 
 function clueValueFor(player,clueIdx,slot){
-  // Maps clue index → display value. Position is no longer a rotating clue
-  // (it's always shown in the slot header), so clue index 2 is STATUS now.
-  // Indexing:
-  //   0 → BIRTH YEAR     (player[1])
-  //   1 → STATE/COUNTRY  (player[2])
-  //   2 → STATUS         (computed: HOF / MVP / All-NBA / All-Star / "no All-Star")
-  //   3 → COLLEGE        (player[4])
-  //   4 → DRAFT YEAR     (player[5])
-  //   5 → PICK           (player[6])
-  //   6 → TEAM / SEASON  (slot.rolledSeason)
-  if(clueIdx===6)return (slot&&slot.rolledSeason)?slot.rolledSeason:"—";
-  if(clueIdx===2)return statusLabel(player[0]);
-  const fieldIdx=clueIdx===0?1:clueIdx===1?2:clueIdx===3?4:clueIdx===4?5:6;
+  // Maps clue index → display value. Position is shown permanently in the
+  // slot header. Birth year was removed in v6. Indices now:
+  //   0 → STATE/COUNTRY  (player[2])
+  //   1 → STATUS         (computed: HoopsHype Top-78 / MVP / All-NBA / All-Star / "no All-Star")
+  //   2 → COLLEGE        (player[4])
+  //   3 → DRAFT YEAR     (player[5])
+  //   4 → PICK           (player[6])
+  //   5 → TEAM / SEASON  (slot.rolledSeason)
+  if(clueIdx===5)return (slot&&slot.rolledSeason)?slot.rolledSeason:"—";
+  if(clueIdx===1)return statusLabel(player[0]);
+  const fieldIdx=clueIdx===0?2:clueIdx===2?4:clueIdx===3?5:6;
   const v=player[fieldIdx];
   if(v===""||v==null)return "—";
   return String(v);
 }
 
-function buildRosterCardHTML(name,compact){
+function buildRosterCardHTML(name,compact,revealIdx){
   const bi=bioByName[name];
   const player=bi!=null?bioData[bi]:null;
   const avg=careerAverages(name);
@@ -1783,7 +1795,10 @@ function buildRosterCardHTML(name,compact){
   const college=player&&player[4]?player[4]:"";
   const meta1=[pos&&'<span class="pos">'+escapeHtmlS(pos)+'</span>',yr,state].filter(Boolean).join(" · ");
   const meta2=college?escapeHtmlS(college):"";
-  return '<div class="roster-card">'+
+  // revealIdx, when provided, drives the staggered first-game card-reveal
+  // animation via the --reveal-i CSS variable (see .roster-cards-reveal).
+  const styleAttr=(revealIdx!=null)?' style="--reveal-i:'+revealIdx+'"':'';
+  return '<div class="roster-card"'+styleAttr+'>'+
     '<div class="roster-card-name">'+escapeHtmlS(name)+'</div>'+
     (meta1?'<div class="roster-card-meta">'+meta1+'</div>':'')+
     (meta2?'<div class="roster-card-meta" style="margin-top:-4px">'+meta2+'</div>':'')+
@@ -1955,13 +1970,19 @@ function renderCareer(justRevealedSlotIdx,pA,pB,gameCup,cupCompleted){
     }
   }
 
-  // Initial roster screen — richer cards (sorted by position: G → C)
+  // Initial roster screen — richer cards (sorted by position: G → C).
+  // The reveal class triggers a staggered fade/slide-in for each card,
+  // playing a quick "meet your 12" beat the first time the player lands
+  // on a fresh career. Re-renders (e.g. after a window resize) replay
+  // the animation, which is fine — it's only ever on this one screen.
   const initialEl=document.getElementById("rosterCardsInitial");
   if(initialEl){
     const sorted=[...careerState.roster].sort((a,b)=>positionSortKey(a)-positionSortKey(b));
-    initialEl.innerHTML=sorted.map(n=>buildRosterCardHTML(n,false)).join("");
+    initialEl.className="roster-cards roster-cards-reveal";
+    initialEl.innerHTML=sorted.map((n,i)=>buildRosterCardHTML(n,false,i)).join("");
   }
-  // FA screen — compact roster cards (same position-spectrum order)
+  // FA screen — compact roster cards (same position-spectrum order, no
+  // reveal animation — they're persistent context, not a beat).
   const faEl=document.getElementById("rosterCardsFA");
   if(faEl){
     const sorted=[...careerState.roster].sort((a,b)=>positionSortKey(a)-positionSortKey(b));
@@ -1999,7 +2020,7 @@ function renderCareer(justRevealedSlotIdx,pA,pB,gameCup,cupCompleted){
       return '<div class="mystery-slot">'+
         '<div class="slot-header">'+
           '<span>MYSTERY #'+(idx+1)+(pos?' &middot; <span class="slot-pos">'+escapeHtmlS(pos)+'</span>':'')+'</span>'+
-          '<span class="slot-progress">'+slot.revealed+'/7</span>'+
+          '<span class="slot-progress">'+slot.revealed+'/6</span>'+
         '</div>'+
         '<div class="clues">'+clues+'</div>'+
         '<div class="slot-actions">'+
