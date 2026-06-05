@@ -1070,37 +1070,44 @@ function initCareerState(){
 // simplicity — players whose log only contains historical abbreviations
 // won't appear in any current franchise's opponent pool. If a particular
 // abbreviation has no candidates we just skip it from the active cup.
+// data.bin stores team names as nicknames ("Hawks", "Lakers", "SuperSonics"
+// etc.), with era-disambiguation suffixes for nicknames shared with defunct
+// teams ("Nuggets (1950)" for the 1949-50 Denver Nuggets that aren't part of
+// the modern franchise; "Hornets (1988)" for the original Charlotte Hornets
+// that moved to New Orleans and now race under the Pelicans branding).
+// Each franchise's `alts` list contains the nicknames that map to it across
+// its full lineage. Matching is case-insensitive / whitespace-tolerant.
 const NBA_FRANCHISES=[
-  {abbr:"ATL",name:"Atlanta Hawks"},
-  {abbr:"BOS",name:"Boston Celtics"},
-  {abbr:"BKN",name:"Brooklyn Nets",alts:["NJN","NYN"]},
-  {abbr:"CHA",name:"Charlotte Hornets",alts:["CHH","CHO"]},
-  {abbr:"CHI",name:"Chicago Bulls"},
-  {abbr:"CLE",name:"Cleveland Cavaliers"},
-  {abbr:"DAL",name:"Dallas Mavericks"},
-  {abbr:"DEN",name:"Denver Nuggets"},
-  {abbr:"DET",name:"Detroit Pistons"},
-  {abbr:"GSW",name:"Golden State Warriors"},
-  {abbr:"HOU",name:"Houston Rockets"},
-  {abbr:"IND",name:"Indiana Pacers"},
-  {abbr:"LAC",name:"LA Clippers",alts:["SDC","BUF"]},
-  {abbr:"LAL",name:"LA Lakers"},
-  {abbr:"MEM",name:"Memphis Grizzlies",alts:["VAN"]},
-  {abbr:"MIA",name:"Miami Heat"},
-  {abbr:"MIL",name:"Milwaukee Bucks"},
-  {abbr:"MIN",name:"Minnesota Timberwolves"},
-  {abbr:"NOP",name:"New Orleans Pelicans",alts:["NOH","NOK"]},
-  {abbr:"NYK",name:"New York Knicks"},
-  {abbr:"OKC",name:"Oklahoma City Thunder",alts:["SEA"]},
-  {abbr:"ORL",name:"Orlando Magic"},
-  {abbr:"PHI",name:"Philadelphia 76ers"},
-  {abbr:"PHX",name:"Phoenix Suns"},
-  {abbr:"POR",name:"Portland Trail Blazers"},
-  {abbr:"SAC",name:"Sacramento Kings",alts:["KCK","KCO","CIN"]},
-  {abbr:"SAS",name:"San Antonio Spurs"},
-  {abbr:"TOR",name:"Toronto Raptors"},
-  {abbr:"UTA",name:"Utah Jazz",alts:["NOJ"]},
-  {abbr:"WAS",name:"Washington Wizards",alts:["WSB","BAL","CAP"]}, // WSB/BAL/CAP are pre-1997 Bullets lineage
+  {abbr:"ATL",name:"Atlanta Hawks",alts:["Hawks","Blackhawks"]},                  // Tri-Cities Blackhawks → Milwaukee/St.Louis/Atlanta
+  {abbr:"BOS",name:"Boston Celtics",alts:["Celtics"]},
+  {abbr:"BKN",name:"Brooklyn Nets",alts:["Nets"]},                                // Nets covers NJ/NY/BKN
+  {abbr:"CHA",name:"Charlotte Hornets",alts:["Hornets"]},                         // current franchise (the Bobcats lineage, rebranded 2014)
+  {abbr:"CHI",name:"Chicago Bulls",alts:["Bulls"]},                               // Chicago Stags were a different defunct franchise — not included
+  {abbr:"CLE",name:"Cleveland Cavaliers",alts:["Cavaliers"]},
+  {abbr:"DAL",name:"Dallas Mavericks",alts:["Mavericks"]},
+  {abbr:"DEN",name:"Denver Nuggets",alts:["Nuggets"]},                            // "Nuggets (1950)" is a different defunct franchise — not included
+  {abbr:"DET",name:"Detroit Pistons",alts:["Pistons"]},                           // Detroit Falcons were a different defunct franchise — not included
+  {abbr:"GSW",name:"Golden State Warriors",alts:["Warriors"]},
+  {abbr:"HOU",name:"Houston Rockets",alts:["Rockets"]},
+  {abbr:"IND",name:"Indiana Pacers",alts:["Pacers"]},                             // Indianapolis Jets/Olympians were different defunct franchises
+  {abbr:"LAC",name:"LA Clippers",alts:["Clippers","Braves"]},                     // Buffalo Braves → San Diego/LA Clippers
+  {abbr:"LAL",name:"LA Lakers",alts:["Lakers"]},                                  // Minneapolis Lakers retained the Lakers name
+  {abbr:"MEM",name:"Memphis Grizzlies",alts:["Grizzlies"]},                       // Vancouver Grizzlies retained the name
+  {abbr:"MIA",name:"Miami Heat",alts:["Heat"]},
+  {abbr:"MIL",name:"Milwaukee Bucks",alts:["Bucks"]},
+  {abbr:"MIN",name:"Minnesota Timberwolves",alts:["Timberwolves"]},
+  {abbr:"NOP",name:"New Orleans Pelicans",alts:["Pelicans","Hornets (1988)"]},    // original 1988 Hornets franchise relocated to NOLA, renamed Pelicans 2013
+  {abbr:"NYK",name:"New York Knicks",alts:["Knicks"]},
+  {abbr:"OKC",name:"Oklahoma City Thunder",alts:["Thunder","SuperSonics"]},       // Seattle SuperSonics relocated 2008
+  {abbr:"ORL",name:"Orlando Magic",alts:["Magic"]},
+  {abbr:"PHI",name:"Philadelphia 76ers",alts:["Sixers","Nationals"]},             // Syracuse Nationals → Philadelphia 76ers
+  {abbr:"PHX",name:"Phoenix Suns",alts:["Suns"]},
+  {abbr:"POR",name:"Portland Trail Blazers",alts:["Trail Blazers"]},
+  {abbr:"SAC",name:"Sacramento Kings",alts:["Kings","Royals"]},                   // Rochester/Cincinnati Royals → Kansas City/Sacramento Kings
+  {abbr:"SAS",name:"San Antonio Spurs",alts:["Spurs"]},
+  {abbr:"TOR",name:"Toronto Raptors",alts:["Raptors"]},                           // 1946-47 Toronto Huskies were a different defunct franchise
+  {abbr:"UTA",name:"Utah Jazz",alts:["Jazz"]},                                    // New Orleans Jazz retained the name
+  {abbr:"WAS",name:"Washington Wizards",alts:["Wizards","Bullets","Packers","Zephyrs"]} // Chicago Packers → Chicago Zephyrs → Baltimore/Capital/Washington Bullets → Wizards
 ];
 const CONTINENT_INFO={
   americas:"The Americas",
