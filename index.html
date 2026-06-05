@@ -81,7 +81,68 @@ body{background:#0a0a1a;color:#c8c8e0;font-family:'JetBrains Mono',monospace;min
 .hl-dbl{color:#ff6b35 !important;font-weight:700 !important}
 .empty-state{text-align:center;padding:80px 20px;color:#222244;font-family:'Oswald',sans-serif;font-size:15px;letter-spacing:2px}
 .empty-state .icon{font-size:40px;margin-bottom:12px;opacity:0.4}
-@media(max-width:600px){.logo-main{font-size:32px;letter-spacing:3px}.controls{padding:10px;gap:6px}.search-wrap{max-width:100%;flex:1 1 100%}.score-pts{font-size:40px}.scoreboard{gap:20px}}
+
+/* ===== Career Mode ===== */
+.mode-tabs{display:flex;gap:0;justify-content:center;margin:0 0 14px;border-bottom:1px solid #1a1a3e}
+.mode-tab{background:none;border:none;padding:10px 22px;cursor:pointer;color:#555577;font-family:'Oswald',sans-serif;font-size:14px;font-weight:600;letter-spacing:3px;text-transform:uppercase;transition:all 0.2s;border-bottom:3px solid transparent;margin-bottom:-1px}
+.mode-tab:hover{color:#aaa}
+.mode-tab.active{color:#ffd700;border-bottom-color:#ff6b35}
+#careerMode{display:none}
+.career-bar{display:flex;flex-wrap:wrap;gap:14px;align-items:center;justify-content:center;margin-bottom:16px;padding:12px 16px;background:linear-gradient(135deg,#1a1a3e 0%,#0e0e24 100%);border-radius:8px;border:1px solid #2a2a55}
+.career-record{display:flex;gap:18px;align-items:baseline}
+.record-num{font-family:'Oswald',sans-serif;font-size:28px;font-weight:700;line-height:1}
+.record-label{font-family:'Oswald',sans-serif;font-size:10px;letter-spacing:2px;color:#666688;text-transform:uppercase}
+.record-w{color:#34c759}
+.record-l{color:#ff4444}
+.career-game-num{font-family:'JetBrains Mono',monospace;font-size:11px;color:#8888aa;letter-spacing:1px}
+.btn-play{background:linear-gradient(135deg,#ff6b35,#ffd700);color:#0a0a1a;font-weight:700;padding:10px 22px;font-size:13px;letter-spacing:1px}
+.btn-play:hover{transform:translateY(-1px);box-shadow:0 4px 12px rgba(255,107,53,0.3)}
+.btn-play:disabled{opacity:0.5;cursor:not-allowed;transform:none}
+.btn-reset-career{background:#333;font-size:10px;letter-spacing:1px}
+
+.slots-wrap{margin-bottom:20px}
+.slots-title{font-family:'Oswald',sans-serif;font-size:12px;letter-spacing:3px;color:#8888aa;text-transform:uppercase;margin-bottom:10px;text-align:center}
+.slots-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px}
+.mystery-slot{background:linear-gradient(160deg,#16213e 0%,#0e0e24 100%);border:1px solid #2a2a55;border-radius:8px;padding:12px;display:flex;flex-direction:column;transition:transform 0.2s,box-shadow 0.2s,border-color 0.2s}
+.mystery-slot:hover{transform:translateY(-2px);box-shadow:0 6px 16px rgba(255,107,53,0.15);border-color:#ff6b35}
+.slot-header{font-family:'Oswald',sans-serif;font-size:11px;letter-spacing:2px;color:#666688;text-transform:uppercase;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center}
+.slot-progress{color:#ffd700;font-family:'JetBrains Mono',monospace;font-size:10px}
+.clues{display:flex;flex-direction:column;gap:6px;margin-bottom:12px;flex:1}
+.clue{display:flex;justify-content:space-between;align-items:center;padding:6px 8px;border-radius:4px;background:#0a0a1a;font-size:10px;border-left:2px solid #222244;transition:all 0.3s}
+.clue.revealed{border-left-color:#ffd700;background:#0e0e2a}
+.clue.just-revealed{animation:clueReveal 0.8s ease-out}
+@keyframes clueReveal{
+  0%{background:#ffd700;transform:scale(1.05);border-left-color:#fff}
+  100%{background:#0e0e2a;transform:scale(1);border-left-color:#ffd700}
+}
+.clue-label{font-family:'Oswald',sans-serif;letter-spacing:1px;color:#666688;text-transform:uppercase;font-size:9px;font-weight:600}
+.clue-value{font-family:'JetBrains Mono',monospace;color:#444;font-weight:500;font-size:11px}
+.clue.revealed .clue-value{color:#ffd700;font-weight:700}
+.slot-actions{display:flex;gap:6px}
+.slot-actions .btn{flex:1;padding:7px 0;font-size:10px;letter-spacing:1px}
+.btn-pick{background:#34c759}
+.btn-discard{background:#5a5a7a}
+
+.career-roster{background:#111128;border:1px solid #1a1a3e;border-radius:8px;padding:12px;margin-bottom:16px}
+.roster-title{font-family:'Oswald',sans-serif;font-size:12px;letter-spacing:3px;color:#8888aa;text-transform:uppercase;margin-bottom:10px;text-align:center}
+.roster-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:6px}
+.roster-player{padding:6px 10px;background:#0a0a1a;border-radius:4px;font-size:11px;color:#c8c8e0;display:flex;justify-content:space-between;align-items:center;border:1px solid #1a1a3e}
+.roster-player .roster-pos{font-size:9px;color:#666;background:#1a1a3e;padding:1px 5px;border-radius:2px}
+
+/* Replace-modal */
+.modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,0.7);display:none;align-items:center;justify-content:center;z-index:1000;padding:20px}
+.modal-backdrop.active{display:flex}
+.modal{background:#111128;border:1px solid #2a2a55;border-radius:8px;padding:18px;max-width:520px;width:100%;max-height:80vh;overflow-y:auto}
+.modal-title{font-family:'Oswald',sans-serif;font-size:16px;letter-spacing:2px;color:#ffd700;text-transform:uppercase;margin-bottom:14px;text-align:center}
+.modal-roster{display:grid;grid-template-columns:1fr;gap:6px;margin-bottom:14px}
+.modal-roster-player{padding:10px 12px;background:#0a0a1a;border:1px solid #1a1a3e;border-radius:4px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;transition:all 0.15s}
+.modal-roster-player:hover{background:#1a1a4e;border-color:#ff6b35}
+.modal-close{background:#333;width:100%;padding:8px}
+
+.win-banner{font-family:'Oswald',sans-serif;font-size:14px;letter-spacing:2px;color:#34c759;text-align:center;padding:8px;margin-bottom:12px;background:#0e2a14;border-radius:6px;border:1px solid #34c75944;animation:fadeIn 0.4s}
+.loss-banner{font-family:'Oswald',sans-serif;font-size:14px;letter-spacing:2px;color:#ff4444;text-align:center;padding:8px;margin-bottom:12px;background:#2a0e0e;border-radius:6px;border:1px solid #ff444444;animation:fadeIn 0.4s}
+
+@media(max-width:600px){.logo-main{font-size:32px;letter-spacing:3px}.controls{padding:10px;gap:6px}.search-wrap{max-width:100%;flex:1 1 100%}.score-pts{font-size:40px}.scoreboard{gap:20px}.slots-grid{grid-template-columns:1fr 1fr}}
 </style>
 </head>
 <body>
@@ -99,29 +160,61 @@ body{background:#0a0a1a;color:#c8c8e0;font-family:'JetBrains Mono',monospace;min
     <div class="logo-sm">BOX SCORE LAB</div>
     <div class="player-count" id="playerCount"></div>
   </div>
-  <div class="controls">
-    <div class="team-tabs">
-      <button class="team-tab" id="tabA" onclick="setActiveTeam(0)">TEAM A (0)</button>
-      <button class="team-tab" id="tabB" onclick="setActiveTeam(1)">TEAM B (0)</button>
-    </div>
-    <div class="search-wrap">
-      <input class="search-input" id="searchInput" type="text" placeholder="Search player..." autocomplete="off">
-      <div class="dropdown" id="dropdown"></div>
-    </div>
-    <select class="filter-select" id="gameTypeFilter">
-      <option value="-1">All Games</option>
-      <option value="0">Regular Season</option>
-      <option value="1">Playoffs</option>
-      <option value="2">Finals</option>
-    </select>
-    <button class="btn btn-roll" onclick="rerollAll()">🎲 Re-roll All</button>
-    <button class="btn btn-rand" onclick="randomizeTeams()">🔀 Random Teams</button>
-    <button class="btn btn-clear" onclick="clearAll()">Clear</button>
+  <div class="mode-tabs">
+    <button class="mode-tab active" id="modeSandboxTab" onclick="setMode('sandbox')">🎲 Sandbox</button>
+    <button class="mode-tab" id="modeCareerTab" onclick="setMode('career')">🏆 Career</button>
   </div>
-  <div class="team-names">
-    <span class="team-name-label" id="nameA" style="color:#e63946" onclick="editTeamName(0)">✏️ TEAM A</span>
-    <span class="team-name-label" id="nameB" style="color:#1d3557" onclick="editTeamName(1)">✏️ TEAM B</span>
+
+  <!-- =========== SANDBOX MODE =========== -->
+  <div id="sandboxMode">
+    <div class="controls">
+      <div class="team-tabs">
+        <button class="team-tab" id="tabA" onclick="setActiveTeam(0)">TEAM A (0)</button>
+        <button class="team-tab" id="tabB" onclick="setActiveTeam(1)">TEAM B (0)</button>
+      </div>
+      <div class="search-wrap">
+        <input class="search-input" id="searchInput" type="text" placeholder="Search player..." autocomplete="off">
+        <div class="dropdown" id="dropdown"></div>
+      </div>
+      <select class="filter-select" id="gameTypeFilter">
+        <option value="-1">All Games</option>
+        <option value="0">Regular Season</option>
+        <option value="1">Playoffs</option>
+        <option value="2">Finals</option>
+      </select>
+      <button class="btn btn-roll" onclick="rerollAll()">🎲 Re-roll All</button>
+      <button class="btn btn-rand" onclick="randomizeTeams()">🔀 Random Teams</button>
+      <button class="btn btn-clear" onclick="clearAll()">Clear</button>
+    </div>
+    <div class="team-names">
+      <span class="team-name-label" id="nameA" style="color:#e63946" onclick="editTeamName(0)">✏️ TEAM A</span>
+      <span class="team-name-label" id="nameB" style="color:#1d3557" onclick="editTeamName(1)">✏️ TEAM B</span>
+    </div>
   </div>
+
+  <!-- =========== CAREER MODE =========== -->
+  <div id="careerMode">
+    <div class="career-bar">
+      <div class="career-record">
+        <div><span class="record-num record-w" id="careerW">0</span> <span class="record-label">W</span></div>
+        <div><span class="record-num record-l" id="careerL">0</span> <span class="record-label">L</span></div>
+      </div>
+      <div class="career-game-num" id="careerGameNum">GAME #1</div>
+      <button class="btn btn-play" id="btnPlayNext" onclick="playNextGame()">▶ PLAY NEXT GAME</button>
+      <button class="btn btn-reset-career" onclick="resetCareer()">RESET</button>
+    </div>
+    <div id="resultBanner"></div>
+    <div class="career-roster" id="careerRoster">
+      <div class="roster-title">Your Squad</div>
+      <div class="roster-grid" id="careerRosterGrid"></div>
+    </div>
+    <div class="slots-wrap">
+      <div class="slots-title">Mystery Free Agents · Win games to reveal clues</div>
+      <div class="slots-grid" id="mysterySlots"></div>
+    </div>
+  </div>
+
+  <!-- =========== SHARED: scoreboard + box scores =========== -->
   <div id="scoreboard" class="scoreboard" style="display:none">
     <div class="score-team">
       <div class="score-label" id="scoreALabel" style="color:#e63946">TEAM A</div>
@@ -140,6 +233,15 @@ body{background:#0a0a1a;color:#c8c8e0;font-family:'JetBrains Mono',monospace;min
     Search and add players to build your fantasy box score
   </div>
 </div>
+
+<!-- =========== Replace-player modal =========== -->
+<div class="modal-backdrop" id="replaceModal">
+  <div class="modal">
+    <div class="modal-title">Replace which player?</div>
+    <div class="modal-roster" id="modalRoster"></div>
+    <button class="btn modal-close" onclick="closeReplaceModal()">Cancel</button>
+  </div>
+</div>
 <script>
 // [TEAM,OPP,POS,MIN,PTS,FGM,FGA,3PM,3PA,FTM,FTA,ORB,DRB,REB,AST,STL,BLK,TOV,PF,TYPE,SEASON_YR,GAME_YR]
 const G={TM:0,OP:1,PS:2,MN:3,PT:4,FM:5,FA:6,PM:7,PA:8,FT:9,TA:10,OR:11,DR:12,RB:13,AS:14,ST:15,BK:16,TO:17,PF:18,TY:19,SY:20,GY:21};
@@ -152,6 +254,15 @@ const POS_NAMES=["PG","SG","SF","PF","C"];
 
 let TEAMS=[],POS=[],playerIndex={},playerNames=[],activeTeam=0,teams=[[],[]],teamNames=["TEAM A","TEAM B"];
 let adjusted=[[],[]];
+// === Career Mode globals ===
+// bioData is array of [name, birthYear, state, pos, college, draftYear, pick]
+// bioByName is name → index in bioData for fast lookup.
+let bioData=[],bioByName={};
+let currentMode="sandbox";  // "sandbox" or "career"
+let careerState=null;       // see initCareerState() for shape
+let pendingPickSlotIdx=null; // mystery-slot index awaiting roster choice
+const CLUE_LABELS=["BIRTH YEAR","STATE/COUNTRY","POSITION","COLLEGE","DRAFT YEAR","PICK","TEAM / SEASON"];
+const CAREER_STORAGE_KEY="bsl_career_v2";  // bumped from v1 — added 7th clue
 
 function rawG(game,s){
   switch(s){
@@ -211,6 +322,13 @@ function normalizeTeam(ti){
     else if(diff<0&&targetMins[i]>2){targetMins[i]--;diff++}
     iter++;
   }
+  // Fallback: if heavy clamping prevented convergence, dump remaining
+  // drift into the highest-raw-minutes player (relaxing the [2,48]
+  // clamp only on that one slot). Keeps the team-minutes invariant
+  // exactly at TARGET_MIN regardless of clamp pressure.
+  if(diff!==0){
+    targetMins[sortedIdx[0]]+=diff;
+  }
 
   // Apply minutes and scale all counting stats
   team.forEach((p,i)=>{
@@ -235,30 +353,114 @@ function normalizeTeam(ti){
 }
 
 // === CROSS-TEAM RECONCILIATION ===
+// Both teams' constraint checks should reference the SAME baseline. The
+// previous version adjusted team 0 first, then computed team 1's
+// constraints against team 0's already-mutated totals — order-dependent
+// bias that surfaced on lopsided matchups. Snapshotting once up front
+// gives both teams identical reference points.
 function reconcile(){
   if(teams[0].length===0||teams[1].length===0)return;
   function total(ti,s){let t=0;teams[ti].forEach((_,i)=>{t+=av(ti,i,s)});return t}
+
+  // Snapshot original totals BEFORE any team adjustment
+  const orig=[{},{}];
+  ['STL','TOV','BLK','FGA','FGM','FTA','FTM','AST','ORB','DRB'].forEach(s=>{
+    orig[0][s]=total(0,s); orig[1][s]=total(1,s);
+  });
+
   for(let t=0;t<2;t++){
     const opp=1-t;
-    const stl=total(t,"STL"),tov=total(opp,"TOV");
+    const stl=orig[t].STL, tov=orig[opp].TOV;
     if(stl>tov&&stl>0){const sc=tov/stl;teams[t].forEach((_,i)=>{adjusted[t][i].STL=Math.round(av(t,i,"STL")*sc)})}
-    const blk=total(t,"BLK"),oFGA=total(opp,"FGA");
+    const blk=orig[t].BLK, oFGA=orig[opp].FGA;
     const maxBlk=Math.round(oFGA*0.12);
     if(blk>maxBlk&&blk>0){const sc=maxBlk/blk;teams[t].forEach((_,i)=>{adjusted[t][i].BLK=Math.round(av(t,i,"BLK")*sc)})}
-    const ast=total(t,"AST"),fgm=total(t,"FGM");
+    const ast=orig[t].AST, fgm=orig[t].FGM;
     if(ast>fgm&&ast>0){const sc=fgm/ast;teams[t].forEach((_,i)=>{adjusted[t][i].AST=Math.round(av(t,i,"AST")*sc)})}
-    const myFGA=total(t,"FGA"),myFGM=total(t,"FGM"),opFGA=total(opp,"FGA"),opFGM=total(opp,"FGM");
-    const myFTA=total(t,"FTA"),myFTM=total(t,"FTM"),opFTA=total(opp,"FTA"),opFTM=total(opp,"FTM");
+    const myFGA=orig[t].FGA, myFGM=orig[t].FGM, opFGA=orig[opp].FGA, opFGM=orig[opp].FGM;
+    const myFTA=orig[t].FTA, myFTM=orig[t].FTM, opFTA=orig[opp].FTA, opFTM=orig[opp].FTM;
     const maxORB=Math.round((myFGA-myFGM)*0.35+(myFTA-myFTM)*0.15);
     const maxDRB=Math.round((opFGA-opFGM)*0.85+(opFTA-opFTM)*0.15);
-    const myORB=total(t,"ORB"),myDRB=total(t,"DRB");
+    const myORB=orig[t].ORB, myDRB=orig[t].DRB;
     let need=false,orbSc=1,drbSc=1;
     if(myORB>maxORB&&myORB>0){orbSc=maxORB/myORB;need=true}
     if(myDRB>maxDRB&&myDRB>0){drbSc=maxDRB/myDRB;need=true}
     if(need){teams[t].forEach((_,i)=>{adjusted[t][i].ORB=Math.round(av(t,i,"ORB")*orbSc);adjusted[t][i].DRB=Math.round(av(t,i,"DRB")*drbSc);adjusted[t][i].REB=adjusted[t][i].ORB+adjusted[t][i].DRB})}
   }
 }
-function processAll(){normalizeTeam(0);normalizeTeam(1);reconcile()}
+// === DEFENSIVE PRESSURE → SCORE IMPACT ===
+// Translates above-baseline defensive activity into actual box-score
+// changes. Calibrated against league averages so a "neutral" defensive
+// performance (matching baselines) leaves both teams' natural offense
+// alone; an exceptional defensive game tilts the score noticeably.
+//
+// Coefficients (pts per extra event):
+//   STL +1 vs baseline  → +1.3 for you (transition is efficient)
+//                       → −1.1 for opp (each lost possession)
+//   BLK +1 vs baseline  → −1.5 for opp (forced miss, sometimes opp ORB)
+//   ORB +1 vs baseline  → +1.0 for you (second-chance points)
+//   OPP PF +1 vs base   → +0.42 for you (~0.55 FTA × 76% FT%)
+//
+// Below-baseline stats DON'T subtract — the natural offense in each
+// player's game log already reflects an average defensive matchup, so
+// underperforming defense doesn't double-degrade.
+function applyDefensiveImpact(){
+  if(teams[0].length===0||teams[1].length===0)return;
+  function total(ti,s){let v=0;teams[ti].forEach((_,i)=>{v+=av(ti,i,s)});return v}
+
+  // League-average per-team-per-game baselines (modern NBA estimates)
+  const BASE={STL:7.5,BLK:5,ORB:10,PF:20};
+
+  const adjust=[0,0];  // net PTS swing per team
+  for(let t=0;t<2;t++){
+    const opp=1-t;
+    const stlExtra=Math.max(0,total(t,"STL")-BASE.STL);
+    const blkExtra=Math.max(0,total(t,"BLK")-BASE.BLK);
+    const orbExtra=Math.max(0,total(t,"ORB")-BASE.ORB);
+    const oppPfExtra=Math.max(0,total(opp,"PF")-BASE.PF);
+
+    // Your bonuses (above-baseline contributions tilt the game your way)
+    adjust[t]+=stlExtra*1.3;        // transition points
+    adjust[t]+=orbExtra*1.0;        // second-chance points
+    adjust[t]+=oppPfExtra*0.42;     // free throws from opp fouls
+
+    // Opp penalties (your defense suppresses their natural offense)
+    adjust[opp]-=stlExtra*1.1;      // lost possessions
+    adjust[opp]-=blkExtra*1.5;      // forced misses
+  }
+
+  // Apply: scale every player's shot makes and attempts proportionally so
+  // the team's PTS hits the target. Distributing across the team (not just
+  // the high-scorers) keeps the box score internally consistent and
+  // reflects that the whole roster benefits from extra possessions.
+  for(let t=0;t<2;t++){
+    if(Math.abs(adjust[t])<0.5)continue;
+    const curPts=total(t,"PTS");
+    if(curPts===0)continue;
+    const target=curPts+adjust[t];
+    if(target<=0)continue;
+    const scale=target/curPts;
+
+    teams[t].forEach((_,i)=>{
+      const a=adjusted[t][i];
+      a.FGM=Math.round(a.FGM*scale);
+      a.FGA=Math.round(a.FGA*scale);
+      a["3PM"]=Math.round(a["3PM"]*scale);
+      a["3PA"]=Math.round(a["3PA"]*scale);
+      a.FTM=Math.round(a.FTM*scale);
+      a.FTA=Math.round(a.FTA*scale);
+      // Preserve shot-line consistency
+      if(a.FGM>a.FGA)a.FGM=a.FGA;
+      if(a["3PM"]>a.FGM)a["3PM"]=a.FGM;
+      if(a["3PM"]>a["3PA"])a["3PM"]=a["3PA"];
+      if(a.FTM>a.FTA)a.FTM=a.FTA;
+      // Recalc PTS from final makes — keeps box score totals coherent
+      a.PTS=(a.FGM-a["3PM"])*2+a["3PM"]*3+a.FTM;
+    });
+  }
+}
+
+function processAll(){normalizeTeam(0);normalizeTeam(1);applyDefensiveImpact();reconcile()}
 
 // === DATA LOADING ===
 (async function(){
@@ -277,23 +479,56 @@ function processAll(){normalizeTeam(0);normalizeTeam(1);reconcile()}
     const raw=JSON.parse(decompressed);
     TEAMS=raw.t;POS=raw.p;playerIndex=raw.d;
     playerNames=Object.keys(playerIndex).sort();
+
+    // Load bio data for Career Mode (mystery-player clues). Non-fatal: if
+    // bio.json is missing the career tab just won't be functional, but
+    // sandbox still works.
+    label.textContent="Loading bio data...";fill.style.width="97%";
+    try{
+      const bioResp=await fetch("bio.json");
+      if(bioResp.ok){
+        const bioRaw=await bioResp.json();
+        // bioRaw shape: [[name, birthYear, state, pos, college, draftYear, pick], ...]
+        // Filter to players that exist in playerIndex AND have enough games
+        // to actually be picked for a roster (matches the >=20 threshold
+        // used elsewhere).
+        bioData=bioRaw.filter(r=>playerIndex[r[0]]&&playerIndex[r[0]].length>=20);
+        bioData.forEach((r,i)=>{bioByName[r[0]]=i});
+      }
+    }catch(e){console.warn("bio.json load failed",e)}
+
     fill.style.width="100%";text.textContent="Done!";
     setTimeout(()=>{
       document.getElementById("loadScreen").style.display="none";
       document.getElementById("app").style.display="block";
       const gc=Object.values(playerIndex).reduce((s,g)=>s+g.length,0);
-      document.getElementById("playerCount").textContent=playerNames.length+" PLAYERS · "+gc.toLocaleString()+" GAMES · 1947-2025";
+      document.getElementById("playerCount").textContent=playerNames.length+" PLAYERS · "+gc.toLocaleString()+" GAMES · 1947-2025"+(bioData.length?(" · "+bioData.length+" with bio"):"");
       updateTabs();randomizeTeams();
     },400);
   }catch(err){label.textContent="Error loading data";text.textContent=err.message;fill.style.background="#e63946";fill.style.width="100%";console.error(err)}
 })();
 
+// Fisher-Yates shuffle — the standard uniform random permutation.
+//
+// IMPORTANT: do NOT use `[...arr].sort(() => Math.random() - 0.5)` —
+// that pattern is biased (Array.sort needs a consistent comparator).
+// V8 produces distributions where some elements appear ~58% of the time
+// in any "top N" slice and others ~42%, so certain players would show
+// up in randomized rosters far more often than others.
+function shuffle(arr){
+  const a=[...arr];
+  for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}
+  return a;
+}
+
 // === RANDOM TEAMS ===
 function pickRandom24(){
-  const eligible=playerNames.filter(n=>playerIndex[n].length>=50);
+  // Game-count threshold lowered from 50 to 20 — any rotation-quality
+  // player has at least 20 games, and the old 50-game cutoff was
+  // excluding legitimate short-career and historical names.
+  const eligible=playerNames.filter(n=>playerIndex[n].length>=20);
   const pool=eligible.length>=48?eligible:playerNames;
-  const shuffled=[...pool].sort(()=>Math.random()-0.5);
-  return shuffled.slice(0,24);
+  return shuffle(pool).slice(0,24);
 }
 function buildRoster(names){
   const byPos=[[],[],[],[],[]];
@@ -419,6 +654,324 @@ function render(){
   document.getElementById("scoreAPts").className="score-pts"+(pA>pB&&has?" score-winner":"");
   document.getElementById("scoreBPts").className="score-pts"+(pB>pA&&has?" score-winner":"");
   document.querySelector(".team-names").innerHTML='<span class="team-name-label" id="nameA" style="color:'+COLORS[0]+'" onclick="editTeamName(0)">✏️ '+teamNames[0]+'</span><span class="team-name-label" id="nameB" style="color:'+COLORS[1]+'" onclick="editTeamName(1)">✏️ '+teamNames[1]+'</span>';
+}
+
+/* =====================================================================
+   CAREER MODE
+   =====================================================================
+   You get a 12-player roster, play against random AI opponents, and on
+   each win one clue is revealed on one of five "mystery free agents".
+   When you have enough clues to feel confident, swap a mystery in for
+   one of your starters (or discard them back to the pool). State is
+   persisted to localStorage so the career survives page reloads.
+   ===================================================================== */
+
+// --- Persistence ------------------------------------------------------
+function saveCareer(){
+  if(!careerState)return;
+  try{localStorage.setItem(CAREER_STORAGE_KEY,JSON.stringify(careerState))}
+  catch(e){console.warn("Career save failed",e)}
+}
+function loadCareer(){
+  try{
+    const raw=localStorage.getItem(CAREER_STORAGE_KEY);
+    if(!raw)return null;
+    const s=JSON.parse(raw);
+    // Validate basic shape so a corrupted/old save doesn't break the UI.
+    if(!s||!Array.isArray(s.roster)||!Array.isArray(s.slots))return null;
+    return s;
+  }catch(e){return null}
+}
+
+// --- State -------------------------------------------------------------
+function bioEligibleNames(){
+  // All bio players with enough games — these are the only ones we use
+  // for the user's roster AND for mystery slots. Opponents can use the
+  // broader playerNames pool below.
+  return bioData.map(r=>r[0]);
+}
+// Format a season year as "YYYY-YY". The data's SEASON_YR field uses the
+// season's STARTING year by convention (1989 means the 1989-90 season). If
+// it ever turns out the source uses the ending year, flip SY_IS_START to
+// false and the format will adjust without touching anything else.
+const SY_IS_START=true;
+function formatSeasonYear(sy){
+  if(sy==null||sy==="")return "";
+  const n=parseInt(sy);
+  if(!n)return "";
+  const start=SY_IS_START?n:n-1;
+  const end=SY_IS_START?n+1:n;
+  return start+"-"+String(end).slice(-2).padStart(2,"0");
+}
+// Pick a random game from the player's log and format it as "YYYY-YY: TEAM"
+// — used as the seventh mystery clue. Locked in at slot creation so it
+// doesn't change across re-renders, only when the slot is replaced.
+function rollSeasonClue(name){
+  const games=playerIndex[name]||[];
+  if(!games.length)return "—";
+  const g=games[Math.floor(Math.random()*games.length)];
+  const season=formatSeasonYear(g[G.SY]);
+  const team=TEAMS[g[G.TM]]||"";
+  if(season&&team)return season+": "+team;
+  return season||team||"—";
+}
+
+function freshMysterySlot(usedNames){
+  // Pick a name not currently active anywhere. Returns null if pool empty.
+  const pool=bioEligibleNames().filter(n=>!usedNames.has(n));
+  if(!pool.length)return null;
+  const name=pool[Math.floor(Math.random()*pool.length)];
+  // Randomize reveal order across all 7 clues per slot so two slots with
+  // the same player (across separate careers) won't always reveal the
+  // same clue first.
+  const order=shuffle([0,1,2,3,4,5,6]);
+  const rolledSeason=rollSeasonClue(name);
+  return {name,order,revealed:0,rolledSeason};
+}
+function initCareerState(){
+  if(!bioData.length){
+    careerState={roster:[],slots:[],wins:0,losses:0,games:0};
+    return;
+  }
+  // Position-balanced random roster from bio-eligible players, mirroring
+  // the sandbox randomizeTeams flow.
+  const candidates=bioEligibleNames();
+  const seed=shuffle(candidates).slice(0,24);
+  const roster=buildRoster(seed);
+  const used=new Set(roster);
+  const slots=[];
+  for(let i=0;i<5;i++){
+    const s=freshMysterySlot(used);
+    if(s){slots.push(s);used.add(s.name)}
+  }
+  careerState={roster,slots,wins:0,losses:0,games:0};
+  saveCareer();
+}
+function resetCareer(){
+  if(!confirm("Reset career? Your record, roster, and revealed clues will be lost."))return;
+  localStorage.removeItem(CAREER_STORAGE_KEY);
+  initCareerState();
+  renderCareer();
+  // Clear any visible box score from the prior game.
+  teams=[[],[]];adjusted=[[],[]];render();
+}
+
+// --- Mode toggle -------------------------------------------------------
+function setMode(mode){
+  currentMode=mode;
+  document.getElementById("modeSandboxTab").classList.toggle("active",mode==="sandbox");
+  document.getElementById("modeCareerTab").classList.toggle("active",mode==="career");
+  document.getElementById("sandboxMode").style.display=mode==="sandbox"?"block":"none";
+  document.getElementById("careerMode").style.display=mode==="career"?"block":"none";
+  if(mode==="career"){
+    if(!careerState){
+      const saved=loadCareer();
+      if(saved&&saved.roster.length===12){careerState=saved}
+      else{initCareerState()}
+    }
+    // Career uses its own team naming; clear the sandbox box score so we
+    // don't show stale state when switching tabs.
+    teams=[[],[]];adjusted=[[],[]];render();
+    renderCareer();
+  }else{
+    // Coming back to sandbox: drop the career box-score view and
+    // re-randomize so the sandbox feels alive.
+    teams=[[],[]];adjusted=[[],[]];
+    if(playerNames.length)randomizeTeams();else render();
+  }
+}
+
+// --- Game loop ---------------------------------------------------------
+function playNextGame(){
+  if(!careerState||!careerState.roster.length){
+    alert("No roster yet — try resetting your career.");
+    return;
+  }
+  // Disable the button briefly so a double-click can't double-process.
+  const btn=document.getElementById("btnPlayNext");
+  btn.disabled=true;
+
+  // YOUR TEAM: your career roster, each player rolling a fresh game
+  const userTeam=careerState.roster
+    .map(n=>({name:n,game:getRandomGame(n)}))
+    .filter(p=>p.game);
+
+  // OPPONENT: 12 random players from the broader pool, excluding anyone
+  // who's currently on your roster or in your mystery slots (so an opp
+  // never reveals a mystery identity by appearing in the game).
+  const exclude=new Set([...careerState.roster,...careerState.slots.map(s=>s.name)]);
+  const oppPool=playerNames.filter(n=>!exclude.has(n)&&playerIndex[n].length>=20);
+  const oppSeed=shuffle(oppPool).slice(0,24);
+  const oppRoster=buildRoster(oppSeed);
+  const oppTeam=oppRoster
+    .map(n=>({name:n,game:getRandomGame(n)}))
+    .filter(p=>p.game);
+
+  // Plug into the sandbox engine and run the same processAll pipeline.
+  teams[0]=userTeam;teams[1]=oppTeam;
+  teamNames[0]="YOUR SQUAD";
+  teamNames[1]="OPPONENT";
+  processAll();
+  render();
+
+  // Decide the result and (on win) reveal one clue. Use the same PTS sum
+  // that the scoreboard uses so the banner always agrees with the score.
+  let pA=0,pB=0;
+  teams[0].forEach((_,i)=>{pA+=av(0,i,"PTS")});
+  teams[1].forEach((_,i)=>{pB+=av(1,i,"PTS")});
+  pA=Math.round(pA);pB=Math.round(pB);
+  careerState.games++;
+  let revealedSlotIdx=-1;
+  if(pA>pB){
+    careerState.wins++;
+    revealedSlotIdx=revealNextClue();
+  }else if(pB>pA){
+    careerState.losses++;
+  }else{
+    // Tie — count as a non-win, no clue revealed. Rare enough that we
+    // don't bother with overtime modeling.
+  }
+  saveCareer();
+  renderCareer(revealedSlotIdx,pA,pB);
+  btn.disabled=false;
+}
+
+function revealNextClue(){
+  // Pick a random slot that still has hidden clues, reveal the next one
+  // in its order. Returns the slot index, or -1 if all are fully revealed.
+  const unfinished=careerState.slots
+    .map((s,i)=>({s,i}))
+    .filter(x=>x.s.revealed<7);
+  if(!unfinished.length)return -1;
+  const pick=unfinished[Math.floor(Math.random()*unfinished.length)];
+  pick.s.revealed++;
+  return pick.i;
+}
+
+// --- Pick / discard ---------------------------------------------------
+function openReplaceModal(slotIdx){
+  pendingPickSlotIdx=slotIdx;
+  const modal=document.getElementById("replaceModal");
+  const grid=document.getElementById("modalRoster");
+  grid.innerHTML=careerState.roster.map((name,i)=>{
+    const bi=bioByName[name];
+    const pos=bi!=null?bioData[bi][3]:"";
+    return '<div class="modal-roster-player" onclick="confirmReplace('+i+')">'+
+      '<span>'+escapeHtmlS(name)+'</span>'+
+      '<span class="roster-pos">'+escapeHtmlS(pos)+'</span></div>';
+  }).join("");
+  modal.classList.add("active");
+}
+function closeReplaceModal(){
+  pendingPickSlotIdx=null;
+  document.getElementById("replaceModal").classList.remove("active");
+}
+function confirmReplace(rosterIdx){
+  if(pendingPickSlotIdx==null)return;
+  const slot=careerState.slots[pendingPickSlotIdx];
+  const released=careerState.roster[rosterIdx];
+  // Swap the mystery's revealed identity onto the roster, send the
+  // displaced player back into circulation. The displaced player can
+  // re-appear as a future mystery (consistent with Alberto's "discarded
+  // back to the pool" semantics).
+  careerState.roster[rosterIdx]=slot.name;
+  // Replace the now-empty slot with a fresh mystery — using updated used
+  // set so the released player isn't immediately re-drawn.
+  const used=new Set([...careerState.roster,...careerState.slots.map(s=>s.name)]);
+  used.delete(slot.name); // it just moved to roster, already in used via that path
+  const newSlot=freshMysterySlot(used);
+  if(newSlot){careerState.slots[pendingPickSlotIdx]=newSlot}
+  else{
+    // Pool exhausted (basically impossible) — recycle the released player
+    // back into the empty slot with a fresh reveal order + rolled season.
+    careerState.slots[pendingPickSlotIdx]={name:released,order:shuffle([0,1,2,3,4,5,6]),revealed:0,rolledSeason:rollSeasonClue(released)};
+  }
+  saveCareer();
+  closeReplaceModal();
+  renderCareer();
+}
+function discardSlot(slotIdx){
+  const slot=careerState.slots[slotIdx];
+  if(!slot)return;
+  // No confirmation: discards are cheap and reversible (the player goes
+  // back to the pool and can reappear).
+  const used=new Set([...careerState.roster,...careerState.slots.map(s=>s.name)]);
+  used.delete(slot.name); // ensure the discarded player CAN come back later
+  const fresh=freshMysterySlot(used);
+  if(fresh){careerState.slots[slotIdx]=fresh}
+  saveCareer();
+  renderCareer();
+}
+
+// --- Rendering --------------------------------------------------------
+function escapeHtmlS(s){return String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]))}
+
+function clueValueFor(player,clueIdx,slot){
+  // player = [name, birthYear, state, pos, college, draftYear, pick]
+  // clueIdx 0..5 → fields 1..6 of player; clueIdx 6 → slot.rolledSeason
+  if(clueIdx===6)return (slot&&slot.rolledSeason)?slot.rolledSeason:"—";
+  const v=player[clueIdx+1];
+  if(v===""||v==null)return "—";
+  return String(v);
+}
+
+function renderCareer(justRevealedSlotIdx,pA,pB){
+  if(!careerState)return;
+  // Career mode handles its own empty-state messaging via the slot grid
+  // and roster panel, so hide the sandbox "Search and add players..." text.
+  document.getElementById("emptyMsg").style.display="none";
+  // Header counters
+  document.getElementById("careerW").textContent=careerState.wins;
+  document.getElementById("careerL").textContent=careerState.losses;
+  document.getElementById("careerGameNum").textContent="GAME #"+(careerState.games+1);
+
+  // Result banner (only shown right after a game)
+  const banner=document.getElementById("resultBanner");
+  if(pA!=null&&pB!=null){
+    if(pA>pB){
+      banner.innerHTML='<div class="win-banner">✦ VICTORY '+pA+'–'+pB+' · One clue revealed</div>';
+    }else if(pB>pA){
+      banner.innerHTML='<div class="loss-banner">✗ DEFEAT '+pA+'–'+pB+' · No clue this game</div>';
+    }else{
+      banner.innerHTML='<div class="loss-banner">⟁ TIE '+pA+'–'+pB+' · No clue this game</div>';
+    }
+  }
+  // (Don't auto-clear the banner; it stays until next game, which is fine.)
+
+  // Roster grid (read-only display)
+  const rosterEl=document.getElementById("careerRosterGrid");
+  rosterEl.innerHTML=careerState.roster.map(name=>{
+    const bi=bioByName[name];
+    const pos=bi!=null?bioData[bi][3]:"";
+    return '<div class="roster-player"><span>'+escapeHtmlS(name)+'</span>'+
+      (pos?'<span class="roster-pos">'+escapeHtmlS(pos)+'</span>':'')+'</div>';
+  }).join("");
+
+  // Mystery slot cards
+  const slotsEl=document.getElementById("mysterySlots");
+  slotsEl.innerHTML=careerState.slots.map((slot,idx)=>{
+    const player=bioData[bioByName[slot.name]];
+    if(!player)return ''; // safety
+    // Which clue indices are revealed? slot.order.slice(0, slot.revealed)
+    const revealedSet=new Set(slot.order.slice(0,slot.revealed));
+    const clues=CLUE_LABELS.map((label,ci)=>{
+      const isRevealed=revealedSet.has(ci);
+      // Animate only the clue that was just revealed this turn (last
+      // entry in order array, when slot.revealed > 0 and this is the
+      // newly-revealed clue index).
+      const isNewest=(idx===justRevealedSlotIdx)&&isRevealed&&ci===slot.order[slot.revealed-1];
+      return '<div class="clue'+(isRevealed?' revealed':'')+(isNewest?' just-revealed':'')+'">'+
+        '<span class="clue-label">'+label+'</span>'+
+        '<span class="clue-value">'+(isRevealed?escapeHtmlS(clueValueFor(player,ci,slot)):"???")+'</span></div>';
+    }).join("");
+    return '<div class="mystery-slot">'+
+      '<div class="slot-header"><span>MYSTERY #'+(idx+1)+'</span><span class="slot-progress">'+slot.revealed+'/7</span></div>'+
+      '<div class="clues">'+clues+'</div>'+
+      '<div class="slot-actions">'+
+        '<button class="btn btn-pick" onclick="openReplaceModal('+idx+')">PICK</button>'+
+        '<button class="btn btn-discard" onclick="discardSlot('+idx+')">DISCARD</button>'+
+      '</div></div>';
+  }).join("");
 }
 </script>
 </body>
