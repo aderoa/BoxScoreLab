@@ -348,14 +348,14 @@ body{background:#0a0a1a;color:#c8c8e0;font-family:'JetBrains Mono',monospace;min
         <div class="screen-title-sm">Cup Progress</div>
         <div class="cup-progress-wrap" id="cupProgressWrap"></div>
       </div>
+      <div class="screen-section">
+        <div class="screen-title-sm">Mystery Free Agents <span class="screen-title-hint">· Win games to reveal clues</span></div>
+        <div class="slots-grid" id="mysterySlots"></div>
+      </div>
       <div class="next-game-banner" id="nextGameBanner">
         <div class="next-game-label">Next Game</div>
         <div class="next-game-cup" id="nextGameCup">—</div>
         <div class="next-game-target" id="nextGameTarget">—</div>
-      </div>
-      <div class="screen-section">
-        <div class="screen-title-sm">Mystery Free Agents <span class="screen-title-hint">· Win games to reveal clues</span></div>
-        <div class="slots-grid" id="mysterySlots"></div>
       </div>
       <div class="screen-action">
         <button class="btn btn-play btn-play-big" onclick="playNextGame()">▶ PLAY NEXT GAME</button>
@@ -761,6 +761,17 @@ function playerPositions(name){
   if(!playerIndex[name]||!playerIndex[name].length){return {g:false,f:false,c:false}}
   const idx=getMostCommonPos(name); // 0=PG, 1=SG, 2=SF, 3=PF, 4=C
   return {g:idx===0||idx===1,f:idx===2||idx===3,c:idx===4};
+}
+// Position-spectrum sort key for roster display: G first, then combo
+// guards, combo forwards, pure forwards, combo bigs, pure centers. Missing
+// bio → last so unknown-position players cluster at the end.
+const POSITION_ORDER={"G":1,"G-F":2,"F-G":3,"F":4,"F-C":5,"C-F":6,"C":7};
+function positionSortKey(name){
+  const bi=bioByName[name];
+  if(bi==null)return 8;
+  const pos=bioData[bi][3]||"";
+  const k=POSITION_ORDER[pos];
+  return k!=null?k:8;
 }
 function rosterPositionCounts(roster){
   let g=0,f=0,c=0;
@@ -1367,19 +1378,14 @@ function playNextGame(){
     // alts list in NBA_FRANCHISES or share back so we can.
     if(ng.cup==="franchise"){
       const tmSet=franchiseTeamSet(ng.target);
-      const allCodes=[...new Set(TEAMS.filter(t=>t).map(t=>String(t).trim()))];
+      const allCodes=[...new Set(TEAMS.filter(t=>t).map(t=>String(t).trim()))].sort();
       const targets=[...tmSet];
-      const prefix=ng.target.slice(0,2).toUpperCase();
-      const similar=allCodes.filter(c=>{
-        const cu=String(c).toUpperCase();
-        return !tmSet.has(cu)&&(cu.startsWith(prefix)||cu.includes(ng.target));
-      }).sort().slice(0,15);
       const msg="'"+cupTargetLabel(ng.cup,ng.target)+"' has too few players in the dataset and was auto-completed."+
         "\n\n--- DEBUG (share with Claude) ---"+
         "\nLooking for: "+targets.join(", ")+
         "\nCandidates found: "+candidates.length+
-        "\nSimilar codes in data: "+(similar.length?similar.join(", "):"(none)")+
-        "\nTotal unique team codes in data: "+allCodes.length;
+        "\nALL "+allCodes.length+" unique team codes in data:"+
+        "\n"+allCodes.join(", ");
       alert(msg);
     }else if(ng.cup==="states"||ng.cup==="college"){
       alert("'"+cupTargetLabel(ng.cup,ng.target)+"' has too few players in the dataset and was auto-completed.");
@@ -1550,18 +1556,22 @@ function actuallyOpenReplaceChooser(){
   const grid=document.getElementById("modalRoster");
   const title=modal.querySelector(".modal-title");
   if(title)title.innerHTML="Release a player to sign <span style=\"color:#ffd700\">"+escapeHtmlS(mysteryName)+"</span>";
-  grid.innerHTML=careerState.roster.map((name,i)=>{
+  // Sort by position spectrum (G → C) for display, but track each row's
+  // original roster index so confirmReplace operates on careerState.roster
+  // correctly regardless of display order.
+  const sortedRows=careerState.roster
+    .map((name,origIdx)=>({name,origIdx}))
+    .sort((a,b)=>positionSortKey(a.name)-positionSortKey(b.name));
+  grid.innerHTML=sortedRows.map(({name,origIdx})=>{
     const bi=bioByName[name];
     const pos=bi!=null?bioData[bi][3]:"";
     const avg=lastFiveAverages(name);
-    const valid=swapWouldBeValid(careerState.roster,i,mysteryName);
+    const valid=swapWouldBeValid(careerState.roster,origIdx,mysteryName);
     const statHTML=avg
       ? '<span class="modal-stat-line">L'+avg.gp+' avg · <b>'+avg.pts+'</b> pts · <b>'+avg.reb+'</b> reb · <b>'+avg.ast+'</b> ast</span>'
       : '<span class="modal-stat-line modal-stat-new">NEW · No games yet</span>';
-    // Disabled rows show why they're blocked (releasing them would drop
-    // the roster below the 4G/4F/2C minimum after adding the mystery).
     const cls='modal-roster-player'+(valid?'':' disabled');
-    const handler=valid?'onclick="confirmReplace('+i+')"':'';
+    const handler=valid?'onclick="confirmReplace('+origIdx+')"':'';
     const lockHTML=valid?'':'<span class="modal-row-lock">⚠ would break 4G·4F·2C rule</span>';
     return '<div class="'+cls+'" '+handler+'>'+
       '<div class="modal-roster-left">'+
@@ -1938,15 +1948,17 @@ function renderCareer(justRevealedSlotIdx,pA,pB,gameCup,cupCompleted){
     }
   }
 
-  // Initial roster screen — richer cards
+  // Initial roster screen — richer cards (sorted by position: G → C)
   const initialEl=document.getElementById("rosterCardsInitial");
   if(initialEl){
-    initialEl.innerHTML=careerState.roster.map(n=>buildRosterCardHTML(n,false)).join("");
+    const sorted=[...careerState.roster].sort((a,b)=>positionSortKey(a)-positionSortKey(b));
+    initialEl.innerHTML=sorted.map(n=>buildRosterCardHTML(n,false)).join("");
   }
-  // FA screen — compact roster cards
+  // FA screen — compact roster cards (same position-spectrum order)
   const faEl=document.getElementById("rosterCardsFA");
   if(faEl){
-    faEl.innerHTML=careerState.roster.map(n=>buildRosterCardHTML(n,true)).join("");
+    const sorted=[...careerState.roster].sort((a,b)=>positionSortKey(a)-positionSortKey(b));
+    faEl.innerHTML=sorted.map(n=>buildRosterCardHTML(n,true)).join("");
   }
 
   // Mystery slot cards (only shown on freeagents screen)
