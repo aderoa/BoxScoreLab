@@ -12,7 +12,7 @@
 ::-webkit-scrollbar{height:6px;width:6px}
 ::-webkit-scrollbar-track{background:#0a0a1a}
 ::-webkit-scrollbar-thumb{background:#333366;border-radius:3px}
-body{background:#0a0a1a;color:#c8c8e0;font-family:'JetBrains Mono',monospace;min-height:100vh}
+body{background:linear-gradient(145deg,#1a1a3e 0%,#0a0a1a 50%,#ffffff 100%);background-attachment:fixed;color:#c8c8e0;font-family:'JetBrains Mono',monospace;min-height:100vh}
 #loadScreen{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;background:linear-gradient(145deg,#1a1a3e 0%,#0a0a1a 50%,#ffffff 100%);padding:24px;text-align:center}
 .logo-main{font-family:'Oswald',sans-serif;font-size:52px;font-weight:700;letter-spacing:6px;text-transform:uppercase;line-height:1.1;background:linear-gradient(135deg,#ff6b35 0%,#ffd700 50%,#ff6b35 100%);background-size:200% auto;-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;animation:shimmer 3s ease-in-out infinite}
 @keyframes shimmer{0%,100%{background-position:0% center}50%{background-position:200% center}}
@@ -3106,16 +3106,31 @@ function renderCareer(justRevealedSlotIdx,pA,pB,gameCup,cupCompleted,otPeriods){
     if(!ng&&careerState.cups){
       victoryWrap.innerHTML='<div class="career-victory">'+
         '<div class="career-victory-title">Career Complete</div>'+
-        '<div class="career-victory-sub">All four cups won &middot; '+careerState.wins+'–'+careerState.losses+' across '+careerState.games+' games</div>'+
+        '<div class="career-victory-sub">All five cups won &middot; '+careerState.wins+'–'+careerState.losses+' across '+careerState.games+' games</div>'+
       '</div>';
       const ngb=document.getElementById("nextGameBanner");if(ngb)ngb.style.display="none";
     }else{
       victoryWrap.innerHTML='';
+      const ngb=document.getElementById("nextGameBanner");if(ngb)ngb.style.display="";
     }
   }
 
-  // Initial roster screen — richer cards (sorted by position: G → C).
-  // The reveal class triggers a staggered fade/slide-in for each card,
+  // Swap the FA-screen play button to "Start a New Career" when the
+  // career is complete — otherwise it'd just sit there labeled
+  // "▶ PLAY NEXT GAME" with nothing to actually play. The button
+  // element is the same one; we just rebind the click handler and
+  // change the label.
+  const playBtn=document.querySelector(".next-game-row .next-game-play-btn");
+  if(playBtn){
+    if(!ng&&careerState&&careerState.cups){
+      playBtn.textContent="🏆 START A NEW CAREER";
+      playBtn.onclick=function(){resetCareer()};
+    }else{
+      playBtn.textContent="▶ PLAY NEXT GAME";
+      playBtn.onclick=function(){playNextGame()};
+    }
+  }
+
   // Initial roster screen — richer cards (sorted by position: G → C).
   // The reveal class triggers a staggered fade/slide-in for each card,
   // playing a quick "meet your 12" beat. To ensure the animation actually
