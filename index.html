@@ -1329,13 +1329,14 @@ function renderTeam(ti){
   order.forEach((pi,di)=>{
     const p=team[pi],g=p.game;
     const pos=POS[g[G.PS]]||"";
-    // Year tag — last 2 digits of the SEASON year. Was using GAME_YEAR
-    // (g[G.GY]) which is an unreliable column in the binary (some rows
-    // have a stale or out-of-range value). The season year is the one
-    // surfaced in the tooltip below, so showing its last 2 digits here
-    // ('21 for "2020-21") keeps the row label consistent with the
-    // tooltip's season string.
-    const tagYr=g[G.SY]||0;
+    // Year tag — last 2 digits of the SEASON's END year, so "2020-21"
+    // shows as '21 (matching the format suffix). SY is the START year
+    // of the season (see SY_IS_START), so end = SY+1. Was previously
+    // reading the bin's GAME_YEAR column, which turned out to be
+    // unreliable (some rows carry a stale value that doesn't match
+    // either calendar year of the actual season).
+    const sy0=g[G.SY]||0;
+    const tagYr=sy0?(sy0+1):0;
     const pts=av(ti,pi,"PTS"),reb=av(ti,pi,"REB"),ast=av(ti,pi,"AST"),stl=av(ti,pi,"STL"),blk=av(ti,pi,"BLK");
     const cats=[pts,reb,ast,stl,blk].filter(v=>v>=10);
     const isDbl=cats.length>=2;
@@ -1364,10 +1365,13 @@ function renderTeam(ti){
     // Calendar year of the game itself — adds half-of-season context
     // ("2020" = Oct-Dec opener stretch, "2021" = Jan-Apr stretch for
     // the 2020-21 season). Only shown when GAME_YEAR is consistent
-    // with the SEASON_YEAR (SY-1 or SY); some bin rows have a stale
-    // GY column we don't want to surface.
+    // with the SEASON_YEAR — SY is the START year of the season (see
+    // SY_IS_START), so valid GY values are SY (first half) or SY+1
+    // (second half). Some bin rows carry a stale/bogus GY value
+    // (consistently SY-1 in the samples checked) — those get silently
+    // dropped rather than surfaced as misleading info.
     const sy=g[G.SY]||0,gy=g[G.GY]||0;
-    if(sy&&gy&&(gy===sy||gy===sy-1)){
+    if(sy&&gy&&(gy===sy||gy===sy+1)){
       tipParts.push(String(gy));
     }
     const tyLabel=TYPE_LABELS[g[G.TY]]||"";
@@ -1376,7 +1380,7 @@ function renderTeam(ti){
     const actCells=showActions
       ? '<td class="act" onclick="rerollPlayer('+ti+','+pi+')" title="Re-roll"><span class="dice">🎲</span></td><td class="act" onclick="removePlayer('+ti+','+pi+')" title="Remove"><span class="rm">×</span></td>'
       : '';
-    rows+='<tr class="row-'+(di%2===0?"even":"odd")+'"'+tipAttr+'>'+'<td class="pname">'+p.name+'<span class="pos-tag">'+pos+'</span>'+(tagYr?'<span class="yr-tag">\''+String(tagYr).slice(2)+'</span>':'')+'</td>'+cells+actCells+'</tr>';
+    rows+='<tr class="row-'+(di%2===0?"even":"odd")+'"'+tipAttr+'>'+'<td class="pname">'+p.name+'<span class="pos-tag">'+pos+'</span>'+(tagYr?'<span class="yr-tag">\''+String(tagYr).slice(-2).padStart(2,"0")+'</span>':'')+'</td>'+cells+actCells+'</tr>';
   });
   let tc="";
   STAT_KEYS.forEach(s=>{let v;if(s==="MIN")v=fmtMin(tot.MIN);else if(s==="FG%")v=tot.FGA>0?(tot.FGM/tot.FGA).toFixed(3).replace(/^0/,""):".000";else if(s==="FT%")v=tot.FTA>0?(tot.FTM/tot.FTA).toFixed(3).replace(/^0/,""):".000";else v=Math.round(tot[s]||0);tc+='<td class="r">'+v+'</td>'});
@@ -1460,9 +1464,14 @@ function saveCareer(){
 
 // === Best-record-per-difficulty (cross-career hall-of-fame) ===
 // Persists separately from the current careerState so it survives RESETs.
-// Shape: { easy: {w, l, games, date}, normal: {...}, hard: {...}, hof: {...} }
-// "Best" is defined as the highest win-percentage among completed careers
-// (i.e. all 5 cups won) at that difficulty. Ties broken by fewer total games.
+// Shape: { easy: {w, l, games, cupsCompleted, winPct, date}, normal:{...}, ... }
+// "Best" precedence:
+//   1. More cups completed (5 = full career sweep, anything less = partial)
+//   2. Higher win percentage (tiebreaker for same cups-progress)
+//   3. Fewer total games (final tiebreaker — efficient run wins)
+// Saved automatically at two points: (a) the moment all 5 cups close
+// (full career sweep), and (b) when the user clicks RESET — capturing
+// partial-career progress that would otherwise vanish.
 const BEST_RECORDS_KEY="bsl_best_records_v1";
 function loadBestRecords(){
   try{
@@ -1476,26 +1485,34 @@ function saveBestRecords(obj){
   try{localStorage.setItem(BEST_RECORDS_KEY,JSON.stringify(obj))}
   catch(e){console.warn("Best-records save failed",e)}
 }
-// Called when a career is fully completed (all 5 cups closed). Compares
-// the current run against the saved best for this difficulty and writes
-// it back if it's a new record.
-function updateBestRecordIfComplete(){
+// Count cups whose pending list is empty.
+function countCupsCompleted(){
+  if(!careerState||!careerState.cups)return 0;
+  return ["franchise","states","college","continents","decades"]
+    .reduce((n,k)=>n+((careerState.cups[k]&&careerState.cups[k].pending.length===0)?1:0),0);
+}
+// Compare two record candidates — returns true if `cand` is strictly
+// better than `prev` per the precedence above.
+function recordIsBetter(cand,prev){
+  if(!prev)return true;
+  if(cand.cupsCompleted!==prev.cupsCompleted)return cand.cupsCompleted>prev.cupsCompleted;
+  if(Math.abs(cand.winPct-prev.winPct)>1e-9)return cand.winPct>prev.winPct;
+  return cand.games<prev.games;
+}
+// Snapshot the current career's record into the best-record store if
+// it improves on the prior best for this difficulty. Safe to call any
+// time — only writes if there's actual progress (games>0, difficulty set).
+function updateBestRecord(){
   if(!careerState||!careerState.cups||!careerState.difficulty)return;
-  // Only count if every cup's pending list is empty
-  const allDone=["franchise","states","college","continents","decades"]
-    .every(k=>careerState.cups[k]&&careerState.cups[k].pending.length===0);
-  if(!allDone)return;
-  const diff=careerState.difficulty;
   const games=careerState.games||0;
-  if(games<=0)return;
+  if(games<=0)return; // nothing to snapshot — career never started a game
+  const diff=careerState.difficulty;
   const wins=careerState.wins||0,losses=careerState.losses||0;
   const winPct=games>0?(wins/games):0;
+  const cand={w:wins,l:losses,games,cupsCompleted:countCupsCompleted(),winPct,date:Date.now()};
   const all=loadBestRecords();
-  const prev=all[diff];
-  // New record if: no prior, higher win%, or same win% with fewer games
-  const isBetter=!prev||(winPct>prev.winPct+1e-9)||(Math.abs(winPct-prev.winPct)<1e-9&&games<prev.games);
-  if(isBetter){
-    all[diff]={w:wins,l:losses,games,winPct,date:Date.now()};
+  if(recordIsBetter(cand,all[diff])){
+    all[diff]=cand;
     saveBestRecords(all);
   }
 }
@@ -2441,6 +2458,9 @@ function rollGameForTeam(name,cup,target,isOpp){
 }
 function resetCareer(){
   if(!confirm("Reset career? Your record, roster, and revealed clues will be lost."))return;
+  // Snapshot the about-to-be-discarded career into best-records first —
+  // partial-career progress counts (more cups + higher win% beats less).
+  updateBestRecord();
   localStorage.removeItem(CAREER_STORAGE_KEY);
   careerScreen="setup";
   initCareerState(null);            // null difficulty → minimal setup state
@@ -2825,7 +2845,7 @@ function playNextGame(){
   // pending list — i.e. the user's career is done.
   if(cupCompleted){
     const allDone=!careerState.nextGame; // no next game means all cups closed
-    if(allDone)updateBestRecordIfComplete();
+    if(allDone)updateBestRecord();
     setTimeout(()=>{openCupCelebration(cupCompleted,allDone)},400);
   }
 }
@@ -3691,8 +3711,12 @@ function renderCareer(justRevealedSlotIdx,pA,pB,gameCup,cupCompleted,otPeriods){
       const tier=el.dataset.bestFor;
       const r=best[tier];
       if(r&&r.games>0){
-        const pct=(r.winPct*100).toFixed(1);
-        el.textContent="🏆 BEST · "+r.w+"–"+r.l+" · "+pct+"%";
+        const pct=Math.round(r.winPct*100);
+        // Cups completed field added in a later version — fall back to
+        // 5 (assume sweep) for old records that don't carry it; they
+        // were only saved on full-sweep events anyway.
+        const cups=(typeof r.cupsCompleted==="number")?r.cupsCompleted:5;
+        el.textContent="🏆 "+r.w+"–"+r.l+" · "+pct+"% · "+cups+"/5";
         el.style.display="";
       }else{
         el.textContent="";
