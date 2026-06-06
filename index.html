@@ -405,7 +405,7 @@ body{background:#0a0a1a;color:#c8c8e0;font-family:'JetBrains Mono',monospace;min
 <body>
 <div id="loadScreen">
   <div class="logo-main">ALL-TIME NBA<br>CHALLENGE</div>
-  <div class="subtitle">Pick your roster. Beat every era.</div>
+  <div class="subtitle">Build your roster. Beat every era.</div>
   <div id="progressWrap">
     <div id="progressLabel">Downloading game logs...</div>
     <div id="progressBar"><div id="progressFill"></div></div>
@@ -462,14 +462,10 @@ body{background:#0a0a1a;color:#c8c8e0;font-family:'JetBrains Mono',monospace;min
       <button class="btn btn-reset-career" onclick="resetCareer()">RESET</button>
     </div>
 
-    <!-- Screen 1: ROSTER (initial only, before any games) -->
-    <div id="careerScreenRoster" class="career-screen">
-      <div class="screen-title">Your Starting Squad</div>
-      <div class="screen-subtitle">Scout your 12-man rotation, then take the floor</div>
-
-      <!-- Difficulty picker — only meaningful BEFORE Game #1. Once a game
-           has been played the difficulty is locked for the rest of the
-           career (use RESET to start a new one at a different level). -->
+    <!-- Screen 0: SETUP (difficulty pick — first thing a fresh career sees) -->
+    <div id="careerScreenSetup" class="career-screen">
+      <div class="screen-title">Build Your Roster</div>
+      <div class="screen-subtitle">First, pick a difficulty</div>
       <div class="difficulty-picker" id="difficultyPicker">
         <div class="difficulty-picker-label">Difficulty</div>
         <div class="difficulty-picker-options">
@@ -491,15 +487,33 @@ body{background:#0a0a1a;color:#c8c8e0;font-family:'JetBrains Mono',monospace;min
           </button>
         </div>
       </div>
+    </div>
 
-      <div class="roster-cards" id="rosterCardsInitial"></div>
-      <div class="next-game-banner" id="nextGameBannerInitial">
-        <div class="next-game-label">First Game</div>
-        <div class="next-game-cup" id="nextGameCupInitial">—</div>
-        <div class="next-game-target" id="nextGameTargetInitial">—</div>
+    <!-- Screen 1: ROSTER (pre-Game #1 preview — Cup Progress + Next Game + Squad) -->
+    <div id="careerScreenRoster" class="career-screen">
+      <div class="screen-title">Your Starting Squad</div>
+      <div class="screen-subtitle">Scout your 12-man rotation, then take the floor</div>
+
+      <!-- Cup Progress (so the user sees what they're up against before tipping off) -->
+      <div class="screen-section">
+        <div class="screen-title-sm">Cup Progress</div>
+        <div class="cup-progress-wrap" id="cupProgressWrapInitial"></div>
       </div>
-      <div class="screen-action">
-        <button class="btn btn-play btn-play-big" onclick="playNextGame()">▶ PLAY GAME</button>
+
+      <!-- Next-game row: banner + PLAY button on the same row, same as FA screen -->
+      <div class="next-game-row">
+        <div class="next-game-banner next-game-banner-inline" id="nextGameBannerInitial">
+          <div class="next-game-label">First Game</div>
+          <div class="next-game-cup" id="nextGameCupInitial">—</div>
+          <div class="next-game-target" id="nextGameTargetInitial">—</div>
+        </div>
+        <button class="btn btn-play btn-play-big next-game-play-btn" onclick="playNextGame()">▶ PLAY GAME</button>
+      </div>
+
+      <!-- Your Squad (the 12 starting players, staggered-fade reveal) -->
+      <div class="screen-section">
+        <div class="screen-title-sm">Your Squad</div>
+        <div class="roster-cards" id="rosterCardsInitial"></div>
       </div>
     </div>
 
@@ -679,7 +693,7 @@ const CLUE_LABELS=["STATE/COUNTRY","STATUS","PRE-DRAFT TEAM","PICK","TEAM / SEAS
 //   2 → PRE-DRAFT TEAM (player[4])
 //   3 → PICK           (player[6]) — UND/ND/T/SD expand to readable strings
 //   4 → TEAM / SEASON  (slot.rolledSeason)
-const CAREER_STORAGE_KEY="bsl_career_v11";  // v11 — single-latest clue highlight (global, not per-slot); era-suffix team names cleaned in display
+const CAREER_STORAGE_KEY="bsl_career_v12";  // v12 — Setup screen for first-time difficulty pick; careerState.difficulty can be null pre-selection
 
 function rawG(game,s){
   switch(s){
@@ -939,9 +953,22 @@ function processAll(){normalizeTeam(0);normalizeTeam(1);applyDefensiveImpact();r
 
         updateTabs();
         const saved=loadCareer();
-        if(saved&&saved.roster&&saved.roster.length===12){careerState=saved}
-        else{initCareerState()}
-        careerScreen=(careerState.games>0)?"freeagents":"roster";
+        if(saved&&saved.roster&&saved.difficulty&&saved.roster.length===12){
+          careerState=saved;
+        }else{
+          // Fresh career — no roster yet, drop on the Setup screen so the
+          // user picks a difficulty first.
+          initCareerState(null);
+        }
+        // Setup if no difficulty chosen yet; Roster preview after the pick
+        // but before Game #1; FreeAgents post-game.
+        if(!careerState.difficulty){
+          careerScreen="setup";
+        }else if(careerState.games>0){
+          careerScreen="freeagents";
+        }else{
+          careerScreen="roster";
+        }
         renderCareer();
         updateCareerScreenVisibility();
       }catch(bootErr){
@@ -1310,8 +1337,28 @@ function freshMysterySlot(usedNames){
   return {name,order,revealed:0,rolledSeason:sc.display,rolledSeasonYear:sc.seasonYr,rolledTeam:sc.team};
 }
 function initCareerState(difficulty){
+  // Difficulty must be chosen BEFORE the roster is built. On a fresh
+  // career (or post-reset) this is called with no difficulty and we
+  // create a minimal "setup" state — empty roster, no cup progress
+  // initialised yet. The user picks a tier via pickDifficulty(), which
+  // then re-enters this path with a non-null difficulty to actually
+  // construct the roster + slots + first matchup.
+  if(!difficulty){
+    careerState={
+      difficulty:null,
+      roster:[],slots:[],
+      wins:0,losses:0,games:0,
+      cups:emptyCups(),
+      nextGame:null,
+      playerStats:{},
+      streak:{type:"none",count:0},
+      latestReveal:null
+    };
+    saveCareer();
+    return;
+  }
   if(!bioData.length){
-    careerState={roster:[],slots:[],wins:0,losses:0,games:0,cups:emptyCups(),nextGame:null,playerStats:{},difficulty:difficulty||"normal"};
+    careerState={roster:[],slots:[],wins:0,losses:0,games:0,cups:emptyCups(),nextGame:null,playerStats:{},difficulty:difficulty};
     return;
   }
   // User roster ALWAYS comes from the random shuffle path — regardless of
@@ -1329,8 +1376,8 @@ function initCareerState(difficulty){
   if(!roster||roster.length<12){
     roster=buildBalancedRoster(shuffle(bioEligibleNames().filter(playerHasPlayableGames)).slice(0,60));
   }
-  const diff=(difficulty||"normal").toLowerCase();
-  careerState={roster,slots:[],wins:0,losses:0,games:0,cups:emptyCups(),nextGame:null,playerStats:{},streak:{type:"none",count:0},difficulty:diff};
+  const diff=difficulty.toLowerCase();
+  careerState={roster,slots:[],wins:0,losses:0,games:0,cups:emptyCups(),nextGame:null,playerStats:{},streak:{type:"none",count:0},latestReveal:null,difficulty:diff};
   regenerateAllMysterySlots();
   careerState.nextGame=pickNextGameTarget();
   saveCareer();
@@ -1825,12 +1872,11 @@ function rollGameForTeam(name,cup,target,isOpp){
 }
 function resetCareer(){
   if(!confirm("Reset career? Your record, roster, and revealed clues will be lost."))return;
-  const diff=(careerState&&careerState.difficulty)||"normal";
   localStorage.removeItem(CAREER_STORAGE_KEY);
-  careerScreen="roster";
-  initCareerState(diff);
+  careerScreen="setup";
+  initCareerState(null);            // null difficulty → minimal setup state
+  setCareerScreen("setup");          // show difficulty picker first
   renderCareer();
-  setCareerScreen("roster");
   teams=[[],[]];adjusted=[[],[]];render();
 }
 
@@ -1852,13 +1898,22 @@ function pickDifficulty(diff){
     alert("Difficulty is locked once Game #1 starts.\n\nUse RESET to start a new career at a different difficulty.");
     return;
   }
-  if((careerState.difficulty||"normal")===diff)return; // no-op if unchanged
-  const prev=careerState.difficulty||"normal";
+  const prev=careerState.difficulty||null;
+  if(prev===diff)return; // no-op if unchanged
+  // First selection: no roster has been built yet. Run a full init at
+  // this tier — that creates the 12-man roster, mystery slots, and the
+  // first matchup — and advance to the roster preview screen.
+  if(!prev){
+    initCareerState(diff);
+    saveCareer();
+    setCareerScreen("roster");
+    renderCareer();
+    return;
+  }
+  // Switching tier mid-setup (roster already built but no game played).
+  // Update the field and re-roll mystery slots if the All-Star guarantee
+  // changes (Easy adds it; switching away removes it).
   careerState.difficulty=diff;
-  // If the new tier has different free-agency guarantees (Easy adds an
-  // All-Star guarantee; other tiers don't), re-roll the mystery slots
-  // so the change is visible immediately. Pre-Game #1 only, so this
-  // doesn't disturb any in-progress run.
   if(diff==="easy"||prev==="easy"){
     regenerateAllMysterySlots();
   }
@@ -1900,10 +1955,14 @@ function setMode(mode){
   if(mode==="career"){
     if(!careerState){
       const saved=loadCareer();
-      if(saved&&saved.roster.length===12){careerState=saved}
-      else{initCareerState()}
+      if(saved&&saved.roster&&saved.difficulty&&saved.roster.length===12){careerState=saved}
+      else{initCareerState(null)}
     }
-    if(!careerScreen)careerScreen=(careerState.games>0)?"freeagents":"roster";
+    if(!careerScreen){
+      if(!careerState.difficulty)careerScreen="setup";
+      else if(careerState.games>0)careerScreen="freeagents";
+      else careerScreen="roster";
+    }
     teams=[[],[]];adjusted=[[],[]];render();
     renderCareer();
     updateCareerScreenVisibility();
@@ -1931,7 +1990,7 @@ function setCareerScreen(s){
 }
 function updateCareerScreenVisibility(){
   const inCareer=(currentMode==="career");
-  const screens=["roster","boxscore","freeagents"];
+  const screens=["setup","roster","boxscore","freeagents"];
   screens.forEach(s=>{
     const id="careerScreen"+s.charAt(0).toUpperCase()+s.slice(1);
     const el=document.getElementById(id);
@@ -1946,6 +2005,10 @@ function updateCareerScreenVisibility(){
     document.getElementById("teamBSection").style.display=showBox?"block":"none";
     document.getElementById("emptyMsg").style.display="none";
   }
+  // Career bar (record, team-name input, pill, RESET) is hidden on the
+  // Setup screen — no career has started yet so there's nothing to show.
+  const bar=document.querySelector("#careerMode .career-bar");
+  if(bar)bar.style.display=(inCareer&&careerScreen!=="setup")?"flex":"none";
 }
 
 // --- Game loop ---------------------------------------------------------
@@ -2996,26 +3059,27 @@ function renderCareer(justRevealedSlotIdx,pA,pB,gameCup,cupCompleted,otPeriods){
   }
 
   // Cup progress bars — each card is clickable to open the cup detail modal.
-  const cupWrap=document.getElementById("cupProgressWrap");
-  if(cupWrap&&careerState.cups){
-    cupWrap.innerHTML=["franchise","states","college","continents","decades"].map(k=>{
-      const c=careerState.cups[k];
-      if(!c)return '';
-      const done=c.total-c.pending.length;
-      const pct=c.total>0?Math.round(done/c.total*100):0;
-      const isDone=c.pending.length===0;
-      // SVG icons per cup type — inline so they inherit color via stroke
-      // (gold when the card is hovered/done, muted otherwise). 18×18.
-      const iconHTML=cupIconSVG(k);
-      return '<div class="cup-progress clickable'+(isDone?' done':'')+'" onclick="openCupModal(\''+k+'\')">'+
-        '<div class="cup-progress-head">'+
-          '<span class="cup-progress-name">'+iconHTML+'<span>'+escapeHtmlS(cupTitle(k))+'</span></span>'+
-          '<span class="cup-progress-pct">'+done+'/'+c.total+(isDone?' 🏆':'')+'</span>'+
-        '</div>'+
-        '<div class="cup-progress-bar"><div class="cup-progress-fill" style="width:'+pct+'%"></div></div>'+
-      '</div>';
-    }).join("");
-  }
+  // Rendered into both the FA-screen wrapper (post-game view) and the
+  // initial-roster wrapper (pre-game preview). The HTML is identical.
+  const cupHTML=careerState.cups?["franchise","states","college","continents","decades"].map(k=>{
+    const c=careerState.cups[k];
+    if(!c)return '';
+    const done=c.total-c.pending.length;
+    const pct=c.total>0?Math.round(done/c.total*100):0;
+    const isDone=c.pending.length===0;
+    const iconHTML=cupIconSVG(k);
+    return '<div class="cup-progress clickable'+(isDone?' done':'')+'" onclick="openCupModal(\''+k+'\')">'+
+      '<div class="cup-progress-head">'+
+        '<span class="cup-progress-name">'+iconHTML+'<span>'+escapeHtmlS(cupTitle(k))+'</span></span>'+
+        '<span class="cup-progress-pct">'+done+'/'+c.total+(isDone?' 🏆':'')+'</span>'+
+      '</div>'+
+      '<div class="cup-progress-bar"><div class="cup-progress-fill" style="width:'+pct+'%"></div></div>'+
+    '</div>';
+  }).join(""):"";
+  ["cupProgressWrap","cupProgressWrapInitial"].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el)el.innerHTML=cupHTML;
+  });
 
   // Next-game preview banners (on initial roster + freeagents screens).
   // If careerState.nextGame is null we've cleared all cups → career done.
