@@ -104,30 +104,42 @@ body{background:linear-gradient(145deg,#1a1a3e 0%,#0a0a1a 50%,#ffffff 100%);back
 .career-streak.idle{display:none}
 .difficulty-pill{background:#0e0e2a;border:1px solid #3a3a55;color:#aaaadd;font-family:'Oswald',sans-serif;font-size:11px;letter-spacing:2px;font-weight:700;padding:5px 12px;border-radius:11px;cursor:pointer;text-transform:uppercase;transition:all 0.15s;align-self:center}
 .difficulty-pill:hover{border-color:#5a5a8a;color:#fff}
-.difficulty-pill.easy{background:#0a1a14;border-color:#86efac;color:#15803d}
-.difficulty-pill.normal{background:#0a132a;border-color:#93c5fd;color:#1d4ed8}
-.difficulty-pill.hard{background:#231a0a;border-color:#fcd34d;color:#ffd700}
-.difficulty-pill.hof{background:#1a0a0e;border-color:#fca5a5;color:#b91c1c}
+.difficulty-pill.easy{background:#0a1a14;border-color:#22c55e;color:#34d97a}
+.difficulty-pill.normal{background:#0a132a;border-color:#3b82f6;color:#60a5fa}
+.difficulty-pill.hard{background:#1a0a10;border-color:#ff6b6b;color:#ff8a8a}
+.difficulty-pill.hof{background:#1a0508;border-color:#b91c1c;color:#ef4444}
 
 /* ===== Difficulty picker (initial roster screen, pre-game-1 only) ===== */
 .difficulty-picker{background:linear-gradient(135deg,#15153a 0%,#0a0a1a 100%);border:1px solid #2a2a55;border-radius:10px;padding:18px 20px;margin:0 0 22px;text-align:center}
 .difficulty-picker-label{font-family:'Oswald',sans-serif;font-size:11px;letter-spacing:4px;color:#888899;text-transform:uppercase;margin-bottom:12px}
 .difficulty-picker-options{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.difficulty-option{background:#1a1a3e;border:2px solid #2a2a55;border-radius:8px;padding:14px 16px;cursor:pointer;text-align:left;transition:all 0.15s;color:inherit;font-family:inherit}
-.difficulty-option:hover{border-color:#5a5a8a;transform:translateY(-1px);box-shadow:0 4px 12px rgba(0,0,0,0.08)}
-/* Per-tier selected accents */
-.difficulty-option.selected[data-diff="easy"]{border-color:#22c55e;background:#0a1a14;box-shadow:0 0 18px rgba(34,197,94,0.18)}
-.difficulty-option.selected[data-diff="normal"]{border-color:#3b82f6;background:#0a132a;box-shadow:0 0 18px rgba(59,130,246,0.18)}
-.difficulty-option.selected[data-diff="hard"]{border-color:#f59e0b;background:#231a0a;box-shadow:0 0 18px rgba(245,158,11,0.22)}
-.difficulty-option.selected[data-diff="hof"]{border-color:#e63946;background:#1a0a0e;box-shadow:0 0 18px rgba(230,57,70,0.22)}
-.difficulty-option-name{font-family:'Oswald',sans-serif;font-size:16px;letter-spacing:2.5px;font-weight:700;color:#aaaadd;margin-bottom:6px;text-transform:uppercase}
-.difficulty-option.selected[data-diff="easy"] .difficulty-option-name{color:#15803d}
-.difficulty-option.selected[data-diff="normal"] .difficulty-option-name{color:#1d4ed8}
-.difficulty-option.selected[data-diff="hard"] .difficulty-option-name{color:#ffd700}
-.difficulty-option.selected[data-diff="hof"] .difficulty-option-name{color:#b91c1c}
-.difficulty-option-desc{font-family:'Inter','Segoe UI',sans-serif;font-size:11px;color:#aaaadd;line-height:1.5}
+.difficulty-option{background:#0e0e2a;border:2px solid #2a2a55;border-radius:8px;padding:14px 16px;cursor:pointer;text-align:left;transition:all 0.15s;color:inherit;font-family:inherit;position:relative}
+.difficulty-option:hover{transform:translateY(-1px);box-shadow:0 4px 12px rgba(0,0,0,0.25)}
+/* Per-tier identity — always visible on each card so the user can read
+   the colors at a glance, even with nothing selected. Palette:
+   green / blue / light red / dark red. */
+.difficulty-option[data-diff="easy"]{border-color:#22c55e55;background:#0a1a14}
+.difficulty-option[data-diff="normal"]{border-color:#3b82f655;background:#0a132a}
+.difficulty-option[data-diff="hard"]{border-color:#ff6b6b55;background:#1a0a10}
+.difficulty-option[data-diff="hof"]{border-color:#7f1d1d77;background:#1a0508}
+.difficulty-option[data-diff="easy"]:hover{border-color:#22c55e}
+.difficulty-option[data-diff="normal"]:hover{border-color:#3b82f6}
+.difficulty-option[data-diff="hard"]:hover{border-color:#ff6b6b}
+.difficulty-option[data-diff="hof"]:hover{border-color:#b91c1c}
+/* Selected state — same hue, intensified glow */
+.difficulty-option.selected[data-diff="easy"]{border-color:#22c55e;box-shadow:0 0 22px rgba(34,197,94,0.32)}
+.difficulty-option.selected[data-diff="normal"]{border-color:#3b82f6;box-shadow:0 0 22px rgba(59,130,246,0.32)}
+.difficulty-option.selected[data-diff="hard"]{border-color:#ff6b6b;box-shadow:0 0 22px rgba(255,107,107,0.32)}
+.difficulty-option.selected[data-diff="hof"]{border-color:#b91c1c;box-shadow:0 0 22px rgba(185,28,28,0.40)}
+.difficulty-option-name{font-family:'Oswald',sans-serif;font-size:16px;letter-spacing:2.5px;font-weight:700;margin-bottom:6px;text-transform:uppercase}
+.difficulty-option[data-diff="easy"] .difficulty-option-name{color:#34d97a}
+.difficulty-option[data-diff="normal"] .difficulty-option-name{color:#60a5fa}
+.difficulty-option[data-diff="hard"] .difficulty-option-name{color:#ff8a8a}
+.difficulty-option[data-diff="hof"] .difficulty-option-name{color:#ef4444}
+.difficulty-option-desc{font-family:'Inter','Segoe UI',sans-serif;font-size:11px;color:#9090a8;line-height:1.5}
+.difficulty-option-best{font-family:'JetBrains Mono',monospace;font-size:10px;color:#ffd700;letter-spacing:0.5px;margin-top:8px;font-weight:600;display:none}
 .difficulty-picker.locked .difficulty-option{cursor:not-allowed;opacity:0.5}
-.difficulty-picker.locked .difficulty-option:hover{transform:none;border-color:#2a2a55;box-shadow:none}
+.difficulty-picker.locked .difficulty-option:hover{transform:none;box-shadow:none}
 .difficulty-picker.highlight-flash{animation:pickerFlash 0.9s ease-out}
 @keyframes pickerFlash{0%{box-shadow:0 0 0 rgba(255,215,0,0)}40%{box-shadow:0 0 30px rgba(255,215,0,0.4),0 0 0 2px #ffd700 inset}100%{box-shadow:0 0 0 rgba(255,215,0,0)}}
 @media(max-width:580px){.difficulty-picker-options{grid-template-columns:1fr}}
@@ -240,6 +252,15 @@ body{background:linear-gradient(145deg,#1a1a3e 0%,#0a0a1a 50%,#ffffff 100%);back
 .career-victory{text-align:center;padding:40px 20px;background:linear-gradient(135deg,#1a1a3e 0%,#0a0a1a 100%);border:2px solid #ffd700;border-radius:12px;margin:20px 0;box-shadow:0 0 40px rgba(255,215,0,0.3)}
 .career-victory-title{font-family:'Oswald',sans-serif;font-size:32px;font-weight:700;letter-spacing:6px;background:linear-gradient(135deg,#ff6b35 0%,#ffd700 50%,#ff6b35 100%);background-size:200% auto;-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;animation:shimmer 2s ease-in-out infinite;text-transform:uppercase;margin-bottom:14px}
 .career-victory-sub{font-family:'Oswald',sans-serif;font-size:13px;color:#aaaadd;letter-spacing:3px;text-transform:uppercase;margin-bottom:20px}
+.career-victory-roster-label{font-family:'Oswald',sans-serif;font-size:11px;letter-spacing:3px;color:#888899;text-transform:uppercase;margin-bottom:10px}
+.career-victory-roster{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:0 4px;text-align:left}
+.career-victory-row{background:#0e0e2a;border:1px solid #2a2a55;border-radius:5px;padding:8px 11px;display:flex;flex-direction:column;gap:4px;font-size:11px}
+.career-victory-row .cv-main{display:flex;justify-content:space-between;align-items:center;gap:6px}
+.career-victory-row .nm{font-family:'JetBrains Mono',monospace;color:#e0e0ff;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.career-victory-row .ps{font-family:'Oswald',sans-serif;color:#ffd700;font-weight:700;letter-spacing:1px;flex-shrink:0;font-size:10px}
+.career-victory-row .cv-stats{display:flex;justify-content:space-between;gap:4px;font-family:'JetBrains Mono',monospace;font-size:9.5px;color:#888;letter-spacing:0.5px}
+.career-victory-row .cv-stats b{color:#aaaadd;font-weight:700}
+@media(max-width:520px){.career-victory-roster{grid-template-columns:1fr}}
 .clue-label{font-family:'Oswald',sans-serif;letter-spacing:1px;color:#666688;text-transform:uppercase;font-size:9px;font-weight:600}
 .clue-value{font-family:'JetBrains Mono',monospace;color:#444;font-weight:500;font-size:11px}
 /* (older "revealed = gold" rule removed — line 113 above handles muted/latest split) */
@@ -480,18 +501,22 @@ body{background:linear-gradient(145deg,#1a1a3e 0%,#0a0a1a 50%,#ffffff 100%);back
           <button class="difficulty-option" data-diff="easy" onclick="pickDifficulty('easy')">
             <div class="difficulty-option-name">EASY</div>
             <div class="difficulty-option-desc">One guaranteed All-Star always available in free agency</div>
+            <div class="difficulty-option-best" data-best-for="easy"></div>
           </button>
           <button class="difficulty-option" data-diff="normal" onclick="pickDifficulty('normal')">
             <div class="difficulty-option-name">NORMAL</div>
             <div class="difficulty-option-desc">No All-Star guarantees — opponents are a random cross-section</div>
+            <div class="difficulty-option-best" data-best-for="normal"></div>
           </button>
           <button class="difficulty-option" data-diff="hard" onclick="pickDifficulty('hard')">
             <div class="difficulty-option-name">HARD</div>
             <div class="difficulty-option-desc">The single best player from each pool is always on the opposing team</div>
+            <div class="difficulty-option-best" data-best-for="hard"></div>
           </button>
           <button class="difficulty-option" data-diff="hof" onclick="pickDifficulty('hof')">
             <div class="difficulty-option-name">HALL OF FAME</div>
             <div class="difficulty-option-desc">Every opponent is an all-time best from that pool</div>
+            <div class="difficulty-option-best" data-best-for="hof"></div>
           </button>
         </div>
       </div>
@@ -634,7 +659,7 @@ body{background:linear-gradient(145deg,#1a1a3e 0%,#0a0a1a 50%,#ffffff 100%);back
   </div>
 </div>
 <!-- =========== Discarded-four reveal modal =========== -->
-<div class="modal-backdrop" id="dismissedModal">
+<div class="modal-backdrop" id="dismissedModal" onclick="if(event.target===this)closeDismissedModal()">
   <div class="modal dismissed-modal">
     <div class="dismissed-header">YOU DISCARDED</div>
     <div class="dismissed-sub">The four mysteries you passed on this round</div>
@@ -1415,6 +1440,48 @@ function saveCareer(){
   if(!careerState)return;
   try{localStorage.setItem(CAREER_STORAGE_KEY,JSON.stringify(careerState))}
   catch(e){console.warn("Career save failed",e)}
+}
+
+// === Best-record-per-difficulty (cross-career hall-of-fame) ===
+// Persists separately from the current careerState so it survives RESETs.
+// Shape: { easy: {w, l, games, date}, normal: {...}, hard: {...}, hof: {...} }
+// "Best" is defined as the highest win-percentage among completed careers
+// (i.e. all 5 cups won) at that difficulty. Ties broken by fewer total games.
+const BEST_RECORDS_KEY="bsl_best_records_v1";
+function loadBestRecords(){
+  try{
+    const raw=localStorage.getItem(BEST_RECORDS_KEY);
+    if(!raw)return {};
+    const r=JSON.parse(raw);
+    return (r&&typeof r==="object")?r:{};
+  }catch(e){return {}}
+}
+function saveBestRecords(obj){
+  try{localStorage.setItem(BEST_RECORDS_KEY,JSON.stringify(obj))}
+  catch(e){console.warn("Best-records save failed",e)}
+}
+// Called when a career is fully completed (all 5 cups closed). Compares
+// the current run against the saved best for this difficulty and writes
+// it back if it's a new record.
+function updateBestRecordIfComplete(){
+  if(!careerState||!careerState.cups||!careerState.difficulty)return;
+  // Only count if every cup's pending list is empty
+  const allDone=["franchise","states","college","continents","decades"]
+    .every(k=>careerState.cups[k]&&careerState.cups[k].pending.length===0);
+  if(!allDone)return;
+  const diff=careerState.difficulty;
+  const games=careerState.games||0;
+  if(games<=0)return;
+  const wins=careerState.wins||0,losses=careerState.losses||0;
+  const winPct=games>0?(wins/games):0;
+  const all=loadBestRecords();
+  const prev=all[diff];
+  // New record if: no prior, higher win%, or same win% with fewer games
+  const isBetter=!prev||(winPct>prev.winPct+1e-9)||(Math.abs(winPct-prev.winPct)<1e-9&&games<prev.games);
+  if(isBetter){
+    all[diff]={w:wins,l:losses,games,winPct,date:Date.now()};
+    saveBestRecords(all);
+  }
 }
 function loadCareer(){
   try{
@@ -2605,6 +2672,7 @@ function playNextGame(){
   // pending list — i.e. the user's career is done.
   if(cupCompleted){
     const allDone=!careerState.nextGame; // no next game means all cups closed
+    if(allDone)updateBestRecordIfComplete();
     setTimeout(()=>{openCupCelebration(cupCompleted,allDone)},400);
   }
 }
@@ -3439,14 +3507,20 @@ function renderCareer(justRevealedSlotIdx,pA,pB,gameCup,cupCompleted,otPeriods){
   //      current level. Clicking it just explains where to change it.
   //   2. Picker on the initial roster screen — interactive pre-game-1,
   //      locked (visually + functionally) once a game has been played.
-  const diff=(careerState.difficulty||"normal").toLowerCase();
+  // diff is empty string when no difficulty has been picked yet — that
+  // way the picker's selected-state highlight doesn't default to Normal.
+  // playNextGame keeps its own ||"normal" safety fallback for runtime;
+  // the picker should reflect "no selection".
+  const diff=(careerState.difficulty||"").toLowerCase();
   const locked=isCareerInProgress();
   const diffPill=document.getElementById("difficultyPill");
   if(diffPill){
-    const label={easy:"EASY",normal:"NORMAL",hard:"HARD",hof:"HALL OF FAME"}[diff]||diff.toUpperCase();
-    diffPill.textContent="DIFFICULTY: "+label;
+    // Pill never appears pre-pick (career bar is hidden on Setup), but
+    // guard against showing a blank "DIFFICULTY:" anyway.
+    const label={easy:"EASY",normal:"NORMAL",hard:"HARD",hof:"HALL OF FAME"}[diff]||"";
+    diffPill.textContent=label?("DIFFICULTY: "+label):"";
     diffPill.classList.remove("easy","normal","hard","hof");
-    diffPill.classList.add(diff);
+    if(diff)diffPill.classList.add(diff);
     diffPill.title=locked
       ? "Difficulty is locked during this career. Click RESET to change it."
       : "Pre-Game #1 — change in the picker on this screen";
@@ -3456,6 +3530,21 @@ function renderCareer(justRevealedSlotIdx,pA,pB,gameCup,cupCompleted,otPeriods){
     picker.classList.toggle("locked",locked);
     picker.querySelectorAll(".difficulty-option").forEach(btn=>{
       btn.classList.toggle("selected",btn.dataset.diff===diff);
+    });
+    // Per-tier best-record badge — only shown for difficulties the user
+    // has actually completed a full 5-cup career on. Empty otherwise.
+    const best=loadBestRecords();
+    picker.querySelectorAll(".difficulty-option-best").forEach(el=>{
+      const tier=el.dataset.bestFor;
+      const r=best[tier];
+      if(r&&r.games>0){
+        const pct=(r.winPct*100).toFixed(1);
+        el.textContent="Best: "+r.w+"–"+r.l+" ("+pct+"%)";
+        el.style.display="";
+      }else{
+        el.textContent="";
+        el.style.display="none";
+      }
     });
     // Pre-game-1: show the picker prominently. Mid-career it's hidden
     // entirely (the pill is enough of a reminder).
@@ -3523,13 +3612,45 @@ function renderCareer(justRevealedSlotIdx,pA,pB,gameCup,cupCompleted,otPeriods){
   setBanner("nextGameBanner","nextGameCup","nextGameTarget","Next Game");
   setBanner("nextGameBannerInitial","nextGameCupInitial","nextGameTargetInitial","First Game");
 
-  // Career-complete victory card (replaces the next-game banner)
+  // Career-complete victory card (replaces the next-game banner). Includes
+  // the final roster with their SIMULATION-career averages — GP / PPG /
+  // RPG / APG accumulated across the games played this run, not lifetime
+  // NBA numbers. Same data the championship modal uses.
   const victoryWrap=document.getElementById("careerVictoryWrap");
   if(victoryWrap){
     if(!ng&&careerState.cups){
+      const diffLabel={easy:"Easy",normal:"Normal",hard:"Hard",hof:"Hall of Fame"}[careerState.difficulty||""]||"";
+      const careerStats=careerState.playerCareer||{};
+      const sorted=[...careerState.roster].sort((a,b)=>positionSortKey(a)-positionSortKey(b));
+      const rosterHTML=sorted.map(n=>{
+        const bi=bioByName[n];
+        const pos=bi!=null?(bioData[bi][3]||""):"";
+        const c=careerStats[n];
+        let gpStr="0",ppgStr="—",rpgStr="—",apgStr="—";
+        if(c&&c.gp>0){
+          gpStr=String(c.gp);
+          ppgStr=(c.pts/c.gp).toFixed(1);
+          rpgStr=(c.reb/c.gp).toFixed(1);
+          apgStr=(c.ast/c.gp).toFixed(1);
+        }
+        return '<div class="career-victory-row">'+
+          '<div class="cv-main">'+
+            '<span class="nm">'+escapeHtmlS(n)+'</span>'+
+            '<span class="ps">'+escapeHtmlS(pos)+'</span>'+
+          '</div>'+
+          '<div class="cv-stats">'+
+            '<span><b>'+gpStr+'</b> GP</span>'+
+            '<span><b>'+ppgStr+'</b> PPG</span>'+
+            '<span><b>'+rpgStr+'</b> RPG</span>'+
+            '<span><b>'+apgStr+'</b> APG</span>'+
+          '</div>'+
+        '</div>';
+      }).join("");
       victoryWrap.innerHTML='<div class="career-victory">'+
         '<div class="career-victory-title">Career Complete</div>'+
-        '<div class="career-victory-sub">All five cups won &middot; '+careerState.wins+'–'+careerState.losses+' across '+careerState.games+' games</div>'+
+        '<div class="career-victory-sub">All five cups won &middot; '+careerState.wins+'–'+careerState.losses+' across '+careerState.games+' games'+(diffLabel?(' &middot; '+escapeHtmlS(diffLabel)):'')+'</div>'+
+        '<div class="career-victory-roster-label">Your Final Roster</div>'+
+        '<div class="career-victory-roster">'+rosterHTML+'</div>'+
       '</div>';
       const ngb=document.getElementById("nextGameBanner");if(ngb)ngb.style.display="none";
     }else{
