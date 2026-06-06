@@ -101,23 +101,30 @@ body{background:#f5f7fa;color:#2a2a3a;font-family:'JetBrains Mono',monospace;min
 .career-streak.idle{display:none}
 .difficulty-pill{background:#f7f9fc;border:1px solid #cdd2dc;color:#5a5a72;font-family:'Oswald',sans-serif;font-size:11px;letter-spacing:2px;font-weight:700;padding:5px 12px;border-radius:11px;cursor:pointer;text-transform:uppercase;transition:all 0.15s;align-self:center}
 .difficulty-pill:hover{border-color:#8a8aa0;color:#1a1a2e}
-.difficulty-pill.hard{background:linear-gradient(135deg,#fbcdd1 0%,#fde8ea 100%);border-color:#e63946;color:#ff6b6b;text-shadow:0 0 8px rgba(230,57,70,0.4)}
+.difficulty-pill.easy{background:#f0fdf4;border-color:#86efac;color:#15803d}
+.difficulty-pill.normal{background:#eff6ff;border-color:#93c5fd;color:#1d4ed8}
+.difficulty-pill.hard{background:#fffbeb;border-color:#fcd34d;color:#b45309}
+.difficulty-pill.hof{background:#fef2f2;border-color:#fca5a5;color:#b91c1c}
 
 /* ===== Difficulty picker (initial roster screen, pre-game-1 only) ===== */
 .difficulty-picker{background:linear-gradient(135deg,#f0f3f8 0%,#f5f7fa 100%);border:1px solid #e2e6ee;border-radius:10px;padding:18px 20px;margin:0 0 22px;text-align:center}
 .difficulty-picker-label{font-family:'Oswald',sans-serif;font-size:11px;letter-spacing:4px;color:#6b6b80;text-transform:uppercase;margin-bottom:12px}
-.difficulty-picker-options{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
-.difficulty-option{background:#f7f9fc;border:2px solid #e2e6ee;border-radius:8px;padding:14px 16px;cursor:pointer;text-align:left;transition:all 0.15s;color:inherit;font-family:inherit}
-.difficulty-option:hover{border-color:#8a8aa0;background:#eef1f6;transform:translateY(-1px)}
-.difficulty-option.selected[data-diff="normal"]{border-color:#22c55e;background:#e8f4ec;box-shadow:0 0 18px rgba(34,197,94,0.25)}
-.difficulty-option.selected[data-diff="hard"]{border-color:#e63946;background:#fde8ea;box-shadow:0 0 18px rgba(230,57,70,0.3)}
-.difficulty-option-name{font-family:'Oswald',sans-serif;font-size:18px;letter-spacing:3px;font-weight:700;color:#5a5a72;margin-bottom:6px;text-transform:uppercase}
-.difficulty-option.selected[data-diff="normal"] .difficulty-option-name{color:#22c55e}
-.difficulty-option.selected[data-diff="hard"] .difficulty-option-name{color:#ff6b6b}
-.difficulty-option-desc{font-family:'Inter','Segoe UI',sans-serif;font-size:11px;color:#6b6b80;line-height:1.5}
-.difficulty-picker-hint{font-family:'Inter','Segoe UI',sans-serif;font-size:10px;color:#707088;font-style:italic;line-height:1.5;padding:0 6px}
+.difficulty-picker-options{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.difficulty-option{background:#ffffff;border:2px solid #e2e6ee;border-radius:8px;padding:14px 16px;cursor:pointer;text-align:left;transition:all 0.15s;color:inherit;font-family:inherit}
+.difficulty-option:hover{border-color:#8a8aa0;transform:translateY(-1px);box-shadow:0 4px 12px rgba(0,0,0,0.08)}
+/* Per-tier selected accents */
+.difficulty-option.selected[data-diff="easy"]{border-color:#22c55e;background:#f0fdf4;box-shadow:0 0 18px rgba(34,197,94,0.18)}
+.difficulty-option.selected[data-diff="normal"]{border-color:#3b82f6;background:#eff6ff;box-shadow:0 0 18px rgba(59,130,246,0.18)}
+.difficulty-option.selected[data-diff="hard"]{border-color:#f59e0b;background:#fffbeb;box-shadow:0 0 18px rgba(245,158,11,0.22)}
+.difficulty-option.selected[data-diff="hof"]{border-color:#e63946;background:#fef2f2;box-shadow:0 0 18px rgba(230,57,70,0.22)}
+.difficulty-option-name{font-family:'Oswald',sans-serif;font-size:16px;letter-spacing:2.5px;font-weight:700;color:#5a5a72;margin-bottom:6px;text-transform:uppercase}
+.difficulty-option.selected[data-diff="easy"] .difficulty-option-name{color:#15803d}
+.difficulty-option.selected[data-diff="normal"] .difficulty-option-name{color:#1d4ed8}
+.difficulty-option.selected[data-diff="hard"] .difficulty-option-name{color:#b45309}
+.difficulty-option.selected[data-diff="hof"] .difficulty-option-name{color:#b91c1c}
+.difficulty-option-desc{font-family:'Inter','Segoe UI',sans-serif;font-size:11px;color:#5a5a72;line-height:1.5}
 .difficulty-picker.locked .difficulty-option{cursor:not-allowed;opacity:0.5}
-.difficulty-picker.locked .difficulty-option:hover{transform:none;border-color:#e2e6ee;background:#f7f9fc}
+.difficulty-picker.locked .difficulty-option:hover{transform:none;border-color:#e2e6ee;box-shadow:none}
 .difficulty-picker.highlight-flash{animation:pickerFlash 0.9s ease-out}
 @keyframes pickerFlash{0%{box-shadow:0 0 0 rgba(255,215,0,0)}40%{box-shadow:0 0 30px rgba(255,215,0,0.4),0 0 0 2px #ffd700 inset}100%{box-shadow:0 0 0 rgba(255,215,0,0)}}
 @media(max-width:580px){.difficulty-picker-options{grid-template-columns:1fr}}
@@ -466,13 +473,21 @@ body{background:#f5f7fa;color:#2a2a3a;font-family:'JetBrains Mono',monospace;min
       <div class="difficulty-picker" id="difficultyPicker">
         <div class="difficulty-picker-label">Difficulty</div>
         <div class="difficulty-picker-options">
+          <button class="difficulty-option" data-diff="easy" onclick="pickDifficulty('easy')">
+            <div class="difficulty-option-name">EASY</div>
+            <div class="difficulty-option-desc">One guaranteed All-Star always available in free agency</div>
+          </button>
           <button class="difficulty-option" data-diff="normal" onclick="pickDifficulty('normal')">
             <div class="difficulty-option-name">NORMAL</div>
-            <div class="difficulty-option-desc">Opponents are a random cross-section of each cup's player pool</div>
+            <div class="difficulty-option-desc">No All-Star guarantees — opponents are a random cross-section</div>
           </button>
           <button class="difficulty-option" data-diff="hard" onclick="pickDifficulty('hard')">
             <div class="difficulty-option-name">HARD</div>
-            <div class="difficulty-option-desc">Opponents are the all-time best from each pool</div>
+            <div class="difficulty-option-desc">The single best player from each pool is always on the opposing team</div>
+          </button>
+          <button class="difficulty-option" data-diff="hof" onclick="pickDifficulty('hof')">
+            <div class="difficulty-option-name">HALL OF FAME</div>
+            <div class="difficulty-option-desc">Every opponent is an all-time best from that pool</div>
           </button>
         </div>
       </div>
@@ -664,7 +679,7 @@ const CLUE_LABELS=["STATE/COUNTRY","STATUS","PRE-DRAFT TEAM","PICK","TEAM / SEAS
 //   2 → PRE-DRAFT TEAM (player[4])
 //   3 → PICK           (player[6]) — UND/ND/T/SD expand to readable strings
 //   4 → TEAM / SEASON  (slot.rolledSeason)
-const CAREER_STORAGE_KEY="bsl_career_v9";  // v9 — difficulty controls OPPONENT strength (not user roster); locked mid-career
+const CAREER_STORAGE_KEY="bsl_career_v10";  // v10 — four-tier difficulty (easy/normal/hard/hof); Easy guarantees an All-Star in free agency, Hard guarantees the #1 ranked opponent
 
 function rawG(game,s){
   switch(s){
@@ -1784,7 +1799,15 @@ function pickDifficulty(diff){
     return;
   }
   if((careerState.difficulty||"normal")===diff)return; // no-op if unchanged
+  const prev=careerState.difficulty||"normal";
   careerState.difficulty=diff;
+  // If the new tier has different free-agency guarantees (Easy adds an
+  // All-Star guarantee; other tiers don't), re-roll the mystery slots
+  // so the change is visible immediately. Pre-Game #1 only, so this
+  // doesn't disturb any in-progress run.
+  if(diff==="easy"||prev==="easy"){
+    regenerateAllMysterySlots();
+  }
   saveCareer();
   renderCareer();
 }
@@ -1921,19 +1944,38 @@ function playNextGame(){
     return;
   }
 
-  // Difficulty: NORMAL keeps the existing shuffle-and-balance behavior so
-  // opponents are a random representative cross-section of the cup pool.
-  // HARD pre-sorts the candidate pool by the priority chain (HoopsHype
-  // Top-78 → most All-NBA First Teams → most All-NBA Second Teams → most
-  // All-Stars → highest career PPG) so the position balancer pulls the
-  // best available players in that order. Result: Kentucky in the
-  // College Cup goes from "random 12 Kentucky players" to "Anthony Davis,
-  // Karl Malone, John Wall... etc.". The USER's roster is never affected
-  // by difficulty — that always uses the random-shuffle path.
+  // Difficulty maps to opponent build strategy:
+  //   easy   → random shuffle (same as normal). The All-Star guarantee
+  //            for Easy lives on the FREE-AGENCY side, not the opponent
+  //            side — see regenerateAllMysterySlots.
+  //   normal → random shuffle.
+  //   hard   → the single highest-ranked player from this pool is
+  //            guaranteed to play; the remaining 11 spots are random
+  //            shuffle. Top-ranked = HoopsHype Top-78 → most All-NBA
+  //            First Teams → most All-NBA Second Teams → most All-Star
+  //            → highest career PPG (see hardModeCompare).
+  //   hof    → ALL opponents are the highest-ranked available players
+  //            (the candidate pool is fully sorted by the priority
+  //            chain before the position balancer pulls).
+  // The USER's roster is never affected by difficulty — that always
+  // uses the random shuffle path in initCareerState.
   const diff=(careerState.difficulty||"normal").toLowerCase();
-  const oppOrdered=(diff==="hard")
-    ? candidates.slice().sort((a,b)=>hardModeCompare(a,b))
-    : shuffle(candidates);
+  let oppOrdered;
+  if(diff==="hof"){
+    oppOrdered=candidates.slice().sort((a,b)=>hardModeCompare(a,b));
+  }else if(diff==="hard"){
+    // Find the #1 ranked candidate and stick them at the front of an
+    // otherwise-shuffled list. Because buildBalancedRoster iterates the
+    // list greedily by position, putting #1 first ensures they get
+    // claimed whenever their position is needed.
+    const sorted=candidates.slice().sort((a,b)=>hardModeCompare(a,b));
+    const topPlayer=sorted[0];
+    const rest=shuffle(candidates.filter(n=>n!==topPlayer));
+    oppOrdered=[topPlayer,...rest];
+  }else{
+    // easy + normal both use plain random shuffle for opponents
+    oppOrdered=shuffle(candidates);
+  }
   const oppRoster=buildBalancedRoster(oppOrdered);
   if(!isValidRoster(oppRoster)){
     console.warn("Opp pool for "+ng.cup+"/"+ng.target+" can't satisfy 4G/4F/2C; auto-completing.");
@@ -2453,17 +2495,37 @@ function closeDismissedModal(){
 // Regenerate every mystery slot, guaranteeing at least one G, one F,
 // and one C among the five so the user always has a position-diverse
 // pool of free agents to choose from.
+//
+// EASY mode adds an extra guarantee: at least one of the 5 mysteries
+// is an All-Star (bio col 11 > 0). The All-Star is picked first; their
+// position contribution counts toward the G/F/C diversity coverage.
 function regenerateAllMysterySlots(){
   const used=new Set(careerState.roster);
   const newSlots=[];
   const need={g:true,f:true,c:true};
-  // First, fill one slot for each of G/F/C. Then fill the remaining 2
-  // with any position. Position diversity is enforced here only — once
-  // a position need is met, subsequent slots can be anything.
+  const diff=((careerState&&careerState.difficulty)||"normal").toLowerCase();
+
+  // Easy mode — seed one guaranteed All-Star slot up front. The All-Star
+  // counts toward whichever position(s) they cover, so the subsequent
+  // G/F/C loop only fills the gaps.
+  if(diff==="easy"){
+    const allStarSlot=freshAllStarSlot(used);
+    if(allStarSlot){
+      newSlots.push(allStarSlot);
+      used.add(allStarSlot.name);
+      const p=playerPositions(allStarSlot.name);
+      if(p.g)need.g=false;
+      if(p.f)need.f=false;
+      if(p.c)need.c=false;
+    }
+  }
+  // Fill missing G/F/C positions
   for(const pos of ["g","f","c"]){
+    if(!need[pos])continue;
     const slot=freshMysterySlotMatchingPosition(used,pos);
     if(slot){newSlots.push(slot);used.add(slot.name);need[pos]=false}
   }
+  // Fill remaining slots with anyone
   while(newSlots.length<5){
     const slot=freshMysterySlot(used);
     if(!slot)break;
@@ -2471,6 +2533,23 @@ function regenerateAllMysterySlots(){
     used.add(slot.name);
   }
   careerState.slots=newSlots;
+}
+
+// Pick a random All-Star (bioData col 11 > 0) not already in use. Used
+// only by Easy mode to seed a guaranteed marquee free agent.
+function freshAllStarSlot(usedNames){
+  const pool=[];
+  for(const r of bioData){
+    if(!r[0]||usedNames.has(r[0]))continue;
+    if((r[11]||0)<=0)continue;
+    if(!playerHasPlayableGames(r[0]))continue;
+    pool.push(r[0]);
+  }
+  if(!pool.length)return null;
+  const name=pool[Math.floor(Math.random()*pool.length)];
+  const order=shuffle([0,1,2,3,4]);
+  const sc=rollSeasonClue(name);
+  return {name,order,revealed:0,rolledSeason:sc.display,rolledSeasonYear:sc.seasonYr,rolledTeam:sc.team};
 }
 function freshMysterySlotMatchingPosition(usedNames,pos){
   // Pick a bio-eligible player not in use whose position spectrum covers
@@ -2790,8 +2869,10 @@ function renderCareer(justRevealedSlotIdx,pA,pB,gameCup,cupCompleted,otPeriods){
   const locked=isCareerInProgress();
   const diffPill=document.getElementById("difficultyPill");
   if(diffPill){
-    diffPill.textContent="DIFFICULTY: "+diff.toUpperCase();
-    diffPill.classList.toggle("hard",diff==="hard");
+    const label={easy:"EASY",normal:"NORMAL",hard:"HARD",hof:"HALL OF FAME"}[diff]||diff.toUpperCase();
+    diffPill.textContent="DIFFICULTY: "+label;
+    diffPill.classList.remove("easy","normal","hard","hof");
+    diffPill.classList.add(diff);
     diffPill.title=locked
       ? "Difficulty is locked during this career. Click RESET to change it."
       : "Pre-Game #1 — change in the picker on this screen";
