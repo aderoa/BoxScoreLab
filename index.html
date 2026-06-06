@@ -176,6 +176,15 @@ body{background:#0a0a1a;color:#c8c8e0;font-family:'JetBrains Mono',monospace;min
 .fa-mechanic-note{background:#0e0e2a;border-left:3px solid #ffd700;border-radius:0 6px 6px 0;padding:10px 14px;margin:0 0 14px;font-family:'Inter','Segoe UI',sans-serif;font-size:12px;line-height:1.6;color:#aaaadd}
 .fa-mechanic-note b{color:#ffd700;font-weight:600}
 
+/* ===== Next-game row: banner + Play button side-by-side ===== */
+.next-game-row{display:flex;align-items:stretch;gap:12px;margin:18px 0;width:100%}
+.next-game-banner-inline{flex:1 1 auto;margin:0;text-align:left;padding:12px 18px;display:flex;flex-direction:column;justify-content:center;gap:2px}
+.next-game-banner-inline .next-game-label{font-size:10px;letter-spacing:3px}
+.next-game-banner-inline .next-game-cup{font-size:13px;letter-spacing:2px}
+.next-game-banner-inline .next-game-target{font-size:15px;letter-spacing:1.5px}
+.next-game-play-btn{flex:0 0 auto;align-self:stretch;padding:0 28px;white-space:nowrap}
+@media(max-width:640px){.next-game-row{flex-direction:column;gap:8px}.next-game-play-btn{width:100%;padding:14px}}
+
 /* ===== Discarded-four reveal modal ===== */
 .dismissed-modal{background:linear-gradient(135deg,#1a1a3e 0%,#0a0a1a 100%);border:1px solid #3a3a55;border-radius:12px;padding:24px 24px 18px;max-width:920px;width:100%;max-height:88vh;overflow-y:auto;animation:revealPop 0.35s cubic-bezier(0.34,1.56,0.64,1);box-shadow:0 0 60px rgba(100,100,150,0.25)}
 .dismissed-header{font-family:'Oswald',sans-serif;font-size:22px;font-weight:700;letter-spacing:5px;color:#ff8888;text-align:center;text-transform:uppercase;margin-bottom:4px;text-shadow:0 0 12px rgba(255,107,107,0.3)}
@@ -495,17 +504,17 @@ body{background:#0a0a1a;color:#c8c8e0;font-family:'JetBrains Mono',monospace;min
       <div class="screen-section">
         <div class="screen-title-sm">Mystery Free Agents <span class="screen-title-hint">· Win games to reveal clues</span></div>
         <div class="fa-mechanic-note">
-          PICK a mystery to try to guess who it is. A correct guess earns you a <b>bonus teammate</b> from that player's team/season. Either way, the other four mysteries are <b>discarded</b> and shown to you at the end of the round.
+          Pick a mystery free agent, and guess who it is. A correct guess earns you a <b>bonus teammate</b> you get to pick. The other four mystery free agents are <b>discarded</b>.
         </div>
         <div class="slots-grid" id="mysterySlots"></div>
       </div>
-      <div class="next-game-banner" id="nextGameBanner">
-        <div class="next-game-label">Next Game</div>
-        <div class="next-game-cup" id="nextGameCup">—</div>
-        <div class="next-game-target" id="nextGameTarget">—</div>
-      </div>
-      <div class="screen-action">
-        <button class="btn btn-play btn-play-big" onclick="playNextGame()">▶ PLAY NEXT GAME</button>
+      <div class="next-game-row">
+        <div class="next-game-banner next-game-banner-inline" id="nextGameBanner">
+          <div class="next-game-label">Next Game</div>
+          <div class="next-game-cup" id="nextGameCup">—</div>
+          <div class="next-game-target" id="nextGameTarget">—</div>
+        </div>
+        <button class="btn btn-play btn-play-big next-game-play-btn" onclick="playNextGame()">▶ PLAY NEXT GAME</button>
       </div>
       <div class="screen-section">
         <div class="screen-title-sm">Your Squad</div>
