@@ -162,6 +162,9 @@ body{background:linear-gradient(145deg,#1a1a3e 0%,#0a0a1a 50%,#ffffff 100%);back
 .best-records-modal{max-width:680px;width:100%;background:#1a1a3e;border:2px solid #ffd700;border-radius:10px;padding:24px;box-shadow:0 0 60px rgba(255,215,0,0.3)}
 .best-records-modal .modal-title{color:#ffd700;text-align:center;margin-bottom:18px;letter-spacing:4px;font-family:'Oswald',sans-serif;font-size:18px;font-weight:700;text-transform:uppercase}
 .best-records-body{font-family:'JetBrains Mono',monospace;color:#c8c8e0;font-size:12px;max-height:60vh;overflow-y:auto;margin-bottom:14px}
+.best-records-actions{display:flex;justify-content:space-between;gap:10px;align-items:center}
+.btn-records-reset{background:#1f0a0a;border:1px solid #ff444466;color:#ff6666;letter-spacing:1.5px;padding:7px 14px;font-size:11px;font-weight:700;border-radius:5px;cursor:pointer;font-family:'Oswald',sans-serif;text-transform:uppercase}
+.btn-records-reset:hover{background:#2a0e0e;border-color:#ff4444}
 .br-section{margin-bottom:22px}
 .br-section-title{font-family:'Oswald',sans-serif;font-size:11px;letter-spacing:3px;color:#aaaadd;text-transform:uppercase;margin-bottom:10px;text-align:center;border-bottom:1px solid #2a2a55;padding-bottom:6px}
 .br-overall-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px}
@@ -740,7 +743,10 @@ body{background:linear-gradient(145deg,#1a1a3e 0%,#0a0a1a 50%,#ffffff 100%);back
   <div class="modal best-records-modal">
     <div class="modal-title">Best Records</div>
     <div class="best-records-body" id="bestRecordsBody"></div>
-    <button class="btn modal-close" onclick="closeBestRecordsModal()">Close</button>
+    <div class="best-records-actions">
+      <button class="btn btn-records-reset" onclick="resetBestRecords()">🗑 Reset Records</button>
+      <button class="btn modal-close" onclick="closeBestRecordsModal()">Close</button>
+    </div>
   </div>
 </div>
 <script>
@@ -1401,24 +1407,13 @@ function renderTeam(ti){
       else if(isDbl&&["PTS","REB","AST","STL","BLK"].includes(s)&&av(ti,pi,s)>=10)cls+=" hl";
       cells+='<td class="'+cls+'">'+val+'</td>';
     });
-    // Tooltip — Date and matchup only, no other context. Date comes
-    // from the anticipated G.DT column in the binary; if absent or
-    // unparseable, just the matchup shows. formatGameDate is robust to
-    // MM/DD/YYYY strings, ISO YYYY-MM-DD, and millisecond timestamps.
-    const tipParts=[];
-    const dt=g[G.DT];
-    if(dt){
-      const dStr=formatGameDate(dt);
-      if(dStr)tipParts.push(dStr);
-    }
-    const teamStr=TEAMS[g[G.TM]]||"";
-    const oppStr=TEAMS[g[G.OP]]||"";
-    if(teamStr&&oppStr)tipParts.push(teamStr+" vs "+oppStr);
-    const tipAttr=tipParts.length?(' title="'+escapeHtmlS(tipParts.join(" · "))+'"'):'';
+    // Box-score row — no hover tooltip. The bin doesn't carry exact
+    // dates and the matchup is already visible from the team headers
+    // above, so the tooltip was redundant.
     const actCells=showActions
       ? '<td class="act" onclick="rerollPlayer('+ti+','+pi+')" title="Re-roll"><span class="dice">🎲</span></td><td class="act" onclick="removePlayer('+ti+','+pi+')" title="Remove"><span class="rm">×</span></td>'
       : '';
-    rows+='<tr class="row-'+(di%2===0?"even":"odd")+'"'+tipAttr+'>'+'<td class="pname">'+p.name+'<span class="pos-tag">'+pos+'</span>'+(tagYr?'<span class="yr-tag">\''+String(tagYr).slice(-2).padStart(2,"0")+'</span>':'')+'</td>'+cells+actCells+'</tr>';
+    rows+='<tr class="row-'+(di%2===0?"even":"odd")+'">'+'<td class="pname">'+p.name+'<span class="pos-tag">'+pos+'</span>'+(tagYr?'<span class="yr-tag">\''+String(tagYr).slice(-2).padStart(2,"0")+'</span>':'')+'</td>'+cells+actCells+'</tr>';
   });
   let tc="";
   STAT_KEYS.forEach(s=>{let v;if(s==="MIN")v=fmtMin(tot.MIN);else if(s==="FG%")v=tot.FGA>0?(tot.FGM/tot.FGA).toFixed(3).replace(/^0/,""):".000";else if(s==="FT%")v=tot.FTA>0?(tot.FTM/tot.FTA).toFixed(3).replace(/^0/,""):".000";else v=Math.round(tot[s]||0);tc+='<td class="r">'+v+'</td>'});
@@ -1638,6 +1633,18 @@ function openBestRecordsModal(){
 }
 function closeBestRecordsModal(){
   document.getElementById("bestRecordsModal").classList.remove("active");
+}
+// Wipe every saved best record (overall + per-cup-fastest). Used from
+// the Records modal's "Reset Records" button. Confirms first because
+// this is permanent — there's no undo.
+function resetBestRecords(){
+  if(!confirm("Reset all best records? This wipes every saved overall and per-cup record across all difficulties. There's no undo."))return;
+  try{localStorage.removeItem(BEST_RECORDS_KEY)}
+  catch(e){console.warn("Best-records clear failed",e)}
+  // Re-render the modal body so the user sees the empty state immediately.
+  openBestRecordsModal();
+  // Also refresh the Setup screen badges since they read from the same store.
+  if(typeof renderCareer==="function")renderCareer();
 }
 function loadCareer(){
   try{
