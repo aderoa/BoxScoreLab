@@ -1877,26 +1877,29 @@ function hardModeKey(name){
   const an1=r[9]||0;
   const an2=r[10]||0;
   const as=r[11]||0;
-  const ppg=careerPPG(name);
-  return [hh,an1,an2,as,ppg];
+  // Final tiebreaker — total career points (regular season + playoffs,
+  // anything isPlayableGame accepts). Longevity rewards: a 20K-point
+  // career beats a 15K-point one. Switched from PPG-based ranking so
+  // brief peaks (high PPG over a short career) don't outrank longer
+  // careers with sustained contribution.
+  const pts=careerPoints(name);
+  return [hh,an1,an2,as,pts];
 }
 
-// Simple career PPG — total points across all playable games divided by
-// game count. Cached per-name so the Hard-mode sort doesn't re-scan
-// every player's game log on every comparator call (would be O(n² × g)
-// without the cache).
-const _ppgCache={};
-function careerPPG(name){
-  if(name in _ppgCache)return _ppgCache[name];
+// Total career points across every playable game. Cached per name so
+// hardModeCompare doesn't re-scan logs on every comparator call
+// (would be O(n² × g) without the cache).
+const _careerPointsCache={};
+function careerPoints(name){
+  if(name in _careerPointsCache)return _careerPointsCache[name];
   const games=playerIndex[name];
-  if(!games||!games.length){_ppgCache[name]=0;return 0}
-  let pts=0,gp=0;
+  if(!games||!games.length){_careerPointsCache[name]=0;return 0}
+  let pts=0;
   for(const g of games){
-    if(isPlayableGame(g)){pts+=g[G.PT]||0;gp++}
+    if(isPlayableGame(g))pts+=g[G.PT]||0;
   }
-  const v=gp>0?pts/gp:0;
-  _ppgCache[name]=v;
-  return v;
+  _careerPointsCache[name]=pts;
+  return pts;
 }
 
 // Primary franchise — the NBA franchise (abbr) the player played the
@@ -2848,7 +2851,7 @@ function playNextGame(){
   //            guaranteed to play; the remaining 11 spots are random
   //            shuffle. Top-ranked = HoopsHype Top-78 → most All-NBA
   //            First Teams → most All-NBA Second Teams → most All-Star
-  //            → highest career PPG (see hardModeCompare).
+  //            → highest career total points (see hardModeCompare).
   //   hof    → ALL opponents are the highest-ranked available players
   //            (the candidate pool is fully sorted by the priority
   //            chain before the position balancer pulls).
