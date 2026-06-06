@@ -152,6 +152,41 @@ body{background:linear-gradient(145deg,#1a1a3e 0%,#0a0a1a 50%,#ffffff 100%);back
 .btn-play:hover{transform:translateY(-1px);box-shadow:0 4px 12px rgba(255,107,53,0.3)}
 .btn-play:disabled{opacity:0.5;cursor:not-allowed;transform:none}
 .btn-reset-career{background:#333;font-size:10px;letter-spacing:1px}
+.btn-records{background:#231a0a;border:1px solid #ffd70066;color:#ffd700;letter-spacing:1px;padding:5px 11px;font-size:10px;font-weight:700;border-radius:4px;cursor:pointer;font-family:'Oswald',sans-serif;text-transform:uppercase}
+.btn-records:hover{background:#2e220e;border-color:#ffd700}
+.setup-records-row{display:flex;justify-content:center;margin-top:18px}
+.btn-records-large{background:linear-gradient(135deg,#ffd700 0%,#ff9d2a 100%);color:#1a1a2e;border:none;padding:11px 28px;font-size:13px;font-weight:700;letter-spacing:2.5px;border-radius:6px;cursor:pointer;font-family:'Oswald',sans-serif;text-transform:uppercase;box-shadow:0 4px 16px rgba(255,215,0,0.25);transition:all 0.15s}
+.btn-records-large:hover{transform:translateY(-1px);box-shadow:0 6px 20px rgba(255,215,0,0.35)}
+
+/* Best Records modal */
+.best-records-modal{max-width:680px;width:100%;background:#1a1a3e;border:2px solid #ffd700;border-radius:10px;padding:24px;box-shadow:0 0 60px rgba(255,215,0,0.3)}
+.best-records-modal .modal-title{color:#ffd700;text-align:center;margin-bottom:18px;letter-spacing:4px;font-family:'Oswald',sans-serif;font-size:18px;font-weight:700;text-transform:uppercase}
+.best-records-body{font-family:'JetBrains Mono',monospace;color:#c8c8e0;font-size:12px;max-height:60vh;overflow-y:auto;margin-bottom:14px}
+.br-section{margin-bottom:22px}
+.br-section-title{font-family:'Oswald',sans-serif;font-size:11px;letter-spacing:3px;color:#aaaadd;text-transform:uppercase;margin-bottom:10px;text-align:center;border-bottom:1px solid #2a2a55;padding-bottom:6px}
+.br-overall-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.br-overall-cell{background:#0e0e2a;border:1px solid #2a2a55;border-radius:5px;padding:9px 12px;font-family:'JetBrains Mono',monospace;font-size:11px}
+.br-overall-cell.easy{border-color:#22c55e55}
+.br-overall-cell.normal{border-color:#3b82f655}
+.br-overall-cell.hard{border-color:#ff6b6b55}
+.br-overall-cell.hof{border-color:#b91c1c77}
+.br-tier-name{font-family:'Oswald',sans-serif;font-weight:700;letter-spacing:1.5px;font-size:11px;margin-bottom:4px}
+.br-overall-cell.easy .br-tier-name{color:#34d97a}
+.br-overall-cell.normal .br-tier-name{color:#60a5fa}
+.br-overall-cell.hard .br-tier-name{color:#ff8a8a}
+.br-overall-cell.hof .br-tier-name{color:#ef4444}
+.br-overall-cell .br-stats{color:#aaaadd}
+.br-overall-cell .br-empty{color:#666688;font-style:italic}
+.br-cups-table{width:100%;border-collapse:collapse;font-family:'JetBrains Mono',monospace;font-size:11px}
+.br-cups-table th,.br-cups-table td{padding:8px 8px;text-align:center;border-bottom:1px solid #2a2a55}
+.br-cups-table th{font-family:'Oswald',sans-serif;color:#888899;font-weight:700;letter-spacing:1.5px;font-size:10px;text-transform:uppercase}
+.br-cups-table td.cup-name{text-align:left;color:#e0e0ff;font-family:'Oswald',sans-serif;letter-spacing:1px;text-transform:uppercase;font-size:11px}
+.br-cups-table th.easy,.br-cups-table td.easy-val{color:#34d97a}
+.br-cups-table th.normal,.br-cups-table td.normal-val{color:#60a5fa}
+.br-cups-table th.hard,.br-cups-table td.hard-val{color:#ff8a8a}
+.br-cups-table th.hof,.br-cups-table td.hof-val{color:#ef4444}
+.br-cups-table td.empty-cell{color:#444466}
+@media(max-width:560px){.br-overall-grid{grid-template-columns:1fr}.br-cups-table{font-size:10px}.br-cups-table th,.br-cups-table td{padding:5px 4px}}
 
 .slots-wrap{margin-bottom:20px}
 .slots-title{font-family:'Oswald',sans-serif;font-size:12px;letter-spacing:3px;color:#8888aa;text-transform:uppercase;margin-bottom:10px;text-align:center}
@@ -488,6 +523,7 @@ body{background:linear-gradient(145deg,#1a1a3e 0%,#0a0a1a 50%,#ffffff 100%);back
       </div>
       <button class="difficulty-pill" id="difficultyPill" onclick="toggleDifficulty()" title="Switch difficulty">NORMAL</button>
       <div class="career-game-num" id="careerGameNum">GAME #1</div>
+      <button class="btn btn-records" onclick="openBestRecordsModal()" title="View your best records">RECORDS</button>
       <button class="btn btn-reset-career" onclick="resetCareer()">RESET</button>
     </div>
 
@@ -519,6 +555,9 @@ body{background:linear-gradient(145deg,#1a1a3e 0%,#0a0a1a 50%,#ffffff 100%);back
             <div class="difficulty-option-best" data-best-for="hof"></div>
           </button>
         </div>
+      </div>
+      <div class="setup-records-row">
+        <button class="btn btn-records-large" onclick="openBestRecordsModal()">🏆 VIEW BEST RECORDS</button>
       </div>
     </div>
 
@@ -695,9 +734,18 @@ body{background:linear-gradient(145deg,#1a1a3e 0%,#0a0a1a 50%,#ffffff 100%);back
     <button class="btn modal-close" onclick="closeCupModal()">Close</button>
   </div>
 </div>
+
+<!-- =========== Best Records modal (cross-career achievements) =========== -->
+<div class="modal-backdrop" id="bestRecordsModal" onclick="if(event.target===this)closeBestRecordsModal()">
+  <div class="modal best-records-modal">
+    <div class="modal-title">Best Records</div>
+    <div class="best-records-body" id="bestRecordsBody"></div>
+    <button class="btn modal-close" onclick="closeBestRecordsModal()">Close</button>
+  </div>
+</div>
 <script>
-// [TEAM,OPP,POS,MIN,PTS,FGM,FGA,3PM,3PA,FTM,FTA,ORB,DRB,REB,AST,STL,BLK,TOV,PF,TYPE,SEASON_YR,GAME_YR]
-const G={TM:0,OP:1,PS:2,MN:3,PT:4,FM:5,FA:6,PM:7,PA:8,FT:9,TA:10,OR:11,DR:12,RB:13,AS:14,ST:15,BK:16,TO:17,PF:18,TY:19,SY:20,GY:21};
+// [TEAM,OPP,POS,MIN,PTS,FGM,FGA,3PM,3PA,FTM,FTA,ORB,DRB,REB,AST,STL,BLK,TOV,PF,TYPE,SEASON_YR,GAME_YR,DATE]
+const G={TM:0,OP:1,PS:2,MN:3,PT:4,FM:5,FA:6,PM:7,PA:8,FT:9,TA:10,OR:11,DR:12,RB:13,AS:14,ST:15,BK:16,TO:17,PF:18,TY:19,SY:20,GY:21,DT:22};
 const STAT_KEYS=["MIN","PTS","FGM","FGA","FG%","3PM","3PA","FTM","FTA","FT%","ORB","DRB","REB","AST","STL","BLK","TOV","PF"];
 const COUNT_STATS=["PTS","FGM","FGA","3PM","3PA","FTM","FTA","ORB","DRB","REB","AST","STL","BLK","TOV","PF"];
 const TYPE_LABELS=["RS","Playoffs","Finals"];
@@ -1353,29 +1401,19 @@ function renderTeam(ti){
       else if(isDbl&&["PTS","REB","AST","STL","BLK"].includes(s)&&av(ti,pi,s)>=10)cls+=" hl";
       cells+='<td class="'+cls+'">'+val+'</td>';
     });
-    // Tooltip: source game context for the box-score line. data.bin
-    // doesn't carry exact dates or final scores — only player stats +
-    // team/opp/year/type — so we surface what's available.
+    // Tooltip — Date and matchup only, no other context. Date comes
+    // from the anticipated G.DT column in the binary; if absent or
+    // unparseable, just the matchup shows. formatGameDate is robust to
+    // MM/DD/YYYY strings, ISO YYYY-MM-DD, and millisecond timestamps.
     const tipParts=[];
+    const dt=g[G.DT];
+    if(dt){
+      const dStr=formatGameDate(dt);
+      if(dStr)tipParts.push(dStr);
+    }
     const teamStr=TEAMS[g[G.TM]]||"";
     const oppStr=TEAMS[g[G.OP]]||"";
     if(teamStr&&oppStr)tipParts.push(teamStr+" vs "+oppStr);
-    const seasonStr=formatSeasonYear(g[G.SY]);
-    if(seasonStr)tipParts.push(seasonStr);
-    // Calendar year of the game itself — adds half-of-season context
-    // ("2020" = Oct-Dec opener stretch, "2021" = Jan-Apr stretch for
-    // the 2020-21 season). Only shown when GAME_YEAR is consistent
-    // with the SEASON_YEAR — SY is the START year of the season (see
-    // SY_IS_START), so valid GY values are SY (first half) or SY+1
-    // (second half). Some bin rows carry a stale/bogus GY value
-    // (consistently SY-1 in the samples checked) — those get silently
-    // dropped rather than surfaced as misleading info.
-    const sy=g[G.SY]||0,gy=g[G.GY]||0;
-    if(sy&&gy&&(gy===sy||gy===sy+1)){
-      tipParts.push(String(gy));
-    }
-    const tyLabel=TYPE_LABELS[g[G.TY]]||"";
-    if(tyLabel)tipParts.push(tyLabel);
     const tipAttr=tipParts.length?(' title="'+escapeHtmlS(tipParts.join(" · "))+'"'):'';
     const actCells=showActions
       ? '<td class="act" onclick="rerollPlayer('+ti+','+pi+')" title="Re-roll"><span class="dice">🎲</span></td><td class="act" onclick="removePlayer('+ti+','+pi+')" title="Remove"><span class="rm">×</span></td>'
@@ -1491,6 +1529,35 @@ function countCupsCompleted(){
   return ["franchise","states","college","continents","decades"]
     .reduce((n,k)=>n+((careerState.cups[k]&&careerState.cups[k].pending.length===0)?1:0),0);
 }
+// How many games (wins + losses) the current career spent on a given
+// cup. Sums every per-target attempt counter inside that cup. Used to
+// gauge "fastest finish" for the cup records table.
+function gamesUsedForCup(cupKey){
+  if(!careerState||!careerState.cups||!careerState.cups[cupKey])return 0;
+  const c=careerState.cups[cupKey];
+  if(!c.attempts)return 0;
+  let total=0;
+  for(const t in c.attempts){
+    total+=(c.attempts[t].w||0)+(c.attempts[t].l||0);
+  }
+  return total;
+}
+// Update the best-fastest-completion record for a specific cup at the
+// current difficulty. Lower games = better.
+function updateBestCupRecord(cupKey){
+  if(!careerState||!careerState.difficulty||!cupKey)return;
+  const games=gamesUsedForCup(cupKey);
+  if(games<=0)return;
+  const diff=careerState.difficulty;
+  const all=loadBestRecords();
+  if(!all[diff])all[diff]={};
+  if(!all[diff].cupGames)all[diff].cupGames={};
+  const prev=all[diff].cupGames[cupKey];
+  if(prev==null||games<prev){
+    all[diff].cupGames[cupKey]=games;
+    saveBestRecords(all);
+  }
+}
 // Compare two record candidates — returns true if `cand` is strictly
 // better than `prev` per the precedence above.
 function recordIsBetter(cand,prev){
@@ -1512,9 +1579,65 @@ function updateBestRecord(){
   const cand={w:wins,l:losses,games,cupsCompleted:countCupsCompleted(),winPct,date:Date.now()};
   const all=loadBestRecords();
   if(recordIsBetter(cand,all[diff])){
-    all[diff]=cand;
+    // Preserve any cupGames already recorded for this difficulty — they
+    // track per-cup-fastest milestones independently of the overall
+    // career-progress record being updated here.
+    const cupGames=(all[diff]&&all[diff].cupGames)||{};
+    all[diff]={...cand,cupGames};
     saveBestRecords(all);
   }
+}
+
+// === Best Records modal ===
+// Opens with two sections: overall full-career bests per difficulty,
+// and a per-cup fastest-finish table (rows=cups, columns=difficulties).
+function openBestRecordsModal(){
+  const body=document.getElementById("bestRecordsBody");
+  if(!body)return;
+  const all=loadBestRecords();
+  const tiers=[["easy","EASY"],["normal","NORMAL"],["hard","HARD"],["hof","HALL OF FAME"]];
+  const cups=[["franchise","Franchise"],["states","States"],["college","College"],["continents","Continents"],["decades","Decades"]];
+
+  // Overall career section — one cell per tier
+  let overall='<div class="br-section">'+
+    '<div class="br-section-title">Overall Career</div>'+
+    '<div class="br-overall-grid">';
+  tiers.forEach(([k,label])=>{
+    const r=all[k];
+    const has=r&&r.games>0;
+    const inner=has
+      ? '<div class="br-stats">'+r.w+'–'+r.l+' &middot; '+(Math.round(r.winPct*100))+'% &middot; '+(r.cupsCompleted??5)+'/5 cups</div>'
+      : '<div class="br-empty">No completed career yet</div>';
+    overall+='<div class="br-overall-cell '+k+'"><div class="br-tier-name">'+label+'</div>'+inner+'</div>';
+  });
+  overall+='</div></div>';
+
+  // Per-cup fastest-finish table — rows are cups, columns are difficulties.
+  // Cell value is total games it took to complete that cup at that diff.
+  let cupsTable='<div class="br-section">'+
+    '<div class="br-section-title">Fastest Cup Completion (games)</div>'+
+    '<table class="br-cups-table"><thead><tr><th></th>';
+  tiers.forEach(([k,label])=>{
+    cupsTable+='<th class="'+k+'">'+label.split(" ")[0]+'</th>';
+  });
+  cupsTable+='</tr></thead><tbody>';
+  cups.forEach(([ck,clabel])=>{
+    cupsTable+='<tr><td class="cup-name">'+clabel+'</td>';
+    tiers.forEach(([tk])=>{
+      const games=(all[tk]&&all[tk].cupGames&&all[tk].cupGames[ck]);
+      cupsTable+=(games!=null)
+        ? '<td class="'+tk+'-val">'+games+'</td>'
+        : '<td class="empty-cell">—</td>';
+    });
+    cupsTable+='</tr>';
+  });
+  cupsTable+='</tbody></table></div>';
+
+  body.innerHTML=overall+cupsTable;
+  document.getElementById("bestRecordsModal").classList.add("active");
+}
+function closeBestRecordsModal(){
+  document.getElementById("bestRecordsModal").classList.remove("active");
 }
 function loadCareer(){
   try{
@@ -1546,6 +1669,45 @@ function formatSeasonYear(sy){
   const start=SY_IS_START?n:n-1;
   const end=SY_IS_START?n+1:n;
   return start+"-"+String(end).slice(-2).padStart(2,"0");
+}
+
+// Robust date formatter for the G.DT column. Accepts:
+//   - "MM/DD/YYYY" string → passed through after a sanity check
+//   - "YYYY-MM-DD" or full ISO → reformatted to MM/DD/YYYY
+//   - millisecond timestamp (number) → reformatted to MM/DD/YYYY
+// Returns empty string for anything it can't parse — the tooltip
+// skips the date segment entirely in that case.
+function formatGameDate(v){
+  if(v==null||v==="")return "";
+  // String path
+  if(typeof v==="string"){
+    const s=v.trim();
+    // MM/DD/YYYY or M/D/YYYY — already in target format
+    const m1=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if(m1){
+      const mo=m1[1].padStart(2,"0"),dy=m1[2].padStart(2,"0"),yr=m1[3];
+      return mo+"/"+dy+"/"+yr;
+    }
+    // YYYY-MM-DD (or full ISO with time)
+    const m2=s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if(m2){
+      return m2[2]+"/"+m2[3]+"/"+m2[1];
+    }
+    // Last-ditch: try Date.parse
+    const t=Date.parse(s);
+    if(!isNaN(t))return formatGameDate(t);
+    return "";
+  }
+  // Number → treat as millisecond timestamp
+  if(typeof v==="number"&&isFinite(v)){
+    const d=new Date(v);
+    if(isNaN(d.getTime()))return "";
+    const mo=String(d.getUTCMonth()+1).padStart(2,"0");
+    const dy=String(d.getUTCDate()).padStart(2,"0");
+    const yr=d.getUTCFullYear();
+    return mo+"/"+dy+"/"+yr;
+  }
+  return "";
 }
 // Pick a random game from the player's log and format it as "YYYY-YY: TEAM"
 // — used as the seventh mystery clue. Locked in at slot creation so it
@@ -2845,6 +3007,9 @@ function playNextGame(){
   // pending list — i.e. the user's career is done.
   if(cupCompleted){
     const allDone=!careerState.nextGame; // no next game means all cups closed
+    // Per-cup fastest record — saves regardless of whether the entire
+    // career is done (each closed cup is its own milestone).
+    updateBestCupRecord(cupCompleted);
     if(allDone)updateBestRecord();
     setTimeout(()=>{openCupCelebration(cupCompleted,allDone)},400);
   }
