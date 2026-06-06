@@ -651,7 +651,7 @@ const G={TM:0,OP:1,PS:2,MN:3,PT:4,FM:5,FA:6,PM:7,PA:8,FT:9,TA:10,OR:11,DR:12,RB:
 const STAT_KEYS=["MIN","PTS","FGM","FGA","FG%","3PM","3PA","FTM","FTA","FT%","ORB","DRB","REB","AST","STL","BLK","TOV","PF"];
 const COUNT_STATS=["PTS","FGM","FGA","3PM","3PA","FTM","FTA","ORB","DRB","REB","AST","STL","BLK","TOV","PF"];
 const TYPE_LABELS=["RS","Playoffs","Finals"];
-const COLORS=["#e63946","#1d3557"];
+const COLORS=["#e63946","#4a90e2"];  // [user-red, opponent-light-blue] — blue is bright enough to read as a label/points color on the dark bg
 const TARGET_MIN=240;
 const POS_NAMES=["PG","SG","SF","PF","C"];
 
@@ -1148,7 +1148,7 @@ function editTeamName(idx){
 }
 
 // === RENDER ===
-function fmtMin(v){const n=parseFloat(v)||0,m=Math.floor(n),s=Math.round((n-m)*60);return m+":"+(s<10?"0":"")+s}
+function fmtMin(v){return String(Math.round(parseFloat(v)||0))}
 function fmtPct(v){const n=parseFloat(v);if(isNaN(n))return".000";return n.toFixed(3).replace(/^0/,"")}
 
 function renderTeam(ti){
@@ -3052,14 +3052,22 @@ function renderCareer(justRevealedSlotIdx,pA,pB,gameCup,cupCompleted,otPeriods){
 
   // Initial roster screen — richer cards (sorted by position: G → C).
   // The reveal class triggers a staggered fade/slide-in for each card,
-  // playing a quick "meet your 12" beat the first time the player lands
-  // on a fresh career. Re-renders (e.g. after a window resize) replay
-  // the animation, which is fine — it's only ever on this one screen.
+  // Initial roster screen — richer cards (sorted by position: G → C).
+  // The reveal class triggers a staggered fade/slide-in for each card,
+  // playing a quick "meet your 12" beat. To ensure the animation actually
+  // plays on RESET (and on initial boot), defer adding the .roster-cards-reveal
+  // class until the next animation frame — by then the parent screen
+  // has flipped to display:block and the animation runs while visible.
   const initialEl=document.getElementById("rosterCardsInitial");
   if(initialEl){
     const sorted=[...careerState.roster].sort((a,b)=>positionSortKey(a)-positionSortKey(b));
-    initialEl.className="roster-cards roster-cards-reveal";
+    initialEl.classList.remove("roster-cards-reveal");
     initialEl.innerHTML=sorted.map((n,i)=>buildRosterCardHTML(n,false,i)).join("");
+    // Force a reflow then add the class in the next frame — this
+    // restarts the CSS animation reliably even when renderCareer is
+    // called while the parent screen is still display:none.
+    void initialEl.offsetWidth; // reflow
+    requestAnimationFrame(()=>{initialEl.classList.add("roster-cards-reveal")});
   }
   // FA screen — compact roster cards (same position-spectrum order, no
   // reveal animation — they're persistent context, not a beat).
