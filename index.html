@@ -1525,40 +1525,50 @@ function countCupsCompleted(){
     .reduce((n,k)=>n+((careerState.cups[k]&&careerState.cups[k].pending.length===0)?1:0),0);
 }
 // How many games (wins + losses) the current career spent on a given
-// cup. Sums every per-target attempt counter inside that cup. Used to
-// gauge "fastest finish" for the cup records table.
-function gamesUsedForCup(cupKey){
-  if(!careerState||!careerState.cups||!careerState.cups[cupKey])return 0;
+// cup, with W/L broken out. Wins per cup = number of targets (winning
+// the matchup is what closes a target); losses = total failed attempts.
+function recordForCup(cupKey){
+  if(!careerState||!careerState.cups||!careerState.cups[cupKey])return {w:0,l:0,games:0};
   const c=careerState.cups[cupKey];
-  if(!c.attempts)return 0;
-  let total=0;
+  if(!c.attempts)return {w:0,l:0,games:0};
+  let w=0,l=0;
   for(const t in c.attempts){
-    total+=(c.attempts[t].w||0)+(c.attempts[t].l||0);
+    w+=(c.attempts[t].w||0);
+    l+=(c.attempts[t].l||0);
   }
-  return total;
+  return {w,l,games:w+l};
 }
 // Update the best-fastest-completion record for a specific cup at the
-// current difficulty. Lower games = better.
+// current difficulty. Lower games = better (wins are fixed per cup, so
+// fewer games means fewer losses along the way).
 function updateBestCupRecord(cupKey){
   if(!careerState||!careerState.difficulty||!cupKey)return;
-  const games=gamesUsedForCup(cupKey);
-  if(games<=0)return;
+  const rec=recordForCup(cupKey);
+  if(rec.games<=0)return;
   const diff=careerState.difficulty;
   const all=loadBestRecords();
   if(!all[diff])all[diff]={};
   if(!all[diff].cupGames)all[diff].cupGames={};
   const prev=all[diff].cupGames[cupKey];
-  if(prev==null||games<prev){
-    all[diff].cupGames[cupKey]=games;
+  // Old records may be a plain number (legacy schema = total games).
+  // Treat undefined/missing as "no record yet" → infinity for comparison.
+  const prevGames=(typeof prev==="number")?prev:(prev&&typeof prev.games==="number"?prev.games:Infinity);
+  if(rec.games<prevGames){
+    all[diff].cupGames[cupKey]=rec;
     saveBestRecords(all);
   }
 }
 // Compare two record candidates — returns true if `cand` is strictly
-// better than `prev` per the precedence above.
+// better than `prev` per the precedence above. An existing entry with
+// no `games` field is treated as no overall record (the slot may have
+// been created earlier by updateBestCupRecord, which only writes the
+// cupGames map and leaves overall fields blank).
 function recordIsBetter(cand,prev){
-  if(!prev)return true;
-  if(cand.cupsCompleted!==prev.cupsCompleted)return cand.cupsCompleted>prev.cupsCompleted;
-  if(Math.abs(cand.winPct-prev.winPct)>1e-9)return cand.winPct>prev.winPct;
+  if(!prev||!prev.games||prev.games<=0)return true;
+  const prevCups=prev.cupsCompleted||0;
+  if(cand.cupsCompleted!==prevCups)return cand.cupsCompleted>prevCups;
+  const prevPct=prev.winPct||0;
+  if(Math.abs(cand.winPct-prevPct)>1e-9)return cand.winPct>prevPct;
   return cand.games<prev.games;
 }
 // Snapshot the current career's record into the best-record store if
@@ -1610,7 +1620,7 @@ function openBestRecordsModal(){
   // Per-cup fastest-finish table — rows are cups, columns are difficulties.
   // Cell value is total games it took to complete that cup at that diff.
   let cupsTable='<div class="br-section">'+
-    '<div class="br-section-title">Fastest Cup Completion (games)</div>'+
+    '<div class="br-section-title">Best Cup Completion (W–L)</div>'+
     '<table class="br-cups-table"><thead><tr><th></th>';
   tiers.forEach(([k,label])=>{
     cupsTable+='<th class="'+k+'">'+label.split(" ")[0]+'</th>';
@@ -1619,10 +1629,20 @@ function openBestRecordsModal(){
   cups.forEach(([ck,clabel])=>{
     cupsTable+='<tr><td class="cup-name">'+clabel+'</td>';
     tiers.forEach(([tk])=>{
-      const games=(all[tk]&&all[tk].cupGames&&all[tk].cupGames[ck]);
-      cupsTable+=(games!=null)
-        ? '<td class="'+tk+'-val">'+games+'</td>'
-        : '<td class="empty-cell">—</td>';
+      const rec=(all[tk]&&all[tk].cupGames&&all[tk].cupGames[ck]);
+      let cellHtml='<td class="empty-cell">—</td>';
+      if(rec!=null){
+        // Legacy entries pre-W/L split were stored as plain numbers
+        // (total games). Show the count as-is for those; new entries
+        // get the proper "W-L" balance.
+        const display=(typeof rec==="number")
+          ? String(rec)
+          : (typeof rec.w==="number"&&typeof rec.l==="number")
+            ? (rec.w+"-"+rec.l)
+            : "—";
+        cellHtml='<td class="'+tk+'-val">'+display+'</td>';
+      }
+      cupsTable+=cellHtml;
     });
     cupsTable+='</tr>';
   });
