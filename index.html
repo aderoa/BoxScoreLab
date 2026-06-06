@@ -137,7 +137,7 @@ body{background:linear-gradient(145deg,#1a1a3e 0%,#0a0a1a 50%,#ffffff 100%);back
 .difficulty-option[data-diff="hard"] .difficulty-option-name{color:#ff8a8a}
 .difficulty-option[data-diff="hof"] .difficulty-option-name{color:#ef4444}
 .difficulty-option-desc{font-family:'Inter','Segoe UI',sans-serif;font-size:11px;color:#9090a8;line-height:1.5}
-.difficulty-option-best{font-family:'JetBrains Mono',monospace;font-size:10px;color:#ffd700;letter-spacing:0.5px;margin-top:8px;font-weight:600;display:none}
+.difficulty-option-best{font-family:'Oswald',sans-serif;font-size:12px;color:#1a1a2e;background:linear-gradient(135deg,#ffd700 0%,#ff9d2a 100%);letter-spacing:1.5px;margin-top:10px;font-weight:700;padding:6px 10px;border-radius:4px;text-transform:uppercase;text-align:center;display:none;box-shadow:0 2px 8px rgba(255,215,0,0.25)}
 .difficulty-picker.locked .difficulty-option{cursor:not-allowed;opacity:0.5}
 .difficulty-picker.locked .difficulty-option:hover{transform:none;box-shadow:none}
 .difficulty-picker.highlight-flash{animation:pickerFlash 0.9s ease-out}
@@ -680,13 +680,14 @@ body{background:linear-gradient(145deg,#1a1a3e 0%,#0a0a1a 50%,#ffffff 100%);back
     <div class="celebration-roster-title">YOUR ROSTER</div>
     <div class="celebration-roster" id="celebrationRoster"></div>
     <div class="celebration-actions">
-      <button class="btn btn-discard" onclick="shareCupRoster()" id="celebrationShareBtn">📋 COPY SUMMARY</button>
+      <button class="btn btn-discard" onclick="viewCelebrationCupRecords()" id="celebrationRecordsBtn">📋 SEE RECORDS</button>
+      <button class="btn btn-discard" onclick="copyCelebrationImage()" id="celebrationShareBtn">🖼️ COPY IMAGE</button>
       <button class="btn btn-play" onclick="closeCupCelebration()">CONTINUE ▶</button>
     </div>
   </div>
 </div>
 <!-- =========== Cup detail modal (shows all matchups for a cup) =========== -->
-<div class="modal-backdrop" id="cupModal">
+<div class="modal-backdrop" id="cupModal" onclick="if(event.target===this)closeCupModal()">
   <div class="modal cup-detail-modal">
     <div class="modal-title" id="cupModalTitle">Cup</div>
     <div class="cup-detail-summary" id="cupModalSummary"></div>
@@ -728,7 +729,7 @@ const CLUE_LABELS=["STATE/COUNTRY","STATUS","PRE-DRAFT TEAM","PICK","TEAM / SEAS
 //   2 → PRE-DRAFT TEAM (player[4])
 //   3 → PICK           (player[6]) — UND/ND/T/SD expand to readable strings
 //   4 → TEAM / SEASON  (slot.rolledSeason)
-const CAREER_STORAGE_KEY="bsl_career_v12";  // v12 — Setup screen for first-time difficulty pick; careerState.difficulty can be null pre-selection
+const CAREER_STORAGE_KEY="bsl_career_v13";  // v13 — added Seattle SuperSonics as own franchise (split from OKC) + All-World as 5th continents target
 
 function rawG(game,s){
   switch(s){
@@ -1328,7 +1329,13 @@ function renderTeam(ti){
   order.forEach((pi,di)=>{
     const p=team[pi],g=p.game;
     const pos=POS[g[G.PS]]||"";
-    const gameYr=g[G.GY]||"";
+    // Year tag — last 2 digits of the SEASON year. Was using GAME_YEAR
+    // (g[G.GY]) which is an unreliable column in the binary (some rows
+    // have a stale or out-of-range value). The season year is the one
+    // surfaced in the tooltip below, so showing its last 2 digits here
+    // ('21 for "2020-21") keeps the row label consistent with the
+    // tooltip's season string.
+    const tagYr=g[G.SY]||0;
     const pts=av(ti,pi,"PTS"),reb=av(ti,pi,"REB"),ast=av(ti,pi,"AST"),stl=av(ti,pi,"STL"),blk=av(ti,pi,"BLK");
     const cats=[pts,reb,ast,stl,blk].filter(v=>v>=10);
     const isDbl=cats.length>=2;
@@ -1354,13 +1361,22 @@ function renderTeam(ti){
     if(teamStr&&oppStr)tipParts.push(teamStr+" vs "+oppStr);
     const seasonStr=formatSeasonYear(g[G.SY]);
     if(seasonStr)tipParts.push(seasonStr);
+    // Calendar year of the game itself — adds half-of-season context
+    // ("2020" = Oct-Dec opener stretch, "2021" = Jan-Apr stretch for
+    // the 2020-21 season). Only shown when GAME_YEAR is consistent
+    // with the SEASON_YEAR (SY-1 or SY); some bin rows have a stale
+    // GY column we don't want to surface.
+    const sy=g[G.SY]||0,gy=g[G.GY]||0;
+    if(sy&&gy&&(gy===sy||gy===sy-1)){
+      tipParts.push(String(gy));
+    }
     const tyLabel=TYPE_LABELS[g[G.TY]]||"";
     if(tyLabel)tipParts.push(tyLabel);
     const tipAttr=tipParts.length?(' title="'+escapeHtmlS(tipParts.join(" · "))+'"'):'';
     const actCells=showActions
       ? '<td class="act" onclick="rerollPlayer('+ti+','+pi+')" title="Re-roll"><span class="dice">🎲</span></td><td class="act" onclick="removePlayer('+ti+','+pi+')" title="Remove"><span class="rm">×</span></td>'
       : '';
-    rows+='<tr class="row-'+(di%2===0?"even":"odd")+'"'+tipAttr+'>'+'<td class="pname">'+p.name+'<span class="pos-tag">'+pos+'</span>'+(gameYr?'<span class="yr-tag">\''+String(gameYr).slice(2)+'</span>':'')+'</td>'+cells+actCells+'</tr>';
+    rows+='<tr class="row-'+(di%2===0?"even":"odd")+'"'+tipAttr+'>'+'<td class="pname">'+p.name+'<span class="pos-tag">'+pos+'</span>'+(tagYr?'<span class="yr-tag">\''+String(tagYr).slice(2)+'</span>':'')+'</td>'+cells+actCells+'</tr>';
   });
   let tc="";
   STAT_KEYS.forEach(s=>{let v;if(s==="MIN")v=fmtMin(tot.MIN);else if(s==="FG%")v=tot.FGA>0?(tot.FGM/tot.FGA).toFixed(3).replace(/^0/,""):".000";else if(s==="FT%")v=tot.FTA>0?(tot.FTM/tot.FTA).toFixed(3).replace(/^0/,""):".000";else v=Math.round(tot[s]||0);tc+='<td class="r">'+v+'</td>'});
@@ -1771,7 +1787,8 @@ const NBA_FRANCHISES=[
   {abbr:"MIN",name:"Minnesota Timberwolves",alts:["Timberwolves"]},
   {abbr:"NOP",name:"New Orleans Pelicans",alts:["Pelicans",{name:"Hornets (1988)",yearMin:2002}]},
   {abbr:"NYK",name:"New York Knicks",alts:["Knicks"]},
-  {abbr:"OKC",name:"Oklahoma City Thunder",alts:["Thunder","SuperSonics"]},
+  {abbr:"OKC",name:"Oklahoma City Thunder",alts:["Thunder"]},
+  {abbr:"SEA",name:"Seattle SuperSonics",alts:[{name:"SuperSonics",yearMax:2008}]},
   {abbr:"ORL",name:"Orlando Magic",alts:["Magic"]},
   {abbr:"PHI",name:"Philadelphia 76ers",alts:["Sixers","Nationals"]},
   {abbr:"PHX",name:"Phoenix Suns",alts:["Suns"]},
@@ -1807,7 +1824,11 @@ const CONTINENT_INFO={
   americas:"The Americas",
   europe:"Europe",
   africa:"Africa",
-  asia_oceania:"Asia / Oceania"
+  asia_oceania:"Asia / Oceania",
+  // "All-World" — union of every non-Americas continent, i.e. every
+  // non-American-born player. Sits alongside the per-continent rosters
+  // as a 5th matchup with a much wider talent pool to choose from.
+  all_world:"All-World"
 };
 const DECADE_LABELS={
   "1950":"1950s","1960":"1960s","1970":"1970s","1980":"1980s",
@@ -1887,7 +1908,7 @@ function emptyCups(){
     franchise:{pending:NBA_FRANCHISES.map(f=>f.abbr),completed:[],total:NBA_FRANCHISES.length,attempts:{}},
     states:(function(){const s=eligibleStates();return {pending:s,completed:[],total:s.length,attempts:{}}})(),
     college:(function(){const s=eligibleColleges();return {pending:s,completed:[],total:s.length,attempts:{}}})(),
-    continents:{pending:["americas","europe","africa","asia_oceania"],completed:[],total:4,attempts:{}},
+    continents:{pending:["americas","europe","africa","asia_oceania","all_world"],completed:[],total:5,attempts:{}},
     decades:{pending:["1950","1960","1970","1980","1990","2000","2010","2020"],completed:[],total:8,attempts:{}}
   };
 }
@@ -2147,52 +2168,176 @@ function openCupCelebration(cupKey,allCupsWon){
 function closeCupCelebration(){
   document.getElementById("cupCelebrationModal").classList.remove("active");
 }
-// Generate a plain-text summary (team name, cup, record, roster) and
-// copy to clipboard. Image-export is a separate feature deferred to a
-// later iteration — sharing the text recap covers most "post on social"
-// use cases for now.
-function shareCupRoster(){
+// View the W-L records for the cup that was just won. The cup-detail
+// modal sits on top of the celebration in the DOM stack — modals share
+// a z-index, but the cup-detail backdrop is the later-opened element so
+// it appears above. Both backdrop-click and the X close the cup-detail
+// without touching the celebration underneath.
+function viewCelebrationCupRecords(){
   const modal=document.getElementById("cupCelebrationModal");
+  if(!modal)return;
   const cupKey=modal.dataset.cup||"";
-  const all=modal.dataset.allCups==="1";
-  const teamName=careerState.teamName||"My Career Squad";
-  const sorted=[...careerState.roster].sort((a,b)=>positionSortKey(a)-positionSortKey(b));
-  const cupLine=all
-    ? "🏆🏆🏆 ALL CUPS WON 🏆🏆🏆"
-    : "🏆 "+cupTitle(cupKey).toUpperCase()+" WON";
-  const lines=[
-    cupLine,
-    teamName,
-    careerState.wins+"–"+careerState.losses+" across "+careerState.games+" games",
-    "",
-    "ROSTER:"
-  ];
-  sorted.forEach(n=>{
-    const bi=bioByName[n];
-    const pos=bi!=null?(bioData[bi][3]||""):"";
-    lines.push("  "+n+(pos?" ("+pos+")":""));
-  });
-  lines.push("");
-  lines.push("— Box Score Lab career");
-  const text=lines.join("\n");
-  // Try the modern clipboard API; fall back to the legacy textarea trick.
-  const btn=document.getElementById("celebrationShareBtn");
-  const restore=()=>{if(btn){setTimeout(()=>{btn.textContent="📋 COPY SUMMARY"},1800)}};
-  if(navigator.clipboard&&navigator.clipboard.writeText){
-    navigator.clipboard.writeText(text).then(()=>{if(btn)btn.textContent="✓ COPIED";restore()},
-      ()=>{legacyCopy(text);if(btn)btn.textContent="✓ COPIED";restore()});
-  }else{
-    legacyCopy(text);
-    if(btn)btn.textContent="✓ COPIED";
-    restore();
-  }
+  if(!cupKey)return;
+  openCupModal(cupKey);
 }
-function legacyCopy(text){
-  const ta=document.createElement("textarea");
-  ta.value=text;ta.style.position="fixed";ta.style.opacity="0";
-  document.body.appendChild(ta);ta.focus();ta.select();
-  try{document.execCommand("copy")}catch(e){}
-  document.body.removeChild(ta);
+
+// === Copy the cup-roster recap as a PNG image ===
+// Canvas-based rendering (no third-party libraries). The image mirrors
+// the celebration card layout: header, cup name, team + record, then
+// the 12-player roster grid with GP/PPG/RPG/APG. Goes to the system
+// clipboard via the modern Clipboard API; falls back to a download if
+// the browser blocks clipboard writes (Firefox in some configs).
+function copyCelebrationImage(){
+  const modal=document.getElementById("cupCelebrationModal");
+  if(!modal||!careerState)return;
+  const cupKey=modal.dataset.cup||"";
+  const allCups=modal.dataset.allCups==="1";
+
+  // Hi-DPI canvas — render at 2x then scale down via CSS. 720px logical
+  // width keeps everything legible on social media without becoming
+  // huge in clipboard. Height is computed to fit 6 roster rows + header.
+  const W=720,H=940,DPR=2;
+  const canvas=document.createElement("canvas");
+  canvas.width=W*DPR;canvas.height=H*DPR;
+  const ctx=canvas.getContext("2d");
+  ctx.scale(DPR,DPR);
+
+  // Background gradient (matches the celebration modal's look)
+  const grad=ctx.createLinearGradient(0,0,W,H);
+  grad.addColorStop(0,"#1a1a3e");
+  grad.addColorStop(1,"#0a0a1a");
+  ctx.fillStyle=grad;
+  ctx.fillRect(0,0,W,H);
+
+  // Outer border — gold for cup wins, brighter orange for the
+  // all-cups dynasty render
+  ctx.strokeStyle=allCups?"#ff6b35":"#ffd700";
+  ctx.lineWidth=4;
+  ctx.strokeRect(4,4,W-8,H-8);
+
+  // Trophy + header + cup label + record (all centered)
+  ctx.textAlign="center";
+  ctx.fillStyle="#ffd700";
+  ctx.font="64px sans-serif";
+  ctx.fillText("🏆",W/2,90);
+
+  ctx.fillStyle=allCups?"#ff6b35":"#ffd700";
+  ctx.font="bold 32px 'Oswald','Arial Narrow',sans-serif";
+  const hdr=allCups?"CAREER DYNASTY":(cupTitle(cupKey).toUpperCase()+" WON");
+  ctx.fillText(hdr,W/2,140);
+
+  const teamName=careerState.teamName||"My Career Squad";
+  const diffLabel={easy:"Easy",normal:"Normal",hard:"Hard",hof:"Hall of Fame"}[careerState.difficulty||""]||"";
+  ctx.fillStyle="#aaaadd";
+  ctx.font="14px 'Oswald','Arial Narrow',sans-serif";
+  ctx.fillText(teamName.toUpperCase()+(diffLabel?(" · "+diffLabel.toUpperCase()):""),W/2,170);
+
+  ctx.fillStyle="#c8c8e0";
+  ctx.font="13px monospace";
+  ctx.fillText(careerState.wins+"–"+careerState.losses+" across "+careerState.games+" games",W/2,195);
+
+  // Roster title
+  ctx.fillStyle="#888899";
+  ctx.font="bold 12px 'Oswald','Arial Narrow',sans-serif";
+  ctx.fillText("YOUR ROSTER",W/2,240);
+
+  // Roster grid — 2 columns × 6 rows
+  const sorted=[...careerState.roster].sort((a,b)=>positionSortKey(a)-positionSortKey(b));
+  const careerStats=careerState.playerCareer||{};
+  const padX=40,gapX=14,cardW=(W-padX*2-gapX)/2;
+  const cardH=92,gapY=8,startY=260;
+  for(let i=0;i<sorted.length;i++){
+    const col=i%2,row=Math.floor(i/2);
+    const x=padX+col*(cardW+gapX);
+    const y=startY+row*(cardH+gapY);
+    // Card background + border
+    ctx.fillStyle="#0e0e2a";
+    ctx.fillRect(x,y,cardW,cardH);
+    ctx.strokeStyle="#2a2a55";
+    ctx.lineWidth=1;
+    ctx.strokeRect(x+0.5,y+0.5,cardW-1,cardH-1);
+
+    const name=sorted[i];
+    const bi=bioByName[name];
+    const pos=bi!=null?(bioData[bi][3]||""):"";
+    const c=careerStats[name];
+    let gp="0",ppg="—",rpg="—",apg="—";
+    if(c&&c.gp>0){
+      gp=String(c.gp);
+      ppg=(c.pts/c.gp).toFixed(1);
+      rpg=(c.reb/c.gp).toFixed(1);
+      apg=(c.ast/c.gp).toFixed(1);
+    }
+
+    // Name (top-left), position (top-right)
+    ctx.textAlign="left";
+    ctx.fillStyle="#e0e0ff";
+    ctx.font="bold 14px 'JetBrains Mono','Courier New',monospace";
+    // Truncate names that overflow the card
+    let displayName=name;
+    const maxNameW=cardW-90;
+    if(ctx.measureText(displayName).width>maxNameW){
+      while(displayName.length>4&&ctx.measureText(displayName+"…").width>maxNameW){
+        displayName=displayName.slice(0,-1);
+      }
+      displayName+="…";
+    }
+    ctx.fillText(displayName,x+14,y+30);
+    ctx.textAlign="right";
+    ctx.fillStyle="#ffd700";
+    ctx.font="bold 12px 'Oswald','Arial Narrow',sans-serif";
+    ctx.fillText(pos,x+cardW-14,y+30);
+
+    // Stats line — four cells, evenly spaced
+    ctx.textAlign="center";
+    ctx.font="12px 'JetBrains Mono','Courier New',monospace";
+    const cellW=(cardW-28)/4;
+    const cellY=y+62;
+    const cells=[[gp,"GP"],[ppg,"PPG"],[rpg,"RPG"],[apg,"APG"]];
+    cells.forEach((c,i)=>{
+      const cx=x+14+cellW*i+cellW/2;
+      ctx.fillStyle="#aaaadd";
+      ctx.fillText(c[0],cx,cellY);
+      ctx.fillStyle="#666688";
+      ctx.font="9px 'JetBrains Mono','Courier New',monospace";
+      ctx.fillText(c[1],cx,cellY+13);
+      ctx.font="12px 'JetBrains Mono','Courier New',monospace";
+    });
+  }
+
+  // Footer attribution
+  ctx.textAlign="center";
+  ctx.fillStyle="#5a5a78";
+  ctx.font="11px 'Oswald','Arial Narrow',sans-serif";
+  ctx.fillText("ALL-TIME NBA CHALLENGE",W/2,H-22);
+
+  const btn=document.getElementById("celebrationShareBtn");
+  const restore=(label)=>{if(btn){btn.textContent=label;setTimeout(()=>{btn.textContent="🖼️ COPY IMAGE"},1800)}};
+
+  // toBlob → ClipboardItem. Some browsers (mostly Firefox) restrict
+  // clipboard writes — fall back to a downloadable PNG in that case.
+  canvas.toBlob(blob=>{
+    if(!blob){restore("✗ FAILED");return}
+    if(navigator.clipboard&&window.ClipboardItem){
+      navigator.clipboard.write([new ClipboardItem({"image/png":blob})])
+        .then(()=>restore("✓ COPIED"))
+        .catch(()=>{downloadBlob(blob);restore("⬇ DOWNLOADED")});
+    }else{
+      downloadBlob(blob);
+      restore("⬇ DOWNLOADED");
+    }
+  },"image/png");
+}
+
+function downloadBlob(blob){
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement("a");
+  a.href=url;
+  a.download="cup-win.png";
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
 }
 
 // Inline SVG icons for the cup progress cards. 16x16, currentColor-tinted
@@ -2246,6 +2391,14 @@ function cupCandidates(cup,target){
     return bioData.filter(r=>r[7]==="us"&&r[2]===target).map(r=>r[0]).filter(playerHasPlayableGames);
   }
   if(cup==="continents"){
+    if(target==="all_world"){
+      // Every non-US player — Canadians, Argentinians, Puerto Ricans, etc.
+      // count alongside Europeans, Africans, and Asia/Oceania. The data's
+      // "americas" continent code is non-US Americas only (US players use
+      // a separate "us" code that has its own States Cup home), so this
+      // is the union of "americas" + "europe" + "africa" + "asia_oceania".
+      return bioData.filter(r=>r[7]&&r[7]!=="us").map(r=>r[0]).filter(playerHasPlayableGames);
+    }
     return bioData.filter(r=>r[7]===target).map(r=>r[0]).filter(playerHasPlayableGames);
   }
   if(cup==="college"){
@@ -3539,7 +3692,7 @@ function renderCareer(justRevealedSlotIdx,pA,pB,gameCup,cupCompleted,otPeriods){
       const r=best[tier];
       if(r&&r.games>0){
         const pct=(r.winPct*100).toFixed(1);
-        el.textContent="Best: "+r.w+"–"+r.l+" ("+pct+"%)";
+        el.textContent="🏆 BEST · "+r.w+"–"+r.l+" · "+pct+"%";
         el.style.display="";
       }else{
         el.textContent="";
