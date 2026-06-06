@@ -1759,13 +1759,135 @@ function pickNextGameTarget(){
   const pick=pool[Math.floor(Math.random()*pool.length)];
   return {cup:pick.cup,target:pick.target,label:cupTargetLabel(pick.cup,pick.target)};
 }
+// US-state full-name → 2-letter postal abbreviation, used to disambiguate
+// the States Cup matchups from same-named College Cup entries
+// (e.g. "North Carolina" the state vs. "North Carolina" the university).
+const STATE_ABBR={
+  "Alabama":"AL","Alaska":"AK","Arizona":"AZ","Arkansas":"AR","California":"CA",
+  "Colorado":"CO","Connecticut":"CT","Delaware":"DE","Florida":"FL","Georgia":"GA",
+  "Hawaii":"HI","Idaho":"ID","Illinois":"IL","Indiana":"IN","Iowa":"IA",
+  "Kansas":"KS","Kentucky":"KY","Louisiana":"LA","Maine":"ME","Maryland":"MD",
+  "Massachusetts":"MA","Michigan":"MI","Minnesota":"MN","Mississippi":"MS","Missouri":"MO",
+  "Montana":"MT","Nebraska":"NE","Nevada":"NV","New Hampshire":"NH","New Jersey":"NJ",
+  "New Mexico":"NM","New York":"NY","North Carolina":"NC","North Dakota":"ND","Ohio":"OH",
+  "Oklahoma":"OK","Oregon":"OR","Pennsylvania":"PA","Rhode Island":"RI","South Carolina":"SC",
+  "South Dakota":"SD","Tennessee":"TN","Texas":"TX","Utah":"UT","Vermont":"VT",
+  "Virginia":"VA","Washington":"WA","West Virginia":"WV","Wisconsin":"WI","Wyoming":"WY",
+  "District of Columbia":"DC"
+};
+
+// College / university common nicknames, used in the College Cup label so
+// "North Carolina Tar Heels" reads distinctly from the State Cup's "North
+// Carolina (NC)". Keys match the strings used in bio data (player[4]).
+// Unmapped programs fall through to the bare name.
+const COLLEGE_NICKNAMES={
+  // ACC + national bluebloods
+  "North Carolina":"Tar Heels","Duke":"Blue Devils","NC State":"Wolfpack",
+  "Wake Forest":"Demon Deacons","Virginia":"Cavaliers","Virginia Tech":"Hokies",
+  "Clemson":"Tigers","Boston College":"Eagles","Miami":"Hurricanes",
+  "Florida State":"Seminoles","Georgia Tech":"Yellow Jackets","Syracuse":"Orange",
+  "Pittsburgh":"Panthers","Pitt":"Panthers","Notre Dame":"Fighting Irish",
+  "Louisville":"Cardinals",
+  // Big Ten
+  "Michigan":"Wolverines","Michigan State":"Spartans","Ohio State":"Buckeyes",
+  "Indiana":"Hoosiers","Purdue":"Boilermakers","Illinois":"Fighting Illini",
+  "Iowa":"Hawkeyes","Wisconsin":"Badgers","Minnesota":"Golden Gophers",
+  "Northwestern":"Wildcats","Maryland":"Terrapins","Penn State":"Nittany Lions",
+  "Rutgers":"Scarlet Knights","Nebraska":"Cornhuskers","UCLA":"Bruins","USC":"Trojans",
+  "Oregon":"Ducks","Oregon State":"Beavers","Washington":"Huskies",
+  "Washington State":"Cougars",
+  // SEC
+  "Kentucky":"Wildcats","Alabama":"Crimson Tide","Auburn":"Tigers",
+  "Florida":"Gators","Georgia":"Bulldogs","LSU":"Tigers","Tennessee":"Volunteers",
+  "Arkansas":"Razorbacks","Mississippi":"Rebels","Ole Miss":"Rebels",
+  "Mississippi State":"Bulldogs","Missouri":"Tigers","South Carolina":"Gamecocks",
+  "Vanderbilt":"Commodores","Texas":"Longhorns","Texas A&M":"Aggies",
+  "Oklahoma":"Sooners",
+  // Big 12 / former Big 12
+  "Kansas":"Jayhawks","Kansas State":"Wildcats","Iowa State":"Cyclones",
+  "Oklahoma State":"Cowboys","Texas Tech":"Red Raiders","Baylor":"Bears",
+  "TCU":"Horned Frogs","West Virginia":"Mountaineers","BYU":"Cougars",
+  "Houston":"Cougars","Cincinnati":"Bearcats","UCF":"Knights","Central Florida":"Knights",
+  // Big East
+  "Connecticut":"Huskies","UConn":"Huskies","Georgetown":"Hoyas","Villanova":"Wildcats",
+  "Marquette":"Golden Eagles","Providence":"Friars","Seton Hall":"Pirates",
+  "St. John's":"Red Storm","Saint John's":"Red Storm","Creighton":"Bluejays",
+  "DePaul":"Blue Demons","Xavier":"Musketeers","Butler":"Bulldogs",
+  // West coast / other notable
+  "Stanford":"Cardinal","California":"Golden Bears","Cal":"Golden Bears",
+  "Arizona":"Wildcats","Arizona State":"Sun Devils","Colorado":"Buffaloes",
+  "Utah":"Utes","Gonzaga":"Bulldogs","Saint Mary's":"Gaels","San Diego State":"Aztecs",
+  "Nevada":"Wolf Pack","UNLV":"Runnin' Rebels","New Mexico":"Lobos",
+  "Memphis":"Tigers","Wichita State":"Shockers",
+  // A-10 / mid-majors
+  "Dayton":"Flyers","Davidson":"Wildcats","VCU":"Rams","Saint Joseph's":"Hawks",
+  "Saint Louis":"Billikens","St. Louis":"Billikens","George Mason":"Patriots",
+  "Richmond":"Spiders","Temple":"Owls","Massachusetts":"Minutemen","UMass":"Minutemen",
+  "Rhode Island":"Rams","George Washington":"Revolutionaries",
+  // Ivy + Patriot League notable
+  "Princeton":"Tigers","Yale":"Bulldogs","Harvard":"Crimson","Penn":"Quakers",
+  "Pennsylvania":"Quakers","Cornell":"Big Red","Columbia":"Lions","Brown":"Bears",
+  "Dartmouth":"Big Green",
+  // Misc historically-relevant
+  "Detroit":"Titans","Detroit Mercy":"Titans","La Salle":"Explorers",
+  "Loyola Marymount":"Lions","Loyola (IL)":"Ramblers","San Francisco":"Dons",
+  "Long Beach State":"49ers","UCSB":"Gauchos","Wyoming":"Cowboys",
+  "Utah State":"Aggies","Montana":"Grizzlies","Boise State":"Broncos",
+  "Drake":"Bulldogs","Bradley":"Braves","Northern Iowa":"Panthers",
+  "Murray State":"Racers","Belmont":"Bruins","Western Kentucky":"Hilltoppers",
+  "Tulsa":"Golden Hurricane","Tulane":"Green Wave","SMU":"Mustangs",
+  "East Carolina":"Pirates","Old Dominion":"Monarchs","ODU":"Monarchs",
+  "Charlotte":"49ers","UAB":"Blazers","Marshall":"Thundering Herd",
+  "Bowling Green":"Falcons","Toledo":"Rockets","Akron":"Zips","Kent State":"Golden Flashes",
+  "Ball State":"Cardinals","Eastern Michigan":"Eagles","Western Michigan":"Broncos",
+  "Northern Illinois":"Huskies","Ohio":"Bobcats","Miami (OH)":"RedHawks",
+  "Buffalo":"Bulls","Hofstra":"Pride","Stony Brook":"Seawolves",
+  "Albany":"Great Danes","Vermont":"Catamounts","Maine":"Black Bears",
+  "Boston University":"Terriers","Northeastern":"Huskies","Holy Cross":"Crusaders",
+  "Bucknell":"Bison","Lafayette":"Leopards","Lehigh":"Mountain Hawks",
+  "Army":"Black Knights","Navy":"Midshipmen","Air Force":"Falcons",
+  // Common short / informal keys also covered
+  "St. Bonaventure":"Bonnies","Saint Bonaventure":"Bonnies",
+  "Iona":"Gaels","Manhattan":"Jaspers","Siena":"Saints","Niagara":"Purple Eagles",
+  "Fairfield":"Stags","Quinnipiac":"Bobcats","Marist":"Red Foxes",
+  "Rider":"Broncs","Monmouth":"Hawks","Robert Morris":"Colonials",
+  "Northern Arizona":"Lumberjacks","Weber State":"Wildcats","Eastern Washington":"Eagles",
+  "Idaho":"Vandals","Portland":"Pilots","Portland State":"Vikings",
+  "Loyola Chicago":"Ramblers","Illinois State":"Redbirds","Indiana State":"Sycamores",
+  "Evansville":"Purple Aces","Southern Illinois":"Salukis",
+  "South Florida":"Bulls","USF":"Bulls","FAU":"Owls","Florida Atlantic":"Owls",
+  "FIU":"Panthers","Stetson":"Hatters","Jacksonville":"Dolphins",
+  "Mercer":"Bears","Furman":"Paladins","Wofford":"Terriers","Chattanooga":"Mocs",
+  "ETSU":"Buccaneers","East Tennessee State":"Buccaneers",
+  "App State":"Mountaineers","Appalachian State":"Mountaineers",
+  "Coastal Carolina":"Chanticleers","Georgia State":"Panthers","Georgia Southern":"Eagles",
+  "South Alabama":"Jaguars","Louisiana":"Ragin' Cajuns","UL Lafayette":"Ragin' Cajuns",
+  "Louisiana Tech":"Bulldogs","UTSA":"Roadrunners","UTEP":"Miners",
+  "Liberty":"Flames","Lipscomb":"Bisons","Lipscomb (TN)":"Bisons",
+  "High Point":"Panthers","Campbell":"Fighting Camels",
+  "Hampton":"Pirates","Howard":"Bison","Norfolk State":"Spartans",
+  "Coppin State":"Eagles","Morgan State":"Bears","NC A&T":"Aggies",
+  "NC Central":"Eagles","SC State":"Bulldogs","Bethune-Cookman":"Wildcats",
+  "Florida A&M":"Rattlers","FAMU":"Rattlers",
+  "Texas Southern":"Tigers","Prairie View A&M":"Panthers","Grambling":"Tigers",
+  "Southern":"Jaguars","Jackson State":"Tigers","Alcorn State":"Braves",
+  "Alabama A&M":"Bulldogs","Alabama State":"Hornets","Mississippi Valley State":"Delta Devils",
+  "Arkansas-Pine Bluff":"Golden Lions"
+};
+
 function cupTargetLabel(cup,target){
   if(cup==="franchise"){
     const f=NBA_FRANCHISES.find(x=>x.abbr===target);
     return f?f.name:target;
   }
-  if(cup==="states")return target;
-  if(cup==="college")return target;
+  if(cup==="states"){
+    const ab=STATE_ABBR[target];
+    return ab?(target+" ("+ab+")"):target;
+  }
+  if(cup==="college"){
+    const nn=COLLEGE_NICKNAMES[target];
+    return nn?(target+" "+nn):target;
+  }
   if(cup==="continents")return CONTINENT_INFO[target]||target;
   if(cup==="decades")return DECADE_LABELS[target]||(target+"s");
   return target;
