@@ -49,6 +49,7 @@ body{background:linear-gradient(145deg,#1a1a3e 0%,#0a0a1a 50%,#ffffff 100%);back
 .team-name-label:hover{opacity:1}
 .team-name-input{background:transparent;font-family:'Oswald',sans-serif;font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:2px;padding:2px 8px;border-radius:4px;outline:none;text-align:center;width:140px;color:inherit}
 .scoreboard{display:flex;justify-content:center;align-items:center;gap:32px;margin-bottom:20px;padding:12px}
+.score-record{font-family:'JetBrains Mono',monospace;font-size:11px;color:#888899;letter-spacing:1.5px;margin-top:2px;min-height:14px}
 .score-ot{font-family:'Oswald',sans-serif;font-size:11px;letter-spacing:2px;color:#ffd700;background:#2a230e;border:1px solid #e6c64a;border-radius:8px;padding:2px 8px;margin-top:6px;font-weight:700;text-align:center}
 .score-team{text-align:center;min-width:100px}
 .score-label{font-family:'Oswald',sans-serif;font-size:13px;letter-spacing:2px;text-transform:uppercase;opacity:0.8}
@@ -568,11 +569,13 @@ body{background:linear-gradient(145deg,#1a1a3e 0%,#0a0a1a 50%,#ffffff 100%);back
   <div id="scoreboard" class="scoreboard" style="display:none">
     <div class="score-team">
       <div class="score-label" id="scoreALabel" style="color:#e63946">TEAM A</div>
+      <div class="score-record" id="scoreARecord"></div>
       <div class="score-pts" id="scoreAPts">0</div>
     </div>
     <div class="score-vs">VS<div class="score-ot" id="scoreOT" style="display:none"></div></div>
     <div class="score-team">
       <div class="score-label" id="scoreBLabel" style="color:#1d3557">TEAM B</div>
+      <div class="score-record" id="scoreBRecord"></div>
       <div class="score-pts" id="scoreBPts">0</div>
     </div>
   </div>
@@ -1374,6 +1377,26 @@ function render(){
   document.getElementById("scoreAPts").textContent=pA;document.getElementById("scoreBPts").textContent=pB;
   document.getElementById("scoreAPts").className="score-pts"+(pA>pB&&has?" score-winner":"");
   document.getElementById("scoreBPts").className="score-pts"+(pB>pA&&has?" score-winner":"");
+  // Record sublines under each team label (career mode only). Same logic
+  // as the team-header records below — your side shows the overall W-L,
+  // the opponent side shows their record vs you for this specific cup
+  // target. Sandbox mode renders empty strings, leaving the layout intact
+  // but the line invisible.
+  const recA=document.getElementById("scoreARecord");
+  const recB=document.getElementById("scoreBRecord");
+  if(recA&&recB){
+    let aTxt="",bTxt="";
+    if(currentMode==="career"&&careerState&&pendingResult){
+      aTxt=careerState.wins+"-"+careerState.losses+" overall";
+      if(pendingResult.cup){
+        const ngc=pendingResult.cup;
+        const cupAtt=(careerState.cups[ngc.cup]&&careerState.cups[ngc.cup].attempts)?careerState.cups[ngc.cup].attempts[ngc.target]:null;
+        if(cupAtt)bTxt=cupAtt.l+"-"+cupAtt.w+" vs you";
+      }
+    }
+    recA.textContent=aTxt;
+    recB.textContent=bTxt;
+  }
   document.querySelector(".team-names").innerHTML='<span class="team-name-label" id="nameA" style="color:'+COLORS[0]+'" onclick="editTeamName(0)">✏️ '+teamNames[0]+'</span><span class="team-name-label" id="nameB" style="color:'+COLORS[1]+'" onclick="editTeamName(1)">✏️ '+teamNames[1]+'</span>';
 }
 
@@ -2709,6 +2732,21 @@ function openReplaceModal(slotIdx){
   pendingBonusName=null;
   const slot=careerState.slots[slotIdx];
   if(!slot)return;
+  // Defensive guard — if the slot's player is somehow already on the
+  // roster (a stale state surfaced this player after a previous bonus
+  // signing didn't get cleared), we never want to let the user sign
+  // them again. Treat it as a regen-and-bail: scrub the board, refresh,
+  // and abort the pick. Logs a console warning so the underlying state
+  // bug surfaces if it ever happens.
+  if(careerState.roster.indexOf(slot.name)!==-1){
+    console.warn("[mystery-pick] slot already on roster — regenerating",{name:slot.name,slotIdx});
+    regenerateAllMysterySlots();
+    saveCareer();
+    renderCareer();
+    pendingPickSlotIdx=null;
+    pendingPickPlayerName="";
+    return;
+  }
   pendingPickPlayerName=slot.name;
   // Capture the OTHER 4 mystery names now so we can reveal them at the
   // end of the round even after the slots get regenerated.
@@ -3539,6 +3577,21 @@ function renderCareer(justRevealedSlotIdx,pA,pB,gameCup,cupCompleted,otPeriods){
   // Mystery slot cards (only shown on freeagents screen)
   const slotsEl=document.getElementById("mysterySlots");
   if(slotsEl){
+    // Belt-and-suspenders: if any mystery slot's player is already on
+    // the user's roster (the state ever got out of sync — every sign
+    // path SHOULD regenerate, but if one ever fails to, the user could
+    // sign the same player twice from a stale slot), regenerate the
+    // whole board now. Logs a warning so the underlying drift surfaces
+    // if it ever happens.
+    if(careerState.slots&&careerState.roster){
+      const rosterSet=new Set(careerState.roster);
+      const dupSlots=careerState.slots.filter(s=>s&&rosterSet.has(s.name));
+      if(dupSlots.length){
+        console.warn("[mystery-render] slot↔roster collision detected — regenerating",{names:dupSlots.map(s=>s.name)});
+        regenerateAllMysterySlots();
+        saveCareer();
+      }
+    }
     // The GLOBALLY-latest reveal (slotIdx, clueIdx) gets the gold backdrop.
     // Previously-revealed clues across all slots stay visible but lose the
     // gold — only the freshest clue from the most recent win is highlighted.
