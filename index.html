@@ -49,6 +49,7 @@ body{background:#0a0a1a;color:#c8c8e0;font-family:'JetBrains Mono',monospace;min
 .team-name-label:hover{opacity:1}
 .team-name-input{background:transparent;font-family:'Oswald',sans-serif;font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:2px;padding:2px 8px;border-radius:4px;outline:none;text-align:center;width:140px;color:inherit}
 .scoreboard{display:flex;justify-content:center;align-items:center;gap:32px;margin-bottom:20px;padding:12px}
+.score-ot{font-family:'Oswald',sans-serif;font-size:11px;letter-spacing:2px;color:#ffd700;background:rgba(255,215,0,0.12);border:1px solid rgba(255,215,0,0.4);border-radius:8px;padding:2px 8px;margin-top:6px;font-weight:700;text-align:center}
 .score-team{text-align:center;min-width:100px}
 .score-label{font-family:'Oswald',sans-serif;font-size:13px;letter-spacing:2px;text-transform:uppercase;opacity:0.8}
 .score-pts{font-family:'Oswald',sans-serif;font-size:56px;font-weight:700;color:#fff;line-height:1;margin-top:4px;transition:all 0.3s ease}
@@ -182,6 +183,7 @@ body{background:#0a0a1a;color:#c8c8e0;font-family:'JetBrains Mono',monospace;min
 .dismissed-cards{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
 .dismissed-card{position:relative;background:#0e0e2a;border:1px solid #2a2a55;border-radius:8px;padding:14px;opacity:0.85;filter:grayscale(20%)}
 .dismissed-card-tag{position:absolute;top:6px;right:8px;font-family:'Oswald',sans-serif;font-size:9px;letter-spacing:2px;color:#ff8888;background:rgba(255,107,107,0.12);padding:2px 6px;border-radius:3px;border:1px solid rgba(255,107,107,0.3);z-index:2}
+.dismissed-card-name{font-family:'Oswald',sans-serif;font-size:18px;letter-spacing:1.5px;font-weight:700;color:#ffd700;text-transform:uppercase;margin:0 0 10px 0;padding-right:80px;line-height:1.2}
 @media(max-width:760px){.dismissed-cards{grid-template-columns:1fr}}
 
 /* ===== Cup celebration modal (per-cup + all-cups overdrive variants) ===== */
@@ -456,10 +458,9 @@ body{background:#0a0a1a;color:#c8c8e0;font-family:'JetBrains Mono',monospace;min
           </button>
           <button class="difficulty-option" data-diff="hard" onclick="pickDifficulty('hard')">
             <div class="difficulty-option-name">HARD</div>
-            <div class="difficulty-option-desc">Opponents are the all-time best from each pool (HoopsHype Top-78, then most All-NBA, then PPG)</div>
+            <div class="difficulty-option-desc">Opponents are the all-time best from each pool</div>
           </button>
         </div>
-        <div class="difficulty-picker-hint">Your starting roster is always a random 12 either way — difficulty only changes who you play against. Locked once Game #1 starts.</div>
       </div>
 
       <div class="roster-cards" id="rosterCardsInitial"></div>
@@ -519,7 +520,7 @@ body{background:#0a0a1a;color:#c8c8e0;font-family:'JetBrains Mono',monospace;min
       <div class="score-label" id="scoreALabel" style="color:#e63946">TEAM A</div>
       <div class="score-pts" id="scoreAPts">0</div>
     </div>
-    <div class="score-vs">VS</div>
+    <div class="score-vs">VS<div class="score-ot" id="scoreOT" style="display:none"></div></div>
     <div class="score-team">
       <div class="score-label" id="scoreBLabel" style="color:#1d3557">TEAM B</div>
       <div class="score-pts" id="scoreBPts">0</div>
@@ -1976,6 +1977,22 @@ function playNextGame(){
   // Pathological convergence — if still tied after 6 OTs, give it one
   // deterministic +1 to a randomly chosen side. Won't happen in practice.
   if(pA===pB){Math.random()<0.5?pA++:pB++}
+  // Patch the scoreboard with the final OT-adjusted totals (the earlier
+  // render() filled it with the regulation av-sums; we overwrite here so
+  // the user sees the actual final score plus an (OT) marker). The
+  // box-score tables stay regulation-based — they're per-player game
+  // logs, not synthetic OT possessions.
+  try{
+    const sa=document.getElementById("scoreAPts");
+    const sb=document.getElementById("scoreBPts");
+    if(sa){sa.textContent=pA;sa.className="score-pts"+(pA>pB?" score-winner":"")}
+    if(sb){sb.textContent=pB;sb.className="score-pts"+(pB>pA?" score-winner":"")}
+    const sOT=document.getElementById("scoreOT");
+    if(sOT){
+      if(otPeriods>0){sOT.style.display="block";sOT.textContent=otPeriods===1?"OT":(otPeriods+"OT")}
+      else{sOT.style.display="none";sOT.textContent=""}
+    }
+  }catch(e){}
   careerState.games++;
 
   // Capture each user player's PTS/REB/AST into rolling-5 history for the
@@ -2011,8 +2028,8 @@ function playNextGame(){
   }
   careerState.nextGame=pickNextGameTarget();
   saveCareer();
-  pendingResult={pA,pB,justRevealedSlotIdx:revealedSlotIdx,cup:ng,cupCompleted};
-  renderCareer(revealedSlotIdx,pA,pB,ng,cupCompleted);
+  pendingResult={pA,pB,justRevealedSlotIdx:revealedSlotIdx,cup:ng,cupCompleted,otPeriods};
+  renderCareer(revealedSlotIdx,pA,pB,ng,cupCompleted,otPeriods);
   setCareerScreen("boxscore");
   // Pop the celebration on top of the box score if a cup just closed.
   // All-cups variant fires when this completion drained every cup's
@@ -2408,6 +2425,7 @@ function openDismissedRevealModal(names){
   cardsEl.innerHTML=names.map(n=>{
     return '<div class="dismissed-card">'+
       '<div class="dismissed-card-tag">PASSED</div>'+
+      '<div class="dismissed-card-name">'+escapeHtmlS(n)+'</div>'+
       buildRevealCardHTML(n)+
     '</div>';
   }).join("");
@@ -2712,7 +2730,7 @@ function renderRecap(){
   el.style.display="block";
 }
 
-function renderCareer(justRevealedSlotIdx,pA,pB,gameCup,cupCompleted){
+function renderCareer(justRevealedSlotIdx,pA,pB,gameCup,cupCompleted,otPeriods){
   if(!careerState)return;
   document.getElementById("emptyMsg").style.display="none";
   document.getElementById("careerW").textContent=careerState.wins;
@@ -2783,9 +2801,11 @@ function renderCareer(justRevealedSlotIdx,pA,pB,gameCup,cupCompleted){
   const bannerHTML=(()=>{
     if(pA==null||pB==null)return '';
     const cupCtx=gameCup?(' &middot; '+escapeHtmlS(cupTitle(gameCup.cup))+' vs '+escapeHtmlS(cupTargetLabel(gameCup.cup,gameCup.target))):'';
+    // OT suffix — single OT shows "(OT)", multiple shows "(2OT)", "(3OT)", etc.
+    const otTxt=(otPeriods&&otPeriods>0)?(' ('+(otPeriods===1?'OT':otPeriods+'OT')+')'):'';
     const cupWon=cupCompleted?'<div class="win-banner" style="background:#1a1a3e;border-color:#ffd70077;color:#ffd700;margin-top:6px">🏆 '+escapeHtmlS(cupTitle(cupCompleted))+' COMPLETED!</div>':'';
-    if(pA>pB)return '<div class="win-banner">VICTORY '+pA+'–'+pB+cupCtx+'</div>'+cupWon;
-    return '<div class="loss-banner">DEFEAT '+pA+'–'+pB+cupCtx+'</div>';
+    if(pA>pB)return '<div class="win-banner">VICTORY '+pA+'–'+pB+otTxt+cupCtx+'</div>'+cupWon;
+    return '<div class="loss-banner">DEFEAT '+pA+'–'+pB+otTxt+cupCtx+'</div>';
   })();
   if(bannerHTML){
     document.getElementById("resultBanner").innerHTML=bannerHTML;
