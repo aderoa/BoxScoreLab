@@ -208,7 +208,7 @@ body{background:linear-gradient(145deg,#1a1a3e 0%,#0a0a1a 50%,#ffffff 100%);back
 @media(max-width:760px){.dismissed-cards{grid-template-columns:1fr}}
 
 /* ===== Cup celebration modal (per-cup + all-cups overdrive variants) ===== */
-.celebration-modal{background:linear-gradient(135deg,#1a1a3e 0%,#0a0a1a 100%);border:2px solid #ffd700;border-radius:14px;padding:32px 28px 22px;max-width:560px;width:100%;text-align:center;animation:revealPop 0.5s cubic-bezier(0.34,1.56,0.64,1);box-shadow:0 0 80px rgba(255,215,0,0.4);position:relative;overflow:hidden}
+.celebration-modal{background:linear-gradient(135deg,#1a1a3e 0%,#0a0a1a 100%);border:2px solid #ffd700;border-radius:14px;padding:32px 28px 22px;max-width:640px;width:100%;text-align:center;animation:revealPop 0.5s cubic-bezier(0.34,1.56,0.64,1);box-shadow:0 0 80px rgba(255,215,0,0.4);position:relative;overflow:hidden}
 .celebration-modal.all-cups{border-color:#ff6b35;box-shadow:0 0 120px rgba(255,107,53,0.6);animation:revealPop 0.6s cubic-bezier(0.34,1.56,0.64,1),allCupsPulse 2.5s ease-in-out infinite}
 @keyframes allCupsPulse{0%,100%{box-shadow:0 0 80px rgba(255,107,53,0.45)}50%{box-shadow:0 0 140px rgba(255,215,0,0.7)}}
 .celebration-confetti{position:absolute;inset:0;pointer-events:none;overflow:hidden}
@@ -223,7 +223,7 @@ body{background:linear-gradient(145deg,#1a1a3e 0%,#0a0a1a 50%,#ffffff 100%);back
 .celebration-sub{font-family:'Oswald',sans-serif;font-size:13px;letter-spacing:3px;color:#aaaadd;text-transform:uppercase;margin-bottom:10px}
 .celebration-record{font-family:'Oswald',sans-serif;font-size:11px;letter-spacing:2px;color:#888899;margin-bottom:18px}
 .celebration-roster-title{font-family:'Oswald',sans-serif;font-size:11px;letter-spacing:3px;color:#666688;text-transform:uppercase;margin-bottom:10px}
-.celebration-roster{display:grid;grid-template-columns:1fr 1fr;gap:5px;max-height:280px;overflow-y:auto;margin-bottom:18px;padding:2px}
+.celebration-roster{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-bottom:18px;padding:2px}
 .celebration-roster-row{background:#0e0e2a;border:1px solid #2a2a55;border-radius:5px;padding:7px 10px;display:flex;flex-direction:column;gap:4px;font-size:11px}
 .celebration-roster-row .cr-main{display:flex;justify-content:space-between;align-items:center;gap:6px}
 .celebration-roster-row .nm{font-family:'JetBrains Mono',monospace;color:#e0e0ff;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -540,7 +540,7 @@ body{background:linear-gradient(145deg,#1a1a3e 0%,#0a0a1a 50%,#ffffff 100%);back
         <div class="screen-title-sm">Cup Progress</div>
         <div class="cup-progress-wrap" id="cupProgressWrap"></div>
       </div>
-      <div class="screen-section">
+      <div class="screen-section" id="mysteryFreeAgentsSection">
         <div class="screen-title-sm">Mystery Free Agents · Win games to reveal clues</div>
         <div class="fa-mechanic-note">
           Pick a mystery free agent, and guess who it is. A correct guess earns you a <b>bonus teammate</b> you get to pick. The other four mystery free agents are <b>discarded</b>.
@@ -553,7 +553,7 @@ body{background:linear-gradient(145deg,#1a1a3e 0%,#0a0a1a 50%,#ffffff 100%);back
           <div class="next-game-cup" id="nextGameCup">—</div>
           <div class="next-game-target" id="nextGameTarget">—</div>
         </div>
-        <button class="btn btn-play btn-play-big next-game-play-btn" onclick="playNextGame()">▶ PLAY NEXT GAME</button>
+        <button class="btn btn-play btn-play-big next-game-play-btn" id="faPlayBtn" onclick="playNextGame()">▶ PLAY NEXT GAME</button>
       </div>
       <div class="screen-section">
         <div class="screen-title-sm">Your Squad</div>
@@ -3276,19 +3276,27 @@ function renderCareer(justRevealedSlotIdx,pA,pB,gameCup,cupCompleted,otPeriods){
     }
   }
 
-  // Swap the FA-screen play button to "Start a New Career" when the
-  // career is complete — otherwise it'd just sit there labeled
-  // "▶ PLAY NEXT GAME" with nothing to actually play. The button
-  // element is the same one; we just rebind the click handler and
-  // change the label.
-  const playBtn=document.querySelector(".next-game-row .next-game-play-btn");
-  if(playBtn){
-    if(!ng&&careerState&&careerState.cups){
-      playBtn.textContent="🏆 START A NEW CAREER";
-      playBtn.onclick=function(){resetCareer()};
+  // Career-complete vs in-progress: tidy the FA screen so a finished
+  // career doesn't keep showing pickable mystery slots / a next-game
+  // banner / a "PLAY NEXT GAME" button that points nowhere.
+  //   1) hide the Mystery Free Agents section (no point signing more
+  //      players when there's nothing left to play)
+  //   2) hide the next-game banner (no next game exists)
+  //   3) repurpose the play button into "Start a New Career" that
+  //      triggers reset → drops the user back to Setup
+  const isCareerDone=(!ng&&careerState&&careerState.cups);
+  const mysterySection=document.getElementById("mysteryFreeAgentsSection");
+  if(mysterySection)mysterySection.style.display=isCareerDone?"none":"";
+  const ngBanner=document.getElementById("nextGameBanner");
+  if(ngBanner)ngBanner.style.display=isCareerDone?"none":"";
+  const faPlayBtn=document.getElementById("faPlayBtn");
+  if(faPlayBtn){
+    if(isCareerDone){
+      faPlayBtn.textContent="🏆 START A NEW CAREER";
+      faPlayBtn.onclick=function(){resetCareer()};
     }else{
-      playBtn.textContent="▶ PLAY NEXT GAME";
-      playBtn.onclick=function(){playNextGame()};
+      faPlayBtn.textContent="▶ PLAY NEXT GAME";
+      faPlayBtn.onclick=function(){playNextGame()};
     }
   }
 
