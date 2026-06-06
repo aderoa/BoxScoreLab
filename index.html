@@ -223,10 +223,13 @@ body{background:linear-gradient(145deg,#1a1a3e 0%,#0a0a1a 50%,#ffffff 100%);back
 .celebration-sub{font-family:'Oswald',sans-serif;font-size:13px;letter-spacing:3px;color:#aaaadd;text-transform:uppercase;margin-bottom:10px}
 .celebration-record{font-family:'Oswald',sans-serif;font-size:11px;letter-spacing:2px;color:#888899;margin-bottom:18px}
 .celebration-roster-title{font-family:'Oswald',sans-serif;font-size:11px;letter-spacing:3px;color:#666688;text-transform:uppercase;margin-bottom:10px}
-.celebration-roster{display:grid;grid-template-columns:1fr 1fr;gap:5px;max-height:240px;overflow-y:auto;margin-bottom:18px;padding:2px}
-.celebration-roster-row{background:#0e0e2a;border:1px solid #2a2a55;border-radius:5px;padding:7px 10px;display:flex;justify-content:space-between;align-items:center;gap:6px;font-size:11px}
+.celebration-roster{display:grid;grid-template-columns:1fr 1fr;gap:5px;max-height:280px;overflow-y:auto;margin-bottom:18px;padding:2px}
+.celebration-roster-row{background:#0e0e2a;border:1px solid #2a2a55;border-radius:5px;padding:7px 10px;display:flex;flex-direction:column;gap:4px;font-size:11px}
+.celebration-roster-row .cr-main{display:flex;justify-content:space-between;align-items:center;gap:6px}
 .celebration-roster-row .nm{font-family:'JetBrains Mono',monospace;color:#e0e0ff;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .celebration-roster-row .ps{font-family:'Oswald',sans-serif;color:#ffd700;font-weight:700;letter-spacing:1px;flex-shrink:0;font-size:10px}
+.celebration-roster-row .cr-stats{display:flex;justify-content:space-between;gap:4px;font-family:'JetBrains Mono',monospace;font-size:9.5px;color:#888;letter-spacing:0.5px}
+.celebration-roster-row .cr-stats b{color:#aaaadd;font-weight:700}
 .celebration-actions{display:flex;gap:8px;justify-content:center}
 .celebration-actions .btn{padding:10px 22px;font-size:12px;letter-spacing:1.5px}
 @media(max-width:520px){.celebration-roster{grid-template-columns:1fr}}
@@ -279,6 +282,8 @@ body{background:linear-gradient(145deg,#1a1a3e 0%,#0a0a1a 50%,#ffffff 100%);back
 .cup-detail-status{font-family:'JetBrains Mono',monospace;font-size:10px;color:#666688;letter-spacing:1px}
 .cup-detail-row.won .cup-detail-status{color:#34c759;font-weight:700}
 .cup-detail-row.pending .cup-detail-status{color:#888;font-style:italic}
+.cup-detail-record{font-family:'Oswald',sans-serif;font-weight:700;letter-spacing:1.5px;color:#ff6b6b;font-style:normal}
+.cup-detail-record.won{color:#ffd700}
 .cup-detail-row.auto .cup-detail-status{color:#5a5a8a;font-style:italic}
 .modal-close{background:#333;width:100%;padding:8px}
 
@@ -835,6 +840,62 @@ function reconcile(){
 // Below-baseline stats DON'T subtract — the natural offense in each
 // player's game log already reflects an average defensive matchup, so
 // underperforming defense doesn't double-degrade.
+// === POSSESSION EQUALIZATION ===
+// Real NBA games have both teams within ~1-2 possessions of each other —
+// possessions are essentially a shared resource (you score, ball goes
+// the other way). The raw simulation samples ONE real game per player
+// and sums their volume stats; without a team-level cap, you can land
+// on a team whose 12 selected games happen to be high-volume (159 PTS,
+// 119 FGA, 43 FTA from one team while the other has 85 PTS, 74 FGA,
+// 17 FTA — totally unrealistic). This pass scales both teams' shot
+// volume so each side hits the same possession count, clamped to the
+// realistic NBA range. Scoring imbalance comes from FG% / 3P% / FT%
+// efficiency differences (preserved by the proportional scaling),
+// which is exactly how real blowouts happen — not by one team taking
+// 60% more shots than the other.
+function equalizePossessions(){
+  if(teams[0].length===0||teams[1].length===0)return;
+  function total(ti,s){let v=0;teams[ti].forEach((_,i)=>{v+=av(ti,i,s)});return v}
+
+  // Possession estimate: FGA + 0.44 * FTA + TOV − ORB (standard formula).
+  // Subtracting ORB removes the double-counting from offensive boards
+  // (which extend the same possession rather than starting a new one).
+  const possEst=ti=>total(ti,"FGA")+0.44*total(ti,"FTA")+total(ti,"TOV")-total(ti,"ORB");
+  const poss=[possEst(0),possEst(1)];
+
+  // Target = average of both teams, clamped to realistic NBA range.
+  // The 90-105 band covers historical slow paces (mid-90s 76ers ~90)
+  // up through modern fast paces (Hawks/Pacers ~105+). Anything outside
+  // this range almost certainly came from unrealistic stat sampling
+  // rather than a deliberate pace; clamping pulls the game back to
+  // believable territory.
+  let target=(poss[0]+poss[1])/2;
+  target=Math.max(90,Math.min(105,target));
+
+  for(let t=0;t<2;t++){
+    if(poss[t]<=0)continue;
+    const ratio=target/poss[t];
+    // Skip pointless adjustments (already within 3% of target)
+    if(Math.abs(ratio-1)<0.03)continue;
+
+    teams[t].forEach((_,i)=>{
+      const a=adjusted[t][i];
+      // Scale shot volume + turnovers proportionally — efficiency
+      // (FGM/FGA, 3PM/3PA, FTM/FTA) is preserved by the equal ratio
+      // applied to both numerator and denominator.
+      ["FGA","FGM","3PA","3PM","FTA","FTM","TOV"].forEach(s=>{
+        a[s]=Math.round((a[s]||0)*ratio);
+      });
+      // Re-clamp made≤attempted invariants (rounding can push them apart)
+      if(a.FGM>a.FGA)a.FGM=a.FGA;
+      if(a["3PM"]>a.FGM)a["3PM"]=a.FGM;
+      if(a["3PM"]>a["3PA"])a["3PM"]=a["3PA"];
+      if(a.FTM>a.FTA)a.FTM=a.FTA;
+      a.PTS=(a.FGM-a["3PM"])*2+a["3PM"]*3+a.FTM;
+    });
+  }
+}
+
 function applyDefensiveImpact(){
   if(teams[0].length===0||teams[1].length===0)return;
   function total(ti,s){let v=0;teams[ti].forEach((_,i)=>{v+=av(ti,i,s)});return v}
@@ -891,7 +952,12 @@ function applyDefensiveImpact(){
   }
 }
 
-function processAll(){normalizeTeam(0);normalizeTeam(1);applyDefensiveImpact();reconcile()}
+// Order matters:
+//   1) normalize minutes (each team to 240, individual stats scale by min ratio)
+//   2) equalize team possessions (fixes lopsided FGA/FTA gaps)
+//   3) defensive impact (above-baseline STL/BLK/ORB/PF tilt the score)
+//   4) reconcile (cross-team caps on STL, BLK, AST, REB)
+function processAll(){normalizeTeam(0);normalizeTeam(1);equalizePossessions();applyDefensiveImpact();reconcile()}
 
 // === DATA LOADING ===
 (async function(){
@@ -1366,17 +1432,51 @@ function initCareerState(difficulty){
   // not a roster-quality setting. A Hard-mode user with Jordan/LeBron/Magic
   // already auto-rolled is unbeatable; what makes the game hard is having
   // to beat all-time greats with a random 12-man crew.
+  //
+  // EXCEPTION: Easy mode anchors the build with a randomly-picked
+  // All-Star-or-better player at the front of the seed. buildBalancedRoster
+  // iterates by position need, so the anchor gets claimed first in their
+  // matching position pass — guaranteeing at least one marquee name joins
+  // the starting 12. Same status bit (col 8, mask 8) used by the free-agency
+  // guarantee, so HoopsHype Top-78, MVPs, and All-NBA selections all qualify.
+  const diff=difficulty.toLowerCase();
   let roster=null;
-  for(let attempt=0;attempt<5;attempt++){
-    const candidates=bioEligibleNames().filter(playerHasPlayableGames);
-    const seed=shuffle(candidates).slice(0,40);
-    const r=buildBalancedRoster(seed);
-    if(isValidRoster(r)){roster=r;break}
+  if(diff==="easy"){
+    const allStarPool=bioEligibleNames().filter(n=>{
+      const bi=bioByName[n];
+      if(bi==null)return false;
+      if(((bioData[bi][8]||0)&8)===0)return false;
+      return playerHasPlayableGames(n);
+    });
+    if(allStarPool.length){
+      const anchor=allStarPool[Math.floor(Math.random()*allStarPool.length)];
+      const rest=shuffle(bioEligibleNames().filter(n=>n!==anchor&&playerHasPlayableGames(n)));
+      // Prepend anchor so the position-balance build greedily picks them
+      // up in their matching position pass.
+      for(let attempt=0;attempt<5;attempt++){
+        const seed=[anchor,...shuffle(rest).slice(0,40)];
+        const r=buildBalancedRoster(seed);
+        if(isValidRoster(r)&&r.includes(anchor)){roster=r;break}
+      }
+      if(!roster){
+        // Wider fallback if balance constraints didn't fit in 40-player seeds
+        roster=buildBalancedRoster([anchor,...rest.slice(0,200)]);
+      }
+    }
+  }
+  if(!roster){
+    // Default path (used by normal/hard/hof, and the easy fallback if no
+    // All-Star pool was available — shouldn't happen with 465+ All-Stars).
+    for(let attempt=0;attempt<5;attempt++){
+      const candidates=bioEligibleNames().filter(playerHasPlayableGames);
+      const seed=shuffle(candidates).slice(0,40);
+      const r=buildBalancedRoster(seed);
+      if(isValidRoster(r)){roster=r;break}
+    }
   }
   if(!roster||roster.length<12){
     roster=buildBalancedRoster(shuffle(bioEligibleNames().filter(playerHasPlayableGames)).slice(0,60));
   }
-  const diff=difficulty.toLowerCase();
   careerState={roster,slots:[],wins:0,losses:0,games:0,cups:emptyCups(),nextGame:null,playerStats:{},streak:{type:"none",count:0},latestReveal:null,difficulty:diff};
   regenerateAllMysterySlots();
   careerState.nextGame=pickNextGameTarget();
@@ -1630,12 +1730,16 @@ function statusLabel(name){
 }
 
 function emptyCups(){
+  // attempts: per-target {w,l} counters incremented on each playNextGame.
+  // The record is preserved on the completed entry when a target is won
+  // (so a 1-5 victory still shows the five failed attempts after the cup
+  // closes), and stays on pending targets to show "0-3" etc.
   return {
-    franchise:{pending:NBA_FRANCHISES.map(f=>f.abbr),completed:[],total:NBA_FRANCHISES.length},
-    states:(function(){const s=eligibleStates();return {pending:s,completed:[],total:s.length}})(),
-    college:(function(){const s=eligibleColleges();return {pending:s,completed:[],total:s.length}})(),
-    continents:{pending:["americas","europe","africa","asia_oceania"],completed:[],total:4},
-    decades:{pending:["1950","1960","1970","1980","1990","2000","2010","2020"],completed:[],total:8}
+    franchise:{pending:NBA_FRANCHISES.map(f=>f.abbr),completed:[],total:NBA_FRANCHISES.length,attempts:{}},
+    states:(function(){const s=eligibleStates();return {pending:s,completed:[],total:s.length,attempts:{}}})(),
+    college:(function(){const s=eligibleColleges();return {pending:s,completed:[],total:s.length,attempts:{}}})(),
+    continents:{pending:["americas","europe","africa","asia_oceania"],completed:[],total:4,attempts:{}},
+    decades:{pending:["1950","1960","1970","1980","1990","2000","2010","2020"],completed:[],total:8,attempts:{}}
   };
 }
 
@@ -1713,14 +1817,34 @@ function openCupCelebration(cupKey,allCupsWon){
   }
   const teamName=careerState.teamName||"YOUR SQUAD";
   rec.textContent=teamName+" · "+careerState.wins+"–"+careerState.losses+" across "+careerState.games+" games";
-  // Snapshot the current roster in position-sorted order.
+  // Snapshot the current roster in position-sorted order — name, position,
+  // and SIMULATION-career averages (GP / PPG / RPG / APG accumulated across
+  // games played in THIS run). Players who joined via free agency and
+  // haven't yet played show "—" placeholders.
   const sorted=[...careerState.roster].sort((a,b)=>positionSortKey(a)-positionSortKey(b));
+  const careerStats=careerState.playerCareer||{};
   rosterEl.innerHTML=sorted.map(n=>{
     const bi=bioByName[n];
     const pos=bi!=null?(bioData[bi][3]||""):"";
+    const c=careerStats[n];
+    let gpStr="0",ppgStr="—",rpgStr="—",apgStr="—";
+    if(c&&c.gp>0){
+      gpStr=String(c.gp);
+      ppgStr=(c.pts/c.gp).toFixed(1);
+      rpgStr=(c.reb/c.gp).toFixed(1);
+      apgStr=(c.ast/c.gp).toFixed(1);
+    }
     return '<div class="celebration-roster-row">'+
-      '<span class="nm">'+escapeHtmlS(n)+'</span>'+
-      '<span class="ps">'+escapeHtmlS(pos)+'</span>'+
+      '<div class="cr-main">'+
+        '<span class="nm">'+escapeHtmlS(n)+'</span>'+
+        '<span class="ps">'+escapeHtmlS(pos)+'</span>'+
+      '</div>'+
+      '<div class="cr-stats">'+
+        '<span><b>'+gpStr+'</b> GP</span>'+
+        '<span><b>'+ppgStr+'</b> PPG</span>'+
+        '<span><b>'+rpgStr+'</b> RPG</span>'+
+        '<span><b>'+apgStr+'</b> APG</span>'+
+      '</div>'+
     '</div>';
   }).join("");
   // Stash context for the share button.
@@ -2186,23 +2310,40 @@ function playNextGame(){
   careerState.games++;
 
   // Capture each user player's PTS/REB/AST into rolling-5 history for the
-  // L5 averages shown in the replace modal.
+  // L5 averages shown in the replace modal, AND into a cumulative
+  // career-stat tally used by the championship roster snapshot.
   if(!careerState.playerStats)careerState.playerStats={};
+  if(!careerState.playerCareer)careerState.playerCareer={};
   teams[0].forEach((p,i)=>{
+    const pts=Math.round(av(0,i,"PTS"));
+    const reb=Math.round(av(0,i,"REB"));
+    const ast=Math.round(av(0,i,"AST"));
+    // Rolling-5 (used by lastFiveAverages → replace modal)
     const stats=careerState.playerStats[p.name]||[];
-    stats.push({
-      pts:Math.round(av(0,i,"PTS")),
-      reb:Math.round(av(0,i,"REB")),
-      ast:Math.round(av(0,i,"AST"))
-    });
+    stats.push({pts,reb,ast});
     while(stats.length>5)stats.shift();
     careerState.playerStats[p.name]=stats;
+    // Cumulative simulation career — every game contributes forever, so
+    // the championship modal reflects what each player did THIS career
+    // rather than their lifetime NBA averages.
+    const car=careerState.playerCareer[p.name]||{gp:0,pts:0,reb:0,ast:0};
+    car.gp++;car.pts+=pts;car.reb+=reb;car.ast+=ast;
+    careerState.playerCareer[p.name]=car;
   });
 
   let revealedSlotIdx=-1;
   let cupCompleted=null;
   // Streak tracking — used by the record bar to show "3W" or "5L" runs.
   if(!careerState.streak)careerState.streak={type:"none",count:0};
+  // Per-cup-target W-L tracking. Lazily migrate older cup objects that
+  // don't have an attempts map yet (saves predate v13).
+  const cupRec=careerState.cups[ng.cup];
+  if(cupRec&&!cupRec.attempts)cupRec.attempts={};
+  if(cupRec){
+    if(!cupRec.attempts[ng.target])cupRec.attempts[ng.target]={w:0,l:0};
+    if(pA>pB)cupRec.attempts[ng.target].w++;
+    else cupRec.attempts[ng.target].l++;
+  }
   if(pA>pB){
     careerState.wins++;
     revealedSlotIdx=revealNextClue();
@@ -2258,7 +2399,15 @@ function moveCupTargetToCompleted(cup,target,resultRec){
   const i=c.pending.indexOf(target);
   if(i>=0){
     c.pending.splice(i,1);
-    c.completed.push(resultRec?{target,...resultRec}:{target,autoCompleted:true});
+    // Snapshot the W-L record for this target onto the completed entry
+    // so the cup detail modal can show "1-0" / "1-5" / etc. permanently
+    // — including after the page reloads.
+    const rec=(c.attempts&&c.attempts[target])?c.attempts[target]:{w:0,l:0};
+    if(resultRec){
+      c.completed.push({target,...resultRec,record:{w:rec.w,l:rec.l}});
+    }else{
+      c.completed.push({target,autoCompleted:true});
+    }
   }
   return c.pending.length===0?cup:null;
 }
@@ -2324,6 +2473,7 @@ function confirmReplace(rosterIdx){
   pendingJustSignedIdx=rosterIdx;
   if(!careerState.playerStats)careerState.playerStats={};
   delete careerState.playerStats[released]; // released player's L5 doesn't follow them out
+  if(careerState.playerCareer)delete careerState.playerCareer[released]; // and their sim-career line
   // Slot regeneration is deferred to showDismissedRevealAndRegen() — all
   // 5 slots get refreshed at the same time so the round feels atomic.
   saveCareer();
@@ -2591,6 +2741,7 @@ function confirmReplaceBonus(rosterIdx){
   careerState.roster[rosterIdx]=pendingBonusName;
   if(!careerState.playerStats)careerState.playerStats={};
   delete careerState.playerStats[released];
+  if(careerState.playerCareer)delete careerState.playerCareer[released];
   pendingBonusName=null;
   pendingJustSignedIdx=null;
   saveCareer();
@@ -2914,26 +3065,36 @@ function openCupModal(cupKey){
   const rows=[];
   const pending=[...c.pending].sort((a,b)=>cupTargetLabel(cupKey,a).localeCompare(cupTargetLabel(cupKey,b)));
   for(const t of pending){
+    // Show "0-N" for pending targets the user has already lost to N times,
+    // empty record otherwise (haven't faced this matchup yet).
+    const att=(c.attempts&&c.attempts[t])||null;
+    const recStr=(att&&att.l>0)?(att.w+"-"+att.l):"";
     rows.push('<div class="cup-detail-row pending">'+
       '<span class="cup-detail-target">'+escapeHtmlS(cupTargetLabel(cupKey,t))+'</span>'+
-      '<span class="cup-detail-status">Pending</span>'+
+      '<span class="cup-detail-status">'+(recStr?'<span class="cup-detail-record">'+recStr+'</span> · ':'')+'Pending</span>'+
     '</div>');
   }
   for(const item of c.completed){
     const tgt=typeof item==="string"?item:item.target;
     const tgtLabel=cupTargetLabel(cupKey,tgt);
-    let status,cls;
+    let status,cls,recHTML="";
     if(typeof item==="string"){
       status="Won";cls="won";
     }else if(item.autoCompleted){
       status="Auto-completed";cls="auto";
     }else{
+      // Record block + score + game number. Record is the cumulative
+      // W-L against this target — "1-0" first try, "1-5" if it took six.
+      // Skipped for completed entries that predate v13 (no record field).
+      if(item.record){
+        recHTML='<span class="cup-detail-record won">'+item.record.w+"-"+item.record.l+'</span> · ';
+      }
       status="Won "+item.pA+"–"+item.pB+(item.gameNum?" · Game "+item.gameNum:"");
       cls="won";
     }
     rows.push('<div class="cup-detail-row '+cls+'">'+
       '<span class="cup-detail-target">'+escapeHtmlS(tgtLabel)+'</span>'+
-      '<span class="cup-detail-status">'+escapeHtmlS(status)+'</span>'+
+      '<span class="cup-detail-status">'+recHTML+escapeHtmlS(status)+'</span>'+
     '</div>');
   }
   list.innerHTML=rows.join("");
