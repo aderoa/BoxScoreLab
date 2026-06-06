@@ -101,6 +101,25 @@ body{background:#0a0a1a;color:#c8c8e0;font-family:'JetBrains Mono',monospace;min
 .difficulty-pill{background:#0e0e2a;border:1px solid #3a3a5a;color:#aaaadd;font-family:'Oswald',sans-serif;font-size:11px;letter-spacing:2px;font-weight:700;padding:5px 12px;border-radius:11px;cursor:pointer;text-transform:uppercase;transition:all 0.15s;align-self:center}
 .difficulty-pill:hover{border-color:#5a5a8a;color:#fff}
 .difficulty-pill.hard{background:linear-gradient(135deg,#3a0a0a 0%,#1a0a1a 100%);border-color:#e63946;color:#ff6b6b;text-shadow:0 0 8px rgba(230,57,70,0.4)}
+
+/* ===== Difficulty picker (initial roster screen, pre-game-1 only) ===== */
+.difficulty-picker{background:linear-gradient(135deg,#15153a 0%,#0a0a1a 100%);border:1px solid #2a2a55;border-radius:10px;padding:18px 20px;margin:0 0 22px;text-align:center}
+.difficulty-picker-label{font-family:'Oswald',sans-serif;font-size:11px;letter-spacing:4px;color:#7a7a99;text-transform:uppercase;margin-bottom:12px}
+.difficulty-picker-options{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
+.difficulty-option{background:#0e0e2a;border:2px solid #2a2a55;border-radius:8px;padding:14px 16px;cursor:pointer;text-align:left;transition:all 0.15s;color:inherit;font-family:inherit}
+.difficulty-option:hover{border-color:#5a5a8a;background:#13133a;transform:translateY(-1px)}
+.difficulty-option.selected[data-diff="normal"]{border-color:#22c55e;background:#0a1a14;box-shadow:0 0 18px rgba(34,197,94,0.25)}
+.difficulty-option.selected[data-diff="hard"]{border-color:#e63946;background:#1a0a0e;box-shadow:0 0 18px rgba(230,57,70,0.3)}
+.difficulty-option-name{font-family:'Oswald',sans-serif;font-size:18px;letter-spacing:3px;font-weight:700;color:#aaaadd;margin-bottom:6px;text-transform:uppercase}
+.difficulty-option.selected[data-diff="normal"] .difficulty-option-name{color:#22c55e}
+.difficulty-option.selected[data-diff="hard"] .difficulty-option-name{color:#ff6b6b}
+.difficulty-option-desc{font-family:'Inter','Segoe UI',sans-serif;font-size:11px;color:#888899;line-height:1.5}
+.difficulty-picker-hint{font-family:'Inter','Segoe UI',sans-serif;font-size:10px;color:#666688;font-style:italic;line-height:1.5;padding:0 6px}
+.difficulty-picker.locked .difficulty-option{cursor:not-allowed;opacity:0.5}
+.difficulty-picker.locked .difficulty-option:hover{transform:none;border-color:#2a2a55;background:#0e0e2a}
+.difficulty-picker.highlight-flash{animation:pickerFlash 0.9s ease-out}
+@keyframes pickerFlash{0%{box-shadow:0 0 0 rgba(255,215,0,0)}40%{box-shadow:0 0 30px rgba(255,215,0,0.4),0 0 0 2px #ffd700 inset}100%{box-shadow:0 0 0 rgba(255,215,0,0)}}
+@media(max-width:580px){.difficulty-picker-options{grid-template-columns:1fr}}
 .record-num{font-family:'Oswald',sans-serif;font-size:28px;font-weight:700;line-height:1}
 .record-label{font-family:'Oswald',sans-serif;font-size:10px;letter-spacing:2px;color:#666688;text-transform:uppercase}
 .record-w{color:#34c759}
@@ -424,6 +443,25 @@ body{background:#0a0a1a;color:#c8c8e0;font-family:'JetBrains Mono',monospace;min
     <div id="careerScreenRoster" class="career-screen">
       <div class="screen-title">Your Starting Squad</div>
       <div class="screen-subtitle">Scout your 12-man rotation, then take the floor</div>
+
+      <!-- Difficulty picker — only meaningful BEFORE Game #1. Once a game
+           has been played the difficulty is locked for the rest of the
+           career (use RESET to start a new one at a different level). -->
+      <div class="difficulty-picker" id="difficultyPicker">
+        <div class="difficulty-picker-label">Difficulty</div>
+        <div class="difficulty-picker-options">
+          <button class="difficulty-option" data-diff="normal" onclick="pickDifficulty('normal')">
+            <div class="difficulty-option-name">NORMAL</div>
+            <div class="difficulty-option-desc">Opponents are a random cross-section of each cup's player pool</div>
+          </button>
+          <button class="difficulty-option" data-diff="hard" onclick="pickDifficulty('hard')">
+            <div class="difficulty-option-name">HARD</div>
+            <div class="difficulty-option-desc">Opponents are the all-time best from each pool (HoopsHype Top-78, then most All-NBA, then PPG)</div>
+          </button>
+        </div>
+        <div class="difficulty-picker-hint">Your starting roster is always a random 12 either way — difficulty only changes who you play against. Locked once Game #1 starts.</div>
+      </div>
+
       <div class="roster-cards" id="rosterCardsInitial"></div>
       <div class="next-game-banner" id="nextGameBannerInitial">
         <div class="next-game-label">First Game</div>
@@ -611,7 +649,7 @@ const CLUE_LABELS=["STATE/COUNTRY","STATUS","PRE-DRAFT TEAM","PICK","TEAM / SEAS
 //   2 → PRE-DRAFT TEAM (player[4])
 //   3 → PICK           (player[6]) — UND/ND/T/SD expand to readable strings
 //   4 → TEAM / SEASON  (slot.rolledSeason)
-const CAREER_STORAGE_KEY="bsl_career_v8";  // v8 — difficulty modes (normal/hard); bio.json now has AN1/AN2/AS counts at cols 9/10/11
+const CAREER_STORAGE_KEY="bsl_career_v9";  // v9 — difficulty controls OPPONENT strength (not user roster); locked mid-career
 
 function rawG(game,s){
   switch(s){
@@ -1238,36 +1276,22 @@ function initCareerState(difficulty){
     careerState={roster:[],slots:[],wins:0,losses:0,games:0,cups:emptyCups(),nextGame:null,playerStats:{},difficulty:difficulty||"normal"};
     return;
   }
-  // Difficulty selects the candidate pool the position-balanced roster
-  // is built from. NORMAL = shuffled bio-eligible pool (status quo).
-  // HARD = pool pre-sorted by the priority chain so the top 12 are the
-  // most-accoladed available players (HH-78 first, then most All-NBA
-  // First Teams, then All-NBA Second Teams, then All-Stars, then career
-  // PPG). The position balancer still has to satisfy 4G/4F/2C; it pulls
-  // candidates in priority order until that's met.
-  const diff=(difficulty||"normal").toLowerCase();
+  // User roster ALWAYS comes from the random shuffle path — regardless of
+  // difficulty. Difficulty is an opponent-strength setting (see playNextGame),
+  // not a roster-quality setting. A Hard-mode user with Jordan/LeBron/Magic
+  // already auto-rolled is unbeatable; what makes the game hard is having
+  // to beat all-time greats with a random 12-man crew.
   let roster=null;
-  if(diff==="hard"){
-    const all=bioEligibleNames().filter(playerHasPlayableGames);
-    const sorted=all.slice().sort((a,b)=>hardModeCompare(a,b));
-    // Use the top 60 by ranking as the seed (gives the balancer room to
-    // satisfy position minimums while staying near the top of the list).
-    roster=buildBalancedRoster(sorted.slice(0,60));
-    if(!isValidRoster(roster)){
-      // Widen the pool if balance constraints aren't met in the top 60
-      roster=buildBalancedRoster(sorted.slice(0,150));
-    }
-  }else{
-    for(let attempt=0;attempt<5;attempt++){
-      const candidates=bioEligibleNames().filter(playerHasPlayableGames);
-      const seed=shuffle(candidates).slice(0,40);
-      const r=buildBalancedRoster(seed);
-      if(isValidRoster(r)){roster=r;break}
-    }
-    if(!roster||roster.length<12){
-      roster=buildBalancedRoster(shuffle(bioEligibleNames().filter(playerHasPlayableGames)).slice(0,60));
-    }
+  for(let attempt=0;attempt<5;attempt++){
+    const candidates=bioEligibleNames().filter(playerHasPlayableGames);
+    const seed=shuffle(candidates).slice(0,40);
+    const r=buildBalancedRoster(seed);
+    if(isValidRoster(r)){roster=r;break}
   }
+  if(!roster||roster.length<12){
+    roster=buildBalancedRoster(shuffle(bioEligibleNames().filter(playerHasPlayableGames)).slice(0,60));
+  }
+  const diff=(difficulty||"normal").toLowerCase();
   careerState={roster,slots:[],wins:0,losses:0,games:0,cups:emptyCups(),nextGame:null,playerStats:{},streak:{type:"none",count:0},difficulty:diff};
   regenerateAllMysterySlots();
   careerState.nextGame=pickNextGameTarget();
@@ -1726,24 +1750,52 @@ function resetCareer(){
   teams=[[],[]];adjusted=[[],[]];render();
 }
 
-// Difficulty toggle. Pre-game-1 (no games played yet) it just re-rolls
-// the roster at the new difficulty — no confirmation needed since the
-// user hasn't invested anything yet. Mid-career it asks first because
-// switching tier rebuilds the whole roster.
+// Difficulty handling. Two states:
+//   - "normal" → opponents are random selections from each cup's pool
+//   - "hard"   → opponents are the highest-ranked available players
+//                (HH-78 → most AN1 → most AN2 → most All-Star → PPG)
+// Either way, the USER'S roster is always a random 12 — difficulty is
+// purely an opponent-strength setting.
+//
+// pickDifficulty (from the initial roster screen) only takes effect
+// before Game #1. Once any game has been played, the level is locked
+// for the rest of the career — the user has to RESET to change it.
+
+function pickDifficulty(diff){
+  if(!careerState)return;
+  // Locked once a game has been played
+  if(isCareerInProgress()){
+    alert("Difficulty is locked once Game #1 starts.\n\nUse RESET to start a new career at a different difficulty.");
+    return;
+  }
+  if((careerState.difficulty||"normal")===diff)return; // no-op if unchanged
+  careerState.difficulty=diff;
+  saveCareer();
+  renderCareer();
+}
+function isCareerInProgress(){
+  if(!careerState)return false;
+  return (careerState.games||0)>0
+      || (careerState.wins||0)>0
+      || (careerState.losses||0)>0;
+}
+// The pill in the career bar is now informational. Clicking it tells
+// the user where to change the level (either by clicking a card on the
+// initial roster screen, or via RESET if mid-career).
 function toggleDifficulty(){
   if(!careerState)return;
-  const current=careerState.difficulty||"normal";
-  const next=(current==="normal")?"hard":"normal";
-  const inProgress=(careerState.games>0||careerState.wins>0||careerState.losses>0);
-  if(inProgress){
-    if(!confirm("Switch to "+next.toUpperCase()+" mode? This re-rolls your roster and clears your record."))return;
+  if(isCareerInProgress()){
+    alert("Difficulty is locked once Game #1 starts.\n\nUse RESET to start a new career at a different difficulty.");
+  }else{
+    // Pre-game-1 — scroll the user to the picker on the roster screen.
+    setCareerScreen("roster");
+    const picker=document.getElementById("difficultyPicker");
+    if(picker){
+      picker.scrollIntoView({behavior:"smooth",block:"center"});
+      picker.classList.add("highlight-flash");
+      setTimeout(()=>picker.classList.remove("highlight-flash"),900);
+    }
   }
-  localStorage.removeItem(CAREER_STORAGE_KEY);
-  careerScreen="roster";
-  initCareerState(next);
-  renderCareer();
-  setCareerScreen("roster");
-  teams=[[],[]];adjusted=[[],[]];render();
 }
 
 // --- Mode toggle -------------------------------------------------------
@@ -1854,8 +1906,20 @@ function playNextGame(){
     return;
   }
 
-  const oppShuffled=shuffle(candidates);
-  const oppRoster=buildBalancedRoster(oppShuffled);
+  // Difficulty: NORMAL keeps the existing shuffle-and-balance behavior so
+  // opponents are a random representative cross-section of the cup pool.
+  // HARD pre-sorts the candidate pool by the priority chain (HoopsHype
+  // Top-78 → most All-NBA First Teams → most All-NBA Second Teams → most
+  // All-Stars → highest career PPG) so the position balancer pulls the
+  // best available players in that order. Result: Kentucky in the
+  // College Cup goes from "random 12 Kentucky players" to "Anthony Davis,
+  // Karl Malone, John Wall... etc.". The USER's roster is never affected
+  // by difficulty — that always uses the random-shuffle path.
+  const diff=(careerState.difficulty||"normal").toLowerCase();
+  const oppOrdered=(diff==="hard")
+    ? candidates.slice().sort((a,b)=>hardModeCompare(a,b))
+    : shuffle(candidates);
+  const oppRoster=buildBalancedRoster(oppOrdered);
   if(!isValidRoster(oppRoster)){
     console.warn("Opp pool for "+ng.cup+"/"+ng.target+" can't satisfy 4G/4F/2C; auto-completing.");
     moveCupTargetToCompleted(ng.cup,ng.target,null);
@@ -2685,13 +2749,30 @@ function renderCareer(justRevealedSlotIdx,pA,pB,gameCup,cupCompleted){
     else if(s.type==="L"&&s.count>=2){sChip.className="career-streak cold";sChip.textContent=s.count+" CONSECUTIVE L"}
     else{sChip.className="career-streak idle";sChip.textContent=""}
   }
-  // Difficulty pill — shows current mode (NORMAL or HARD) and toggles
-  // on click. Hard mode gets the red-tinted styling.
+  // Difficulty surfaces in two places:
+  //   1. Pill in the career bar — informational label showing the
+  //      current level. Clicking it just explains where to change it.
+  //   2. Picker on the initial roster screen — interactive pre-game-1,
+  //      locked (visually + functionally) once a game has been played.
+  const diff=(careerState.difficulty||"normal").toLowerCase();
+  const locked=isCareerInProgress();
   const diffPill=document.getElementById("difficultyPill");
   if(diffPill){
-    const diff=(careerState.difficulty||"normal").toLowerCase();
-    diffPill.textContent=diff.toUpperCase();
+    diffPill.textContent="DIFFICULTY: "+diff.toUpperCase();
     diffPill.classList.toggle("hard",diff==="hard");
+    diffPill.title=locked
+      ? "Difficulty is locked during this career. Click RESET to change it."
+      : "Pre-Game #1 — change in the picker on this screen";
+  }
+  const picker=document.getElementById("difficultyPicker");
+  if(picker){
+    picker.classList.toggle("locked",locked);
+    picker.querySelectorAll(".difficulty-option").forEach(btn=>{
+      btn.classList.toggle("selected",btn.dataset.diff===diff);
+    });
+    // Pre-game-1: show the picker prominently. Mid-career it's hidden
+    // entirely (the pill is enough of a reminder).
+    picker.style.display=locked?"none":"block";
   }
 
   // Result banners — placed on both boxscore and freeagents screens so
