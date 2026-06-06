@@ -58,7 +58,9 @@ body{background:linear-gradient(145deg,#1a1a3e 0%,#0a0a1a 50%,#ffffff 100%);back
 .team-section{margin-bottom:28px;animation:fadeIn 0.3s ease}
 @keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
 .team-hdr{display:flex;align-items:center;justify-content:space-between;padding:10px 16px;border-radius:6px 6px 0 0}
+.team-hdr-left{display:flex;flex-direction:column;align-items:flex-start;gap:1px}
 .team-hdr-name{font-family:'Oswald',sans-serif;font-size:16px;font-weight:700;text-transform:uppercase;letter-spacing:2px;color:#fff}
+.team-hdr-record{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:rgba(255,255,255,0.75);letter-spacing:1px;font-weight:500}
 .team-hdr-pts{font-family:'Oswald',sans-serif;font-size:26px;font-weight:700;color:#fff}
 .tbl-wrap{overflow-x:auto}
 .box-tbl{width:100%;border-collapse:collapse;font-family:'JetBrains Mono',monospace;font-size:11px;background:#12122a}
@@ -785,6 +787,42 @@ function normalizeTeam(ti){
     a.PTS=(a.FGM-a["3PM"])*2+a["3PM"]*3+a.FTM;
     // REB = ORB + DRB
     a.REB=a.ORB+a.DRB;
+
+    // === Pre-tracking-era backfill ===
+    // STL and BLK weren't tracked before 1973-74; TOV before 1977-78.
+    // Players from those eras come into the sim with raw 0 in those
+    // columns, which:
+    //   - Hands 60s teams a possession advantage (0 TOV → low poss
+    //     estimate → equalizePossessions scales them UP)
+    //   - Makes them unbeatable in HoF mode where their top talent is
+    //     already stacked
+    // Backfill virtual numbers correlated with stats that WERE tracked:
+    //   STL ≈ baseline + AST factor   (good passers see lanes)
+    //   BLK ≈ baseline + REB factor   (rim-protector size & timing)
+    //   TOV ≈ baseline + AST factor + FG% miss penalty
+    //         (high-volume creators + less efficient finishers turn it over more)
+    // Scaled to per-(targetMin) values so they match the rest of the
+    // box score. Numbers are deliberately modest — meant to fix the
+    // possession exploit, not produce 5-STL games out of thin air.
+    const sy=p.game[G.SY]||0;
+    const min=tgtMin;
+    if(sy>0&&sy<1974&&(rawG(p.game,"STL")||0)===0){
+      // STL: 0.6/36min baseline + 0.18 per assist
+      a.STL=Math.round((0.6*(min/36))+(a.AST||0)*0.18);
+      if(a.STL<0)a.STL=0;
+    }
+    if(sy>0&&sy<1974&&(rawG(p.game,"BLK")||0)===0){
+      // BLK: 0.2/36min baseline + 0.07 per rebound (rebound rate ≈ size)
+      a.BLK=Math.round((0.2*(min/36))+(a.REB||0)*0.07);
+      if(a.BLK<0)a.BLK=0;
+    }
+    if(sy>0&&sy<1978&&(rawG(p.game,"TOV")||0)===0){
+      // TOV: 1.4/36min baseline + 0.30 per assist + 1.5 * (max(0, .50 − FG%))
+      const fgPct=a.FGA>0?(a.FGM/a.FGA):0.45;
+      const missPenalty=1.5*Math.max(0,0.50-fgPct);
+      a.TOV=Math.round((1.4*(min/36))+(a.AST||0)*0.30+missPenalty);
+      if(a.TOV<0)a.TOV=0;
+    }
   });
 }
 
@@ -1301,7 +1339,28 @@ function renderTeam(ti){
   const hc=STAT_KEYS.map(s=>'<th class="r">'+s+'</th>').join("");
   const actHdrs=showActions?'<th></th><th></th>':'';
   const actTotals=showActions?'<td></td><td></td>':'';
-  el.innerHTML='<div class="team-section"><div class="team-hdr" style="background:'+COLORS[ti]+'"><span class="team-hdr-name">'+teamNames[ti]+'</span><span class="team-hdr-pts">'+Math.round(tot.PTS)+'</span></div><div class="tbl-wrap"><table class="box-tbl"><thead><tr><th style="min-width:140px">PLAYER</th>'+hc+actHdrs+'</tr></thead><tbody>'+rows+'<tr class="totals" style="background:'+COLORS[ti]+'22;border-top:2px solid '+COLORS[ti]+'"><td style="font-weight:700;color:#e0e0ff">TOTALS</td>'+tc+actTotals+'</tr></tbody></table></div></div>';
+  // Career-mode record sublines under each team name:
+  //   ti=0 (user) → overall W-L across the full career
+  //   ti=1 (opponent) → direct matchup W-L vs the user (from the opp's
+  //                     point of view, so user-losses-to-this-opp first)
+  // Skipped in sandbox mode and on the very first render before any
+  // game has been played.
+  let recordHTML="";
+  if(currentMode==="career"&&careerState&&pendingResult){
+    if(ti===0){
+      recordHTML='<span class="team-hdr-record">'+careerState.wins+'-'+careerState.losses+' overall</span>';
+    }else if(ti===1&&pendingResult.cup){
+      const ngc=pendingResult.cup;
+      const cupAtt=(careerState.cups[ngc.cup]&&careerState.cups[ngc.cup].attempts)?careerState.cups[ngc.cup].attempts[ngc.target]:null;
+      if(cupAtt){
+        // From the opponent's perspective: their wins = user losses to them,
+        // their losses = user wins over them. "vs you" reads naturally
+        // from the user's side of the screen.
+        recordHTML='<span class="team-hdr-record">'+cupAtt.l+'-'+cupAtt.w+' vs you</span>';
+      }
+    }
+  }
+  el.innerHTML='<div class="team-section"><div class="team-hdr" style="background:'+COLORS[ti]+'"><span class="team-hdr-left"><span class="team-hdr-name">'+teamNames[ti]+'</span>'+recordHTML+'</span><span class="team-hdr-pts">'+Math.round(tot.PTS)+'</span></div><div class="tbl-wrap"><table class="box-tbl"><thead><tr><th style="min-width:140px">PLAYER</th>'+hc+actHdrs+'</tr></thead><tbody>'+rows+'<tr class="totals" style="background:'+COLORS[ti]+'22;border-top:2px solid '+COLORS[ti]+'"><td style="font-weight:700;color:#e0e0ff">TOTALS</td>'+tc+actTotals+'</tr></tbody></table></div></div>';
 }
 function render(){
   updateTabs();renderTeam(0);renderTeam(1);
@@ -1872,7 +1931,28 @@ const COLLEGE_NICKNAMES={
   "Texas Southern":"Tigers","Prairie View A&M":"Panthers","Grambling":"Tigers",
   "Southern":"Jaguars","Jackson State":"Tigers","Alcorn State":"Braves",
   "Alabama A&M":"Bulldogs","Alabama State":"Hornets","Mississippi Valley State":"Delta Devils",
-  "Arkansas-Pine Bluff":"Golden Lions"
+  "Arkansas-Pine Bluff":"Golden Lions",
+  // === "St" abbreviation variants (bio data uses "Michigan St" etc.
+  // rather than "Michigan State") — same nicknames mapped to both forms
+  // so the College Cup label lookup works regardless of which spelling
+  // the source dataset happens to use for a given player.
+  "Michigan St":"Spartans","Ohio St":"Buckeyes","Iowa St":"Cyclones",
+  "Kansas St":"Wildcats","Florida St":"Seminoles","Oklahoma St":"Cowboys",
+  "Penn St":"Nittany Lions","Mississippi St":"Bulldogs","Oregon St":"Beavers",
+  "Washington St":"Cougars","Arizona St":"Sun Devils","Wichita St":"Shockers",
+  "San Diego St":"Aztecs","Boise St":"Broncos","Utah St":"Aggies",
+  "Indiana St":"Sycamores","Illinois St":"Redbirds","Murray St":"Racers",
+  "Weber St":"Wildcats","Alabama St":"Hornets","Jackson St":"Tigers",
+  "Alcorn St":"Braves","Norfolk St":"Spartans","Texas St":"Bobcats",
+  "New Mexico St":"Aggies","Cleveland St":"Vikings","Wright St":"Raiders",
+  "Youngstown St":"Penguins","Long Beach St":"49ers","San Jose St":"Spartans",
+  "Portland St":"Vikings","Sacramento St":"Hornets","Fresno St":"Bulldogs",
+  "App St":"Mountaineers","Ball St":"Cardinals","Kent St":"Golden Flashes",
+  "Morehead St":"Eagles","Tennessee St":"Tigers","Mississippi Valley St":"Delta Devils",
+  "NC St":"Wolfpack","Coppin St":"Eagles","Morgan St":"Bears","SC St":"Bulldogs",
+  "Georgia St":"Panthers","SE Missouri St":"Redhawks","Missouri St":"Bears",
+  "South Dakota St":"Jackrabbits","North Dakota St":"Bison","Idaho St":"Bengals",
+  "Montana St":"Bobcats","Sam Houston St":"Bearkats","Stephen F. Austin St":"Lumberjacks"
 };
 
 function cupTargetLabel(cup,target){
@@ -3118,7 +3198,7 @@ function escapeHtmlS(s){return String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":
 
 function clueValueFor(player,clueIdx,slot){
   // Indices:
-  //   0 → STATE/COUNTRY  (player[2])
+  //   0 → STATE/COUNTRY  (player[2])  — US states render with abbr suffix
   //   1 → STATUS         (statusLabel)
   //   2 → PRE-DRAFT TEAM (player[4])
   //   3 → PICK           (player[6]) — UND/ND/T/SD expand
@@ -3134,6 +3214,15 @@ function clueValueFor(player,clueIdx,slot){
     if(s==="T")return "Territorial Draft";
     if(s==="SD")return "Supplemental Draft";
     return s;
+  }
+  if(clueIdx===0){
+    // Annotate US states with their postal abbreviation so the clue
+    // visually matches the States Cup label format and the user can
+    // map birth-state guesses to that cup's targets. Foreign countries
+    // and anything not in STATE_ABBR fall through unchanged.
+    const s=String(v).trim();
+    const ab=STATE_ABBR[s];
+    return ab?(s+" ("+ab+")"):s;
   }
   return String(v);
 }
