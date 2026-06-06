@@ -679,7 +679,7 @@ const CLUE_LABELS=["STATE/COUNTRY","STATUS","PRE-DRAFT TEAM","PICK","TEAM / SEAS
 //   2 → PRE-DRAFT TEAM (player[4])
 //   3 → PICK           (player[6]) — UND/ND/T/SD expand to readable strings
 //   4 → TEAM / SEASON  (slot.rolledSeason)
-const CAREER_STORAGE_KEY="bsl_career_v10";  // v10 — four-tier difficulty (easy/normal/hard/hof); Easy guarantees an All-Star in free agency, Hard guarantees the #1 ranked opponent
+const CAREER_STORAGE_KEY="bsl_career_v11";  // v11 — single-latest clue highlight (global, not per-slot); era-suffix team names cleaned in display
 
 function rawG(game,s){
   switch(s){
@@ -1285,8 +1285,16 @@ function rollSeasonClue(name){
   const seasonYr=g[G.SY];
   const team=TEAMS[g[G.TM]]||"";
   const season=formatSeasonYear(seasonYr);
-  const display=(season&&team)?(season+": "+team):(season||team||"—");
-  return {display,seasonYr,team};
+  // Clean display for shared-nickname / disambiguated teams. The data
+  // tags the original Charlotte/NOLA franchise as "Hornets (1988)" to
+  // distinguish from the modern Charlotte Hornets (Bobcats lineage),
+  // but for the user-facing TEAM/SEASON clue the (1988) suffix is just
+  // visual noise — the season year already disambiguates. Same for
+  // other era-disambiguated nicknames in the data ("Nuggets (1950)",
+  // "Bullets (BAA)" etc.).
+  const displayTeam=String(team).replace(/\s*\([^)]*\)\s*$/,"").trim();
+  const display=(season&&displayTeam)?(season+": "+displayTeam):(season||displayTeam||"—");
+  return {display,seasonYr,team};  // raw `team` kept for teammate lookup
 }
 
 function freshMysterySlot(usedNames){
@@ -2199,12 +2207,20 @@ function goToFreeAgents(){
 function revealNextClue(){
   // Pick a random slot that still has hidden clues, reveal the next one
   // in its order. Returns the slot index, or -1 if all are fully revealed.
+  // Also records the (slotIdx, clueIdx) of the reveal on careerState so
+  // the UI can highlight ONLY this single most-recent clue in gold —
+  // previously-revealed clues are still "known" but no longer the latest.
   const unfinished=careerState.slots
     .map((s,i)=>({s,i}))
-    .filter(x=>x.s.revealed<7);
+    .filter(x=>x.s.revealed<5);
   if(!unfinished.length)return -1;
   const pick=unfinished[Math.floor(Math.random()*unfinished.length)];
   pick.s.revealed++;
+  // clueIdx within the slot is the order[] entry at the position we
+  // just revealed. revealedSet at render time uses order.slice(0,revealed),
+  // so this matches the "just-revealed" element.
+  const clueIdx=pick.s.order[pick.s.revealed-1];
+  careerState.latestReveal={slotIdx:pick.i,clueIdx:clueIdx};
   return pick.i;
 }
 
@@ -2596,6 +2612,9 @@ function regenerateAllMysterySlots(){
     used.add(slot.name);
   }
   careerState.slots=newSlots;
+  // The previous round's "latest" clue was on a slot that no longer
+  // exists — clear it so no stale gold lingers on the fresh board.
+  careerState.latestReveal=null;
 }
 
 // Pick a random All-Star-or-better player not already in use. Used by
@@ -3053,21 +3072,25 @@ function renderCareer(justRevealedSlotIdx,pA,pB,gameCup,cupCompleted,otPeriods){
   // Mystery slot cards (only shown on freeagents screen)
   const slotsEl=document.getElementById("mysterySlots");
   if(slotsEl){
+    // The GLOBALLY-latest reveal (slotIdx, clueIdx) gets the gold backdrop.
+    // Previously-revealed clues across all slots stay visible but lose the
+    // gold — only the freshest clue from the most recent win is highlighted.
+    // latestReveal is null when no game has been played or after a fresh
+    // slot regeneration.
+    const lr=careerState.latestReveal||null;
     slotsEl.innerHTML=careerState.slots.map((slot,idx)=>{
       const player=bioData[bioByName[slot.name]];
       if(!player)return '';
       const revealedSet=new Set(slot.order.slice(0,slot.revealed));
-      // The latest-revealed clue gets the persistent gold backdrop.
-      // Earlier-revealed clues are visible but visually muted (the gold
-      // belongs to the freshest info only).
-      const latestClueIdx=slot.revealed>0?slot.order[slot.revealed-1]:-1;
       // Position is always visible — displayed in the slot header so it
       // never takes up a rotating clue slot.
       const pos=player[3]||'';
       const clues=CLUE_LABELS.map((label,ci)=>{
         const isRevealed=revealedSet.has(ci);
-        const isLatest=(ci===latestClueIdx);
-        const isNewest=(idx===justRevealedSlotIdx)&&isRevealed&&ci===latestClueIdx;
+        // Global "latest" — only one (slot, clue) pair across the whole
+        // mystery board is gilded at any time.
+        const isLatest=(lr&&lr.slotIdx===idx&&lr.clueIdx===ci);
+        const isNewest=(idx===justRevealedSlotIdx)&&isLatest;
         const cls=[
           'clue',
           isRevealed&&'revealed',
