@@ -191,9 +191,25 @@ body{background:linear-gradient(145deg,#1a1a3e 0%,#0a0a1a 50%,#ffffff 100%);back
 /* Cap-budget pill in career bar (salary variant). Color shifts amber as
    the roster approaches the cap, red if over (which can happen if a sign
    was made then a win bonus hadn't yet arrived — defensive). */
-.cap-pill{font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;letter-spacing:0.5px;padding:5px 12px;background:#0a1a14;border:1px solid #34d97a55;color:#34d97a;border-radius:4px;text-transform:uppercase;white-space:nowrap}
+.cap-pill{font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;letter-spacing:0.5px;padding:5px 12px;background:#0a1a14;border:1px solid #34d97a55;color:#34d97a;border-radius:4px;text-transform:uppercase;white-space:nowrap;transition:background 0.15s}
 .cap-pill.warn{background:#231a0a;border-color:#ffd70066;color:#ffd700}
 .cap-pill.over{background:#1f0a0a;border-color:#ef444466;color:#ff6666}
+.cap-pill.pulse{animation:capBudgetPulse 1.6s ease-out}
+@keyframes capBudgetPulse{
+  0%  {transform:scale(1);box-shadow:0 0 0 0 rgba(52,217,122,0.7)}
+  20% {transform:scale(1.08);box-shadow:0 0 0 8px rgba(52,217,122,0.0)}
+  100%{transform:scale(1);box-shadow:0 0 0 0 rgba(52,217,122,0.0)}
+}
+
+/* Post-win reward banners — sit directly under the VICTORY/DEFEAT line. */
+.reward-banner{display:flex;align-items:center;gap:8px;padding:8px 14px;margin:6px 0 0;border-radius:6px;font-family:'Inter','Segoe UI',sans-serif;font-size:13px;color:#e0e0ff;letter-spacing:0.3px;animation:rewardSlideIn 0.45s ease-out}
+.reward-banner .reward-label{font-family:'Oswald',sans-serif;font-size:11px;letter-spacing:2px;color:#888899;text-transform:uppercase}
+.reward-banner .reward-value{font-family:'JetBrains Mono',monospace;font-weight:700;font-size:14px}
+.reward-cap{background:linear-gradient(135deg,#0a2014 0%,#0e2818 100%);border:1px solid #34d97a55}
+.reward-cap .reward-value{color:#34d97a}
+.reward-clue{background:linear-gradient(135deg,#1a1408 0%,#241a08 100%);border:1px solid #ffd70055}
+.reward-clue .reward-value{color:#ffd700}
+@keyframes rewardSlideIn{from{transform:translateY(-6px);opacity:0}to{transform:translateY(0);opacity:1}}
 
 /* Best Records modal */
 .best-records-modal{max-width:680px;width:100%;background:#1a1a3e;border:2px solid #ffd700;border-radius:10px;padding:24px;box-shadow:0 0 60px rgba(255,215,0,0.3)}
@@ -4471,11 +4487,22 @@ function renderCareer(justRevealedSlotIdx,pA,pB,gameCup,cupCompleted,otPeriods){
     let used=0;
     for(const n in sal){if(sal[n])used+=(sal[n].pct||0)}
     const budget=(typeof careerState.capBudget==="number")?careerState.capBudget:100;
+    // Detect a bump in budget vs the previously-rendered value and
+    // pulse the pill so the +2% reward is unmissable. Stored on the
+    // element's dataset to survive re-renders without a global.
+    const prev=parseFloat(capPill.dataset.prevBudget||"NaN");
     capPill.textContent="CAP: "+used.toFixed(1)+" / "+budget.toFixed(1)+"%";
-    capPill.classList.remove("warn","over");
+    capPill.classList.remove("warn","over","pulse");
     const ratio=budget>0?(used/budget):0;
     if(ratio>1)capPill.classList.add("over");
     else if(ratio>0.92)capPill.classList.add("warn");
+    if(!isNaN(prev)&&budget>prev+0.001){
+      // void+force a reflow so the animation restarts even if the class
+      // was just removed-and-readded in the same frame.
+      void capPill.offsetWidth;
+      capPill.classList.add("pulse");
+    }
+    capPill.dataset.prevBudget=String(budget);
   }
   const picker=document.getElementById("difficultyPicker");
   if(picker){
@@ -4512,13 +4539,28 @@ function renderCareer(justRevealedSlotIdx,pA,pB,gameCup,cupCompleted,otPeriods){
   // context when we know it (post-game) and a "Cup won!" banner when the
   // cup itself just completed. No tie branch — overtime is run during
   // game sim if scores end equal, so we always have a winner.
+  //
+  // SALARY VARIANT: wins now also surface (a) the +2% cap-budget bonus
+  // and (b) which slot/clue just unlocked. Both fire only on wins — a
+  // loss earns neither reward.
   const bannerHTML=(()=>{
     if(pA==null||pB==null)return '';
     const cupCtx=gameCup?(' &middot; '+escapeHtmlS(cupTitle(gameCup.cup))+' vs '+escapeHtmlS(cupTargetLabel(gameCup.cup,gameCup.target))):'';
     // OT suffix — single OT shows "(OT)", multiple shows "(2OT)", "(3OT)", etc.
     const otTxt=(otPeriods&&otPeriods>0)?(' ('+(otPeriods===1?'OT':otPeriods+'OT')+')'):'';
     const cupWon=cupCompleted?'<div class="win-banner" style="background:#2a230e;border-color:#e6c64a;color:#7a5b00;margin-top:6px">🏆 '+escapeHtmlS(cupTitle(cupCompleted))+' COMPLETED!</div>':'';
-    if(pA>pB)return '<div class="win-banner">VICTORY '+pA+'–'+pB+otTxt+cupCtx+'</div>'+cupWon;
+    if(pA>pB){
+      // Win rewards. Cap bonus is always +2 (a fixed game-rule).
+      const capBonus='<div class="reward-banner reward-cap">💰 <span class="reward-label">CAP SPACE</span> <span class="reward-value">+2.00%</span> · now '+(typeof careerState.capBudget==="number"?careerState.capBudget.toFixed(2):"—")+'% total</div>';
+      // Clue-reveal banner — only shows if a clue actually opened (which
+      // can fail if every slot is fully revealed, no slots exist, etc.).
+      let clueReveal='';
+      if(typeof justRevealedSlotIdx==="number"&&careerState.latestReveal&&typeof careerState.latestReveal.clueIdx==="number"){
+        const lbl=CLUE_LABELS[careerState.latestReveal.clueIdx]||"clue";
+        clueReveal='<div class="reward-banner reward-clue">🔍 <span class="reward-label">MYSTERY #'+(justRevealedSlotIdx+1)+'</span> · clue revealed: <span class="reward-value">'+escapeHtmlS(lbl)+'</span></div>';
+      }
+      return '<div class="win-banner">VICTORY '+pA+'–'+pB+otTxt+cupCtx+'</div>'+capBonus+clueReveal+cupWon;
+    }
     return '<div class="loss-banner">DEFEAT '+pA+'–'+pB+otTxt+cupCtx+'</div>';
   })();
   if(bannerHTML){
