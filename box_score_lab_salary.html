@@ -914,7 +914,7 @@ let pendingDiscardSlotIdx=null; // mystery-slot index awaiting discard confirmat
 let pendingResult=null;      // {pA, pB, justRevealedSlotIdx} held between game → continue
 let pendingBonusName=null;   // bonus teammate to add after a correct guess
 let pendingDismissedNames=null; // 4 mystery-slot names dismissed by the current pick (shown to user)
-const CLUE_LABELS=["STATE/COUNTRY","STATUS","PRE-DRAFT TEAM","PICK","TEAM / SEASON","SALARY"];
+const CLUE_LABELS=["STATE/COUNTRY","STATUS","PRE-DRAFT TEAM","PICK","TEAM / SEASON"];
 // Mapping from clue index → display value. POSITION lives in the slot
 // header (always visible). BIRTH YEAR was dropped in v6, DRAFT YEAR in v7.
 // COLLEGE was relabeled to "Pre-Draft Team" since the field also holds
@@ -1955,27 +1955,40 @@ function freshMysterySlot(usedNames){
 
 // Build a slot object from a salary entry [name, sy, salary, pct, team].
 // Shared by all three slot-factory variants — keeps the slot shape
-// consistent (with new salary metadata fields and a 6-entry order
-// shuffle for the added SALARY clue).
+// consistent so the same render path works for every slot.
+//
+// Team display: the salary table carries the paying team's ABBREVIATION
+// (e.g. "LAL"), but the rest of the game shows team NICKNAMES (e.g.
+// "Lakers") since TEAMS[] is loaded from ag.bin's nickname column.
+// We look up the nickname by scanning the player's logs for a playable
+// game in the anchored season — that matches how the box-score names
+// the team and keeps the clue + boxscore aligned.
 function buildSalarySlot(entry){
-  const [name,sy,salary,pct,team]=entry;
-  const order=shuffle([0,1,2,3,4,5]);     // 6 clues now (added SALARY at idx 5)
+  const [name,sy,salary,pct,teamAbbr]=entry;
+  const order=shuffle([0,1,2,3,4]);          // 5 clues — same as the original game
   const seasonDisplay=formatSeasonYear(sy);
-  // Strip era-disambiguation suffixes like "Hornets (1988)" — season year
-  // already disambiguates franchises, so the parenthetical is just noise.
-  const displayTeam=String(team||"").replace(/\s*\([^)]*\)\s*$/,"").trim();
-  const rolledSeason=(seasonDisplay&&displayTeam)?(seasonDisplay+": "+displayTeam):(seasonDisplay||displayTeam||"—");
+  // Resolve team nickname from playerIndex (preferred — matches the
+  // box-score team name) and fall back to the salary table's abbr.
+  let teamNick="";
+  const games=playerIndex[name]||[];
+  for(const g of games){
+    if(g[G.SY]===sy&&isPlayableGame(g)){teamNick=TEAMS[g[G.TM]]||"";if(teamNick)break}
+  }
+  const displayTeam=String(teamNick||teamAbbr||"").replace(/\s*\([^)]*\)\s*$/,"").trim();
+  // Order: "Team / Season" — matches the clue label "TEAM / SEASON"
+  // and Alberto's example "Lakers / 2003-04".
+  const rolledSeason=(displayTeam&&seasonDisplay)?(displayTeam+" / "+seasonDisplay):(seasonDisplay||displayTeam||"—");
   return {
     name,
-    sy,                                    // anchored season (start year)
-    salary,                                // $ amount — revealed as 6th clue
-    pct,                                   // % of cap — shown openly in header
-    team,                                  // raw team for teammate lookup
+    sy,                                       // anchored season (start year)
+    salary,                                   // $ amount — no longer surfaced as a clue, kept for reference
+    pct,                                      // % of cap — shown openly in header
+    team:teamAbbr,                            // raw abbr for teammate lookup / cap accounting
     order,
     revealed:0,
-    rolledSeason,                          // display string "1991-92: Bulls"
-    rolledSeasonYear:sy,                   // for teammate-lookup parity with original
-    rolledTeam:team                        // raw team for teammate lookup
+    rolledSeason,                             // display string "Lakers / 2003-04"
+    rolledSeasonYear:sy,                      // for teammate-lookup parity with original
+    rolledTeam:teamAbbr                       // raw abbr for teammate lookup
   };
 }
 function initCareerState(difficulty){
@@ -4261,19 +4274,12 @@ function careerAverages(name){
 function escapeHtmlS(s){return String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]))}
 
 function clueValueFor(player,clueIdx,slot){
-  // Indices (salary variant — 6 clues):
+  // Indices:
   //   0 → STATE/COUNTRY  (player[2])  — US states render with abbr suffix
   //   1 → STATUS         (statusLabel)
   //   2 → PRE-DRAFT TEAM (player[4])
   //   3 → PICK           (player[6]) — UND/ND/T/SD expand
-  //   4 → TEAM / SEASON  (slot.rolledSeason)
-  //   5 → SALARY         (slot.salary) — formatted as "$X,XXX,XXX"
-  if(clueIdx===5){
-    if(slot&&typeof slot.salary==="number"){
-      return "$"+slot.salary.toLocaleString("en-US");
-    }
-    return "—";
-  }
+  //   4 → TEAM / SEASON  (slot.rolledSeason)  — anchored to slot.sy
   if(clueIdx===4)return (slot&&slot.rolledSeason)?slot.rolledSeason:"—";
   if(clueIdx===1)return statusLabel(player[0]);
   const fieldIdx=clueIdx===0?2:clueIdx===2?4:6;
@@ -4813,7 +4819,7 @@ function renderCareer(justRevealedSlotIdx,pA,pB,gameCup,cupCompleted,otPeriods){
           '<span>MYSTERY #'+(idx+1)+
             (pos?' &middot; <span class="slot-pos">'+escapeHtmlS(pos)+'</span>':'')+
           '</span>'+
-          '<span class="slot-progress">'+slot.revealed+'/6</span>'+
+          '<span class="slot-progress">'+slot.revealed+'/5</span>'+
         '</div>'+
         // SALARY VARIANT: cap % on its own second line so two-letter
         // positions (C-F, G-F) don't wrap the header. The % is the
