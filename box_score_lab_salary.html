@@ -246,6 +246,7 @@ body{background:linear-gradient(145deg,#1a1a3e 0%,#0a0a1a 50%,#ffffff 100%);back
 .clue.revealed.latest .clue-value{color:var(--gold-text,#ffe966)!important;font-size:11.5px;font-weight:700;text-shadow:0 0 6px rgba(255,215,0,0.35)}
 .clue.revealed.latest .clue-label{color:var(--gold-label,#aaaa77)!important}
 .slot-pos{color:#ffd700;font-weight:700;letter-spacing:1px}
+.slot-pct{color:#34d97a;font-weight:700;letter-spacing:0.5px;font-family:'JetBrains Mono',monospace;font-size:11px}
 .clue.just-revealed{animation:clueReveal 1.1s ease-out}
 @keyframes clueReveal{
   0%{background:#ffd700;transform:scale(1.08);border-left-color:#fff;box-shadow:0 0 30px rgba(255,215,0,0.8)}
@@ -876,7 +877,7 @@ let pendingDiscardSlotIdx=null; // mystery-slot index awaiting discard confirmat
 let pendingResult=null;      // {pA, pB, justRevealedSlotIdx} held between game → continue
 let pendingBonusName=null;   // bonus teammate to add after a correct guess
 let pendingDismissedNames=null; // 4 mystery-slot names dismissed by the current pick (shown to user)
-const CLUE_LABELS=["STATE/COUNTRY","STATUS","PRE-DRAFT TEAM","PICK","TEAM / SEASON"];
+const CLUE_LABELS=["STATE/COUNTRY","STATUS","PRE-DRAFT TEAM","PICK","TEAM / SEASON","SALARY"];
 // Mapping from clue index → display value. POSITION lives in the slot
 // header (always visible). BIRTH YEAR was dropped in v6, DRAFT YEAR in v7.
 // COLLEGE was relabeled to "Pre-Draft Team" since the field also holds
@@ -1221,7 +1222,9 @@ function processAll(){normalizeTeam(0);normalizeTeam(1);equalizePossessions();ap
     // Load salary data (NEW — required for the salary-cap variant). Maps
     // player → array of {sy, salary, pct, team} season entries + a global
     // cap table. Entries are filtered to players that exist in bio AND
-    // have games in playerIndex; otherwise the season is unplayable.
+    // have ≥10 playable games (RS+PO combined) in that season. The 10-game
+    // floor screens out cup-of-coffee seasons (e.g., Julius Randle 2014-15
+    // with 1 game) that aren't meaningful enough to anchor a roster pick.
     label.textContent="Loading salary data...";fill.style.width="98%";
     try{
       const salResp=await fetch("salaries.json");
@@ -1229,18 +1232,16 @@ function processAll(){normalizeTeam(0);normalizeTeam(1);equalizePossessions();ap
         const salJson=await salResp.json();
         CAP_BY_SY=salJson.cap_by_sy||{};
         const raw=salJson.entries||[];
-        // Filter to entries where the player exists in bio AND has at
-        // least one playable game in that season. A player-season with
-        // zero games is dead weight in the FA pool.
         for(const e of raw){
           const [name,sy,salary,pct,team]=e;
           if(!bioByName.hasOwnProperty(name))continue;
           const games=playerIndex[name]||[];
-          let hasGameInSeason=false;
+          let gamesInSeason=0;
           for(const g of games){
-            if(g[G.SY]===sy&&isPlayableGame(g)){hasGameInSeason=true;break}
+            if(g[G.SY]===sy&&isPlayableGame(g))gamesInSeason++;
+            if(gamesInSeason>=10)break;       // early exit — we only need the threshold
           }
-          if(!hasGameInSeason)continue;
+          if(gamesInSeason<10)continue;
           if(!salaryByPlayer[name])salaryByPlayer[name]=[];
           salaryByPlayer[name].push({sy,salary,pct,team});
           salaryEntries.push(e);
@@ -1903,16 +1904,42 @@ function rollSeasonClue(name){
 }
 
 function freshMysterySlot(usedNames){
-  // Pick a name not currently active anywhere. Returns null if pool empty.
-  const pool=bioEligibleNames().filter(n=>!usedNames.has(n));
+  // SALARY VARIANT: each mystery slot is a player-SEASON, not just a
+  // player. Source pool is salaryEntries (already ≥10-games filtered at
+  // load). Excludes players already on the user's roster — discarding
+  // a player frees them up to reappear, potentially with a different
+  // season (per Alberto's "alternate version after discard" rule).
+  if(!salaryEntries||!salaryEntries.length)return null;
+  const pool=salaryEntries.filter(e=>!usedNames.has(e[0]));
   if(!pool.length)return null;
-  const name=pool[Math.floor(Math.random()*pool.length)];
-  // Randomize reveal order across all 6 clues per slot so two slots with
-  // the same player (across separate careers) won't always reveal the
-  // same clue first.
-  const order=shuffle([0,1,2,3,4]);
-  const sc=rollSeasonClue(name);
-  return {name,order,revealed:0,rolledSeason:sc.display,rolledSeasonYear:sc.seasonYr,rolledTeam:sc.team};
+  const e=pool[Math.floor(Math.random()*pool.length)];
+  return buildSalarySlot(e);
+}
+
+// Build a slot object from a salary entry [name, sy, salary, pct, team].
+// Shared by all three slot-factory variants — keeps the slot shape
+// consistent (with new salary metadata fields and a 6-entry order
+// shuffle for the added SALARY clue).
+function buildSalarySlot(entry){
+  const [name,sy,salary,pct,team]=entry;
+  const order=shuffle([0,1,2,3,4,5]);     // 6 clues now (added SALARY at idx 5)
+  const seasonDisplay=formatSeasonYear(sy);
+  // Strip era-disambiguation suffixes like "Hornets (1988)" — season year
+  // already disambiguates franchises, so the parenthetical is just noise.
+  const displayTeam=String(team||"").replace(/\s*\([^)]*\)\s*$/,"").trim();
+  const rolledSeason=(seasonDisplay&&displayTeam)?(seasonDisplay+": "+displayTeam):(seasonDisplay||displayTeam||"—");
+  return {
+    name,
+    sy,                                    // anchored season (start year)
+    salary,                                // $ amount — revealed as 6th clue
+    pct,                                   // % of cap — shown openly in header
+    team,                                  // raw team for teammate lookup
+    order,
+    revealed:0,
+    rolledSeason,                          // display string "1991-92: Bulls"
+    rolledSeasonYear:sy,                   // for teammate-lookup parity with original
+    rolledTeam:team                        // raw team for teammate lookup
+  };
 }
 function initCareerState(difficulty){
   // Difficulty must be chosen BEFORE the roster is built. On a fresh
@@ -2186,43 +2213,76 @@ const DECADE_LABELS={
 };
 
 function eligibleStates(){
-  // States with the most US-born NBA players. Capped at 20 so the cup
-  // stays focused on the meaningful talent pools (CA/TX/NY/IL etc.) rather
-  // than including every state with ≥1 player. Computed once at career init.
+  // SALARY VARIANT: only count US-born players who actually have a
+  // playable game in the salary era (SY 1990-2024). A state with 19
+  // salary-era natives is below threshold and gets dropped — even if
+  // it has 50 all-time natives. "if there are still 20 eligible players,
+  // keep them" — per the brief.
   const ct={};
-  for(const r of bioData){if(r[7]==="us"&&r[2])ct[r[2]]=(ct[r[2]]||0)+1}
+  for(const r of bioData){
+    if(r[7]!=="us"||!r[2])continue;
+    if(!playerHasSalaryEraGames(r[0]))continue;
+    ct[r[2]]=(ct[r[2]]||0)+1;
+  }
   return Object.entries(ct)
+    .filter(([_,n])=>n>=20)                  // drop sub-threshold states entirely
     .sort((a,b)=>b[1]-a[1])
-    .slice(0,20)
+    .slice(0,20)                             // top-20 cap kept from original
     .map(e=>e[0])
     .sort();
 }
 
-// Colleges/pre-draft teams capped at 16, picked by player count. Each
-// must also have a candidate pool that can fill 4G/4F/2C — schools heavy
-// on guards with no centers (small backcourt programs) wouldn't be able
-// to field a balanced opponent, so they're filtered out before the cap.
+// Colleges/pre-draft teams, salary-era version. Same shape as the original
+// (≥20 players, 4G/4F/2C position balance, top 16) but counts only against
+// the salary-era pool. A school whose only NBA alumni played in the 1970s
+// has 0 salary-era candidates and gets dropped.
 function eligibleColleges(){
   const ct={};
-  for(const r of bioData){if(r[4])ct[r[4]]=(ct[r[4]]||0)+1}
-  // First pass: keep only colleges with enough players + position balance
+  const eraNames={};                         // college → [eligible salary-era names]
+  for(const r of bioData){
+    if(!r[4])continue;
+    if(!playerHasSalaryEraGames(r[0]))continue;
+    ct[r[4]]=(ct[r[4]]||0)+1;
+    (eraNames[r[4]]=eraNames[r[4]]||[]).push(r[0]);
+  }
   const qualified=[];
   for(const [college,count] of Object.entries(ct)){
     if(count<20)continue;
-    const names=bioData.filter(r=>r[4]===college).map(r=>r[0]);
+    // Position-balance check on the salary-era subset (not the all-time
+    // roster) — otherwise a school with 18 modern guards + 5 retired
+    // centers would scrape past on position but flunk on era.
     let gC=0,fC=0,cC=0;
-    for(const n of names){
+    for(const n of eraNames[college]){
       const p=playerPositions(n);
       if(p.g)gC++;if(p.f)fC++;if(p.c)cC++;
     }
     if(gC>=4&&fC>=4&&cC>=2)qualified.push([college,count]);
   }
-  // Second pass: take top 16 by count, sorted alphabetically for display
   return qualified
     .sort((a,b)=>b[1]-a[1])
     .slice(0,16)
     .map(e=>e[0])
     .sort();
+}
+
+// Does this player have at least one playable game in the salary era?
+// Used by the cup eligibility filters above and by the mystery-FA pool
+// (when that gets adapted in Phase 3). Cached because it's called on
+// every bio row during eligibleStates/eligibleColleges and the same name
+// gets queried multiple times across cup-pool generation.
+const _salaryEraGamesCache={};
+function playerHasSalaryEraGames(name){
+  if(name in _salaryEraGamesCache)return _salaryEraGamesCache[name];
+  const games=playerIndex[name];
+  if(!games||!games.length){_salaryEraGamesCache[name]=false;return false}
+  for(const g of games){
+    const sy=g[G.SY]||0;
+    if(sy>=SY_MIN&&sy<=SY_MAX&&isPlayableGame(g)){
+      _salaryEraGamesCache[name]=true;return true;
+    }
+  }
+  _salaryEraGamesCache[name]=false;
+  return false;
 }
 
 /* ===== Player status (Top-78 / MVP / All-NBA / All-Star) =====
@@ -3540,7 +3600,36 @@ function confirmReplace(rosterIdx){
     return;
   }
   const released=careerState.roster[rosterIdx];
+  // SALARY VARIANT: cap check BEFORE committing. New player's pct must fit
+  // into the cap room freed by releasing the current player. Refusing the
+  // sign is the right call here — silently going over would break the cap
+  // invariant the whole game is built around.
+  if(typeof slot.pct==="number"&&careerState.rosterSalary){
+    const releasedPct=(careerState.rosterSalary[released]&&careerState.rosterSalary[released].pct)||0;
+    let used=0;
+    for(const n in careerState.rosterSalary){if(careerState.rosterSalary[n])used+=(careerState.rosterSalary[n].pct||0)}
+    const projected=used-releasedPct+slot.pct;
+    const budget=(typeof careerState.capBudget==="number")?careerState.capBudget:100;
+    if(projected>budget+0.001){     // 0.001 tolerance for fp drift
+      const overBy=(projected-budget).toFixed(2);
+      alert("Can't sign this player — cap would go over by "+overBy+"%.\n\nReleasing "+released+" frees "+releasedPct.toFixed(2)+"%. Signing "+slot.name+" costs "+slot.pct.toFixed(2)+"%. Try a cheaper roster cut.");
+      return;
+    }
+  }
   careerState.roster[rosterIdx]=slot.name;
+  // SALARY VARIANT: shuffle the salary bookkeeping. Drop the released
+  // player's anchor + salary line; add the slot's metadata for the new
+  // signing so game rolls pull from their anchored season.
+  if(careerState.rosterAnchors){
+    delete careerState.rosterAnchors[released];
+    if(typeof slot.sy==="number")careerState.rosterAnchors[slot.name]=slot.sy;
+  }
+  if(careerState.rosterSalary){
+    delete careerState.rosterSalary[released];
+    if(typeof slot.pct==="number"){
+      careerState.rosterSalary[slot.name]={sy:slot.sy,salary:slot.salary,pct:slot.pct,team:slot.team};
+    }
+  }
   // Remember which roster index just got the primary signing — used
   // by the bonus release step to lock that row (can't release the
   // player you literally just signed).
@@ -3826,8 +3915,46 @@ function confirmReplaceBonus(rosterIdx){
     alert("Can't release this player — your roster would fall below the 4 G / 4 F / 2 C minimum.");
     return;
   }
+  // SALARY VARIANT: anchor the bonus teammate to the SAME season as the
+  // mystery FA they teamed with (slot.sy) — that's the season they were
+  // confirmed teammates in. If a salary entry exists for the bonus at
+  // that season, charge it; if not (untracked min contract, gaps in the
+  // salary table), sign them at 0% cap as a correct-guess reward.
+  const slot=(pendingPickSlotIdx!=null)?careerState.slots[pendingPickSlotIdx]:null;
+  const bonusSy=(slot&&typeof slot.sy==="number")?slot.sy:null;
+  let bonusEntry=null;
+  if(bonusSy!=null&&salaryByPlayer&&salaryByPlayer[pendingBonusName]){
+    bonusEntry=salaryByPlayer[pendingBonusName].find(s=>s.sy===bonusSy)||null;
+  }
+  const bonusPct=bonusEntry?bonusEntry.pct:0;
   const released=careerState.roster[rosterIdx];
+  if(careerState.rosterSalary){
+    const releasedPct=(careerState.rosterSalary[released]&&careerState.rosterSalary[released].pct)||0;
+    let used=0;
+    for(const n in careerState.rosterSalary){if(careerState.rosterSalary[n])used+=(careerState.rosterSalary[n].pct||0)}
+    const projected=used-releasedPct+bonusPct;
+    const budget=(typeof careerState.capBudget==="number")?careerState.capBudget:100;
+    if(projected>budget+0.001){
+      const overBy=(projected-budget).toFixed(2);
+      alert("Can't sign the bonus — cap would go over by "+overBy+"%.\n\nTry releasing a higher-cost roster spot.");
+      return;
+    }
+  }
   careerState.roster[rosterIdx]=pendingBonusName;
+  if(careerState.rosterAnchors){
+    delete careerState.rosterAnchors[released];
+    if(bonusSy!=null)careerState.rosterAnchors[pendingBonusName]=bonusSy;
+  }
+  if(careerState.rosterSalary){
+    delete careerState.rosterSalary[released];
+    if(bonusEntry){
+      careerState.rosterSalary[pendingBonusName]={sy:bonusEntry.sy,salary:bonusEntry.salary,pct:bonusEntry.pct,team:bonusEntry.team};
+    }else if(bonusSy!=null){
+      // No salary record — sign at 0% but still anchor the season so
+      // game rolls work. Team unknown.
+      careerState.rosterSalary[pendingBonusName]={sy:bonusSy,salary:0,pct:0,team:""};
+    }
+  }
   if(!careerState.playerStats)careerState.playerStats={};
   delete careerState.playerStats[released];
   if(careerState.playerCareer)delete careerState.playerCareer[released];
@@ -3929,32 +4056,34 @@ function regenerateAllMysterySlots(){
 // HoopsHype Top-78 — even players from eras before the All-Star game
 // existed are flagged if they belong to the higher tiers.
 function freshAllStarSlot(usedNames){
-  const pool=[];
-  for(const r of bioData){
-    if(!r[0]||usedNames.has(r[0]))continue;
-    if(((r[8]||0)&8)===0)continue; // not at All-Star tier or above
-    if(!playerHasPlayableGames(r[0]))continue;
-    pool.push(r[0]);
-  }
+  // SALARY VARIANT: filter salaryEntries to All-Star-tier-or-better players
+  // not on the roster. Status bit 8 = All-Star tier (1=Top-78, 2=MVP,
+  // 4=All-NBA, 8=All-Star — packed in bio col 8).
+  if(!salaryEntries||!salaryEntries.length)return null;
+  const pool=salaryEntries.filter(e=>{
+    const name=e[0];
+    if(usedNames.has(name))return false;
+    const bi=bioByName[name];
+    if(bi==null)return false;
+    return ((bioData[bi][8]||0)&8)!==0;
+  });
   if(!pool.length)return null;
-  const name=pool[Math.floor(Math.random()*pool.length)];
-  const order=shuffle([0,1,2,3,4]);
-  const sc=rollSeasonClue(name);
-  return {name,order,revealed:0,rolledSeason:sc.display,rolledSeasonYear:sc.seasonYr,rolledTeam:sc.team};
+  return buildSalarySlot(pool[Math.floor(Math.random()*pool.length)]);
 }
 function freshMysterySlotMatchingPosition(usedNames,pos){
-  // Pick a bio-eligible player not in use whose position spectrum covers
-  // the requested slot (g/f/c). Falls back to null if no candidate exists.
-  const pool=bioEligibleNames().filter(n=>{
-    if(usedNames.has(n))return false;
-    const p=playerPositions(n);
+  // SALARY VARIANT: filter salaryEntries to player-seasons whose position
+  // bucket matches the requested slot (g/f/c). The position lookup uses
+  // the cached playerPositions(name) helper — same source the original
+  // game uses for its all-time pool, so behavior is consistent.
+  if(!salaryEntries||!salaryEntries.length)return null;
+  const pool=salaryEntries.filter(e=>{
+    const name=e[0];
+    if(usedNames.has(name))return false;
+    const p=playerPositions(name);
     return p[pos];
   });
   if(!pool.length)return null;
-  const name=pool[Math.floor(Math.random()*pool.length)];
-  const order=shuffle([0,1,2,3,4]);
-  const sc=rollSeasonClue(name);
-  return {name,order,revealed:0,rolledSeason:sc.display,rolledSeasonYear:sc.seasonYr,rolledTeam:sc.team};
+  return buildSalarySlot(pool[Math.floor(Math.random()*pool.length)]);
 }
 
 // Legacy stubs kept so any leftover handlers don't blow up. DISCARD is
@@ -4092,12 +4221,19 @@ function careerAverages(name){
 function escapeHtmlS(s){return String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]))}
 
 function clueValueFor(player,clueIdx,slot){
-  // Indices:
+  // Indices (salary variant — 6 clues):
   //   0 → STATE/COUNTRY  (player[2])  — US states render with abbr suffix
   //   1 → STATUS         (statusLabel)
   //   2 → PRE-DRAFT TEAM (player[4])
   //   3 → PICK           (player[6]) — UND/ND/T/SD expand
   //   4 → TEAM / SEASON  (slot.rolledSeason)
+  //   5 → SALARY         (slot.salary) — formatted as "$X,XXX,XXX"
+  if(clueIdx===5){
+    if(slot&&typeof slot.salary==="number"){
+      return "$"+slot.salary.toLocaleString("en-US");
+    }
+    return "—";
+  }
   if(clueIdx===4)return (slot&&slot.rolledSeason)?slot.rolledSeason:"—";
   if(clueIdx===1)return statusLabel(player[0]);
   const fieldIdx=clueIdx===0?2:clueIdx===2?4:6;
@@ -4571,8 +4707,14 @@ function renderCareer(justRevealedSlotIdx,pA,pB,gameCup,cupCompleted,otPeriods){
       }).join("");
       return '<div class="mystery-slot">'+
         '<div class="slot-header">'+
-          '<span>MYSTERY #'+(idx+1)+(pos?' &middot; <span class="slot-pos">'+escapeHtmlS(pos)+'</span>':'')+'</span>'+
-          '<span class="slot-progress">'+slot.revealed+'/5</span>'+
+          '<span>MYSTERY #'+(idx+1)+
+            (pos?' &middot; <span class="slot-pos">'+escapeHtmlS(pos)+'</span>':'')+
+            // SALARY VARIANT: cap % is OPENLY visible per Alberto's spec.
+            // Salary $ stays hidden until the 6th clue reveals — its dollar
+            // amount is part of the puzzle, the percentage is the cost tag.
+            (typeof slot.pct==="number"?' &middot; <span class="slot-pct">'+slot.pct.toFixed(2)+'% CAP</span>':'')+
+          '</span>'+
+          '<span class="slot-progress">'+slot.revealed+'/6</span>'+
         '</div>'+
         '<div class="clues">'+clues+'</div>'+
         '<div class="slot-actions">'+
