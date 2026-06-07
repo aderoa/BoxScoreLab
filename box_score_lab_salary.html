@@ -451,6 +451,7 @@ body{background:linear-gradient(145deg,#1a1a3e 0%,#0a0a1a 50%,#ffffff 100%);back
 .roster-card{background:linear-gradient(160deg,#2a2a55 0%,#0e0e2a 100%);border:1px solid #2a2a55;border-radius:8px;padding:12px;transition:transform 0.15s,border-color 0.15s}
 .roster-card:hover{transform:translateY(-1px);border-color:#3a3a77}
 .roster-card-name{font-family:'Oswald',sans-serif;font-size:14px;font-weight:700;color:#fff;letter-spacing:1px;text-transform:uppercase;margin-bottom:6px;line-height:1.1}
+.roster-card-season{color:#ffd700;font-family:'JetBrains Mono',monospace;font-weight:600;letter-spacing:0;margin-left:2px;font-size:0.95em}
 .roster-card-meta{font-family:'JetBrains Mono',monospace;font-size:10px;color:#8888aa;line-height:1.6;margin-bottom:8px}
 .roster-card-meta .pos{color:#ffd700;font-weight:700;margin-right:6px}
 .roster-card-stats{display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px;padding-top:8px;border-top:1px solid #2a2a55}
@@ -3929,7 +3930,7 @@ function openReplaceChooserFor(mysteryName,kind){
     const lockHTML=lockReason?'<span class="modal-row-lock">'+lockReason+'</span>':'';
     return '<div class="'+cls+'" '+handler+'>'+
       '<div class="modal-roster-left">'+
-        '<div class="modal-roster-name">'+escapeHtmlS(name)+'</div>'+
+        '<div class="modal-roster-name">'+escapeHtmlS(name)+(careerState.rosterSalary&&careerState.rosterSalary[name]?'<span class="roster-card-season"> \''+String((careerState.rosterSalary[name].sy+1)%100).padStart(2,"0")+'</span>':'')+'</div>'+
         statHTML+lockHTML+
       '</div>'+
       '<span class="roster-pos">'+escapeHtmlS(pos)+'</span>'+
@@ -4311,11 +4312,14 @@ function buildRosterCardHTML(name,compact,revealIdx){
   // year is the most relevant fact on the card now. College stays only
   // if no salary anchor exists (defensive — shouldn't happen post-lock).
   const sal=(typeof careerState==="object"&&careerState&&careerState.rosterSalary)?careerState.rosterSalary[name]:null;
+  // Season suffix on the name itself — "Kobe Bryant '04" makes it clear
+  // at a glance which season's stats this card reflects, which is
+  // critical since the game only rolls games from that one season.
+  const seasonSuffix=sal?(" '"+String((sal.sy+1)%100).padStart(2,"0")):"";
+  const displayName=escapeHtmlS(name)+'<span class="roster-card-season">'+seasonSuffix+'</span>';
   let meta2;
   if(sal){
-    const seasonLabel=sal.sy+"-"+String((sal.sy+1)%100).padStart(2,"0");
-    meta2='<span style="color:#ffd700;font-weight:600">'+seasonLabel+'</span> · '+
-          '<span style="color:#aaaadd">'+sal.pct.toFixed(2)+'% CAP</span>'+
+    meta2='<span style="color:#aaaadd">'+sal.pct.toFixed(2)+'% CAP</span>'+
           (sal.team?' · <span style="color:#888899">'+escapeHtmlS(sal.team)+'</span>':"");
   }else{
     meta2=college?escapeHtmlS(college):"";
@@ -4324,7 +4328,7 @@ function buildRosterCardHTML(name,compact,revealIdx){
   // animation via the --reveal-i CSS variable (see .roster-cards-reveal).
   const styleAttr=(revealIdx!=null)?' style="--reveal-i:'+revealIdx+'"':'';
   return '<div class="roster-card"'+styleAttr+'>'+
-    '<div class="roster-card-name">'+escapeHtmlS(name)+'</div>'+
+    '<div class="roster-card-name">'+displayName+'</div>'+
     (meta1?'<div class="roster-card-meta">'+meta1+'</div>':'')+
     (meta2?'<div class="roster-card-meta" style="margin-top:-4px">'+meta2+'</div>':'')+
     '<div class="roster-card-stats">'+
