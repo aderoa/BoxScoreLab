@@ -3653,19 +3653,18 @@ function confirmReplace(rosterIdx){
     return;
   }
   const released=careerState.roster[rosterIdx];
-  // SALARY VARIANT: cap check BEFORE committing. New player's pct must fit
-  // into the cap room freed by releasing the current player. Refusing the
-  // sign is the right call here — silently going over would break the cap
-  // invariant the whole game is built around.
+  // SALARY VARIANT: slot must fit in CURRENT remaining cap. The released
+  // player's freed pct does NOT count toward the sign — per Alberto's
+  // spec, the calculation is pre-release. Encourages saving cap room
+  // ahead of time rather than always paying for upgrades via releases.
   if(typeof slot.pct==="number"&&careerState.rosterSalary){
-    const releasedPct=(careerState.rosterSalary[released]&&careerState.rosterSalary[released].pct)||0;
     let used=0;
     for(const n in careerState.rosterSalary){if(careerState.rosterSalary[n])used+=(careerState.rosterSalary[n].pct||0)}
-    const projected=used-releasedPct+slot.pct;
     const budget=(typeof careerState.capBudget==="number")?careerState.capBudget:100;
-    if(projected>budget+0.001){     // 0.001 tolerance for fp drift
-      const overBy=(projected-budget).toFixed(2);
-      alert("Can't sign this player — cap would go over by "+overBy+"%.\n\nReleasing "+released+" frees "+releasedPct.toFixed(2)+"%. Signing "+slot.name+" costs "+slot.pct.toFixed(2)+"%. Try a cheaper roster cut.");
+    const remaining=budget-used;
+    if(slot.pct>remaining+0.001){
+      const overBy=(slot.pct-remaining).toFixed(2);
+      alert("Can't sign "+slot.name+" — slot costs "+slot.pct.toFixed(2)+"% but only "+remaining.toFixed(1)+"% remains in your cap (over by "+overBy+"%).\n\nWin more games for the +2% cap bonus, or release a player first to free space.");
       return;
     }
   }
@@ -3982,14 +3981,13 @@ function confirmReplaceBonus(rosterIdx){
   const bonusPct=bonusEntry?bonusEntry.pct:0;
   const released=careerState.roster[rosterIdx];
   if(careerState.rosterSalary){
-    const releasedPct=(careerState.rosterSalary[released]&&careerState.rosterSalary[released].pct)||0;
     let used=0;
     for(const n in careerState.rosterSalary){if(careerState.rosterSalary[n])used+=(careerState.rosterSalary[n].pct||0)}
-    const projected=used-releasedPct+bonusPct;
     const budget=(typeof careerState.capBudget==="number")?careerState.capBudget:100;
-    if(projected>budget+0.001){
-      const overBy=(projected-budget).toFixed(2);
-      alert("Can't sign the bonus — cap would go over by "+overBy+"%.\n\nTry releasing a higher-cost roster spot.");
+    const remaining=budget-used;
+    if(bonusPct>remaining+0.001){
+      const overBy=(bonusPct-remaining).toFixed(2);
+      alert("Can't sign the bonus — cost ("+bonusPct.toFixed(2)+"%) exceeds your remaining cap ("+remaining.toFixed(1)+"%, over by "+overBy+"%).\n\nWin more games for cap room first.");
       return;
     }
   }
@@ -4760,28 +4758,25 @@ function renderCareer(justRevealedSlotIdx,pA,pB,gameCup,cupCompleted,otPeriods){
     // latestReveal is null when no game has been played or after a fresh
     // slot regeneration.
     const lr=careerState.latestReveal||null;
-    // SALARY VARIANT: compute cap headroom once per render. A slot is
-    // signable if (capUsed - someRosterPlayer.pct + slot.pct) <= capBudget.
-    // The MOST aggressive swap is releasing the most-expensive player on
-    // the roster — that frees the biggest pct. So:
-    //   maxAffordableSlotPct = (capBudget - capUsed) + maxRosterPct
-    // Slots above that threshold are flat-out unsignable regardless of
-    // which roster move the user picks → mark too-expensive.
-    let capUsed=0,maxRosterPct=0;
+    // SALARY VARIANT: a slot is signable iff its cap % fits in the
+    // CURRENT remaining cap room — releasing a roster player to make
+    // space doesn't enter the calculation (per Alberto's spec). So a
+    // 95%-used roster with a 30%-cost player on it still can't sign a
+    // 10% slot if remaining is only 5%, even though the released
+    // player would free 30%. Forces the user to win games for cap
+    // bonuses or to drop expensive players FIRST.
+    let capUsed=0;
     const rosterSal=careerState.rosterSalary||{};
     for(const n in rosterSal){
       if(!rosterSal[n])continue;
-      const p=rosterSal[n].pct||0;
-      capUsed+=p;
-      if(p>maxRosterPct)maxRosterPct=p;
+      capUsed+=(rosterSal[n].pct||0);
     }
     const budget=(typeof careerState.capBudget==="number")?careerState.capBudget:100;
     const remaining=budget-capUsed;
-    const maxAffordableSlotPct=remaining+maxRosterPct;
     // Render the remaining-cap pill above the slots
     const remPill=document.getElementById("faRemainingPill");
     if(remPill){
-      remPill.textContent="REMAINING: "+remaining.toFixed(1)+"% (+"+maxRosterPct.toFixed(1)+"% releasable)";
+      remPill.textContent="REMAINING: "+remaining.toFixed(1)+"%";
       remPill.classList.remove("warn","over");
       if(remaining<0)remPill.classList.add("over");
       else if(remaining<5)remPill.classList.add("warn");
@@ -4809,10 +4804,10 @@ function renderCareer(justRevealedSlotIdx,pA,pB,gameCup,cupCompleted,otPeriods){
           '<span class="clue-label">'+label+'</span>'+
           '<span class="clue-value">'+(isRevealed?escapeHtmlS(clueValueFor(player,ci,slot)):"???")+'</span></div>';
       }).join("");
-      const tooExpensive=(typeof slot.pct==="number")&&(slot.pct>maxAffordableSlotPct+0.001);
+      const tooExpensive=(typeof slot.pct==="number")&&(slot.pct>remaining+0.001);
       const slotCls="mystery-slot"+(tooExpensive?" too-expensive":"");
       const pickBtnAttrs=tooExpensive
-        ? 'disabled title="Too expensive — even releasing your costliest player wouldn\'t free enough cap"'
+        ? 'disabled title="Too expensive — slot cost ('+(typeof slot.pct==="number"?slot.pct.toFixed(2):"?")+'%) exceeds your remaining cap ('+remaining.toFixed(1)+'%). Win more games for cap bonuses or release a player first."'
         : 'onclick="openReplaceModal('+idx+')"';
       return '<div class="'+slotCls+'">'+
         '<div class="slot-header">'+
