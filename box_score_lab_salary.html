@@ -233,7 +233,8 @@ body{background:linear-gradient(145deg,#1a1a3e 0%,#0a0a1a 50%,#ffffff 100%);back
 .slots-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px}
 .mystery-slot{background:linear-gradient(160deg,#2a2a55 0%,#0e0e2a 100%);border:1px solid #2a2a55;border-radius:8px;padding:12px;display:flex;flex-direction:column;transition:transform 0.2s,box-shadow 0.2s,border-color 0.2s}
 .mystery-slot:hover{transform:translateY(-2px);box-shadow:0 6px 16px rgba(255,107,53,0.15);border-color:#ff6b35}
-.slot-header{font-family:'Oswald',sans-serif;font-size:11px;letter-spacing:2px;color:#666688;text-transform:uppercase;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center}
+.slot-header{font-family:'Oswald',sans-serif;font-size:11px;letter-spacing:2px;color:#666688;text-transform:uppercase;margin-bottom:4px;display:flex;justify-content:space-between;align-items:center}
+.slot-subheader{font-family:'JetBrains Mono',monospace;font-size:11px;color:#34d97a;font-weight:700;letter-spacing:0.5px;margin-bottom:10px}
 .slot-progress{color:#ffd700;font-family:'JetBrains Mono',monospace;font-size:10px}
 .clues{display:flex;flex-direction:column;gap:6px;margin-bottom:12px;flex:1}
 .clue{display:flex;justify-content:space-between;align-items:center;padding:6px 8px;border-radius:4px;background:var(--bg-clue,#0a0a1a);font-size:10px;border-left:2px solid var(--clue-border,#222244);transition:all 0.3s}
@@ -4714,13 +4715,14 @@ function renderCareer(justRevealedSlotIdx,pA,pB,gameCup,cupCompleted,otPeriods){
         '<div class="slot-header">'+
           '<span>MYSTERY #'+(idx+1)+
             (pos?' &middot; <span class="slot-pos">'+escapeHtmlS(pos)+'</span>':'')+
-            // SALARY VARIANT: cap % is OPENLY visible per Alberto's spec.
-            // Salary $ stays hidden until the 6th clue reveals — its dollar
-            // amount is part of the puzzle, the percentage is the cost tag.
-            (typeof slot.pct==="number"?' &middot; <span class="slot-pct">'+slot.pct.toFixed(2)+'% CAP</span>':'')+
           '</span>'+
           '<span class="slot-progress">'+slot.revealed+'/6</span>'+
         '</div>'+
+        // SALARY VARIANT: cap % on its own second line so two-letter
+        // positions (C-F, G-F) don't wrap the header. The % is the
+        // public price tag — visible openly per Alberto's spec, while
+        // salary $ stays in the hidden clue rotation.
+        (typeof slot.pct==="number"?'<div class="slot-subheader">'+slot.pct.toFixed(2)+'% CAP</div>':'')+
         '<div class="clues">'+clues+'</div>'+
         '<div class="slot-actions">'+
           '<button class="btn btn-pick" onclick="openReplaceModal('+idx+')">PICK</button>'+
