@@ -180,6 +180,8 @@ body{background:linear-gradient(145deg,#1a1a3e 0%,#0a0a1a 50%,#ffffff 100%);back
 .fa-draft-card[data-bucket="C"] .fa-draft-pos{color:#ff8a8a}
 .fa-draft-pct{font-family:'JetBrains Mono',monospace;font-size:13px;color:#ffd700;font-weight:600;letter-spacing:0.5px}
 .fa-draft-pct-sub{font-family:'Oswald',sans-serif;font-size:8px;color:#666688;letter-spacing:2px;margin-top:2px;text-transform:uppercase}
+.fa-draft-name{font-family:'Inter','Segoe UI',sans-serif;font-size:12px;font-weight:600;color:#e0e0ff;line-height:1.25;margin:2px 0 2px;text-overflow:ellipsis;overflow:hidden;white-space:nowrap}
+.fa-draft-season{font-family:'JetBrains Mono',monospace;font-size:10px;color:#888899;letter-spacing:0.5px;margin-bottom:6px}
 .fa-draft-actions{display:flex;gap:10px;justify-content:center;padding:10px 0}
 @media(max-width:760px){.fa-draft-grid{grid-template-columns:repeat(4,1fr)}.fa-draft-meta{grid-template-columns:1fr}}
 @media(max-width:480px){.fa-draft-grid{grid-template-columns:repeat(3,1fr)}.fa-draft-pos{font-size:15px}.fa-draft-pct{font-size:11px}}
@@ -607,7 +609,7 @@ body{background:linear-gradient(145deg,#1a1a3e 0%,#0a0a1a 50%,#ffffff 100%);back
          ≥4G, ≥4F, ≥2C; remaining 2 slots are flex (any position). -->
     <div id="careerScreenFaDraft" class="career-screen">
       <div class="screen-title">Free-Agent Draft</div>
-      <div class="screen-subtitle">Blind pick — 12 of 24. Names hidden until you lock the roster.</div>
+      <div class="screen-subtitle">Pick 12 of 24 free agents — must total ≤100% cap, 4 G / 4 F / 2 C minimum.</div>
 
       <div class="fa-draft-meta">
         <div class="fa-draft-budget-wrap">
@@ -3074,8 +3076,11 @@ function renderFaDraft(){
       else if(!canPickBucket(slot.bucket,counts))disabled=true;
     }
     const cls="fa-draft-card"+(isPicked?" picked":"")+(disabled?" disabled":"");
+    const seasonLabel=slot.sy+"-"+String((slot.sy+1)%100).padStart(2,"0");
     html+='<div class="'+cls+'" data-bucket="'+slot.bucket+'" onclick="toggleFaDraftPick('+i+')">'+
       '<div class="fa-draft-pos">'+slot.bucket+'</div>'+
+      '<div class="fa-draft-name">'+escapeHtmlS(slot.name)+'</div>'+
+      '<div class="fa-draft-season">'+seasonLabel+'</div>'+
       '<div class="fa-draft-pct">'+slot.pct.toFixed(1)+'%</div>'+
       '<div class="fa-draft-pct-sub">CAP</div>'+
     '</div>';
@@ -3225,7 +3230,7 @@ function updateCareerScreenVisibility(){
   // "fa_draft" → "careerScreenFaDraft" (mapped explicitly to avoid an
   // awkward underscore→capitalization function).
   const screens=["setup","fa_draft","roster","boxscore","freeagents"];
-  const idMap={setup:"careerScreenSetup",fa_draft:"careerScreenFaDraft",roster:"careerScreenRoster",boxscore:"careerScreenBoxscore",freeagents:"careerScreenFreeAgents"};
+  const idMap={setup:"careerScreenSetup",fa_draft:"careerScreenFaDraft",roster:"careerScreenRoster",boxscore:"careerScreenBoxscore",freeagents:"careerScreenFreeagents"};
   screens.forEach(s=>{
     const el=document.getElementById(idMap[s]);
     if(el)el.style.display=(inCareer&&careerScreen===s)?"block":"none";
