@@ -624,7 +624,7 @@ const SLOTS      = 5;             // signings
 const SEASON_GAMES = 82;          // games simulated for the record
 
 function fmtM(d){return "$"+(d/1e6).toFixed(1)+"M"}
-function statTriple(p){return p.ppg.toFixed(1)+' <span>PPG</span> · '+p.rpg.toFixed(1)+' <span>RPG</span> · '+p.apg.toFixed(1)+' <span>APG</span>'}
+function statTriple(p){return p.ppg.toFixed(1)+' <span>PPG</span> · '+p.rpg.toFixed(1)+' <span>RPG</span> · '+p.apg.toFixed(1)+' <span>APG</span> · '+p.fgpct.toFixed(1)+' <span>FG%</span>'}
 function escapeHtmlS(s){return String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]))}
 function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
 function cost2026(pct){return (pct/100)*CAP_2026}
@@ -667,7 +667,7 @@ function seasonProfile(name,sy){
   const rating = a.PTS + 0.4*a.FGM - 0.7*a.FGA - 0.4*(a.FTA-a.FTM)
              + 0.7*a.ORB + 0.3*a.DRB + a.STL + 0.7*a.AST + 0.7*a.BLK
              - 0.4*a.PF - a.TOV;
-  return {rating, ppg:a.PTS, rpg:a.REB, apg:a.AST};
+  return {rating, ppg:a.PTS, rpg:a.REB, apg:a.AST, fgpct:a.FGA>0?(a.FGM/a.FGA*100):0};
 }
 
 /* ---- team-season index (the roulette pool) ---- */
@@ -684,7 +684,7 @@ function buildGroups(){
       name, sy, pct, salary,
       cost: cost2026(pct),
       rating: prof.rating,
-      ppg: prof.ppg, rpg: prof.rpg, apg: prof.apg,
+      ppg: prof.ppg, rpg: prof.rpg, apg: prof.apg, fgpct: prof.fgpct,
       pos: positionForSeason(name,sy)
     });
   }
@@ -695,24 +695,30 @@ function buildGroups(){
 }
 function resolveGroupMeta(group){
   if(group._meta)return group._meta;
-  let nick="",g0=null;
-  for(const p of group.players){
-    for(const g of (playerIndex[p.name]||[])){
-      if(g[G.SY]===group.sy&&isPlayableGame(g)){nick=TEAMS[g[G.TM]]||"";g0=g;break}
+  // The salary-defined paying-team abbr identifies this team-season. Resolve the
+  // franchise straight from it so a mid-season-traded player (whose first game that
+  // year was with another team) can't hijack the label.
+  let fr=NBA_FRANCHISES.find(f=>f.abbr===group.abbr)||null;
+  if(!fr){
+    // Historical / relocated abbr not in the table → majority-vote the franchise
+    // across every game the group's players actually played that season.
+    const tally={};
+    for(const p of group.players){
+      for(const g of (playerIndex[p.name]||[])){
+        if(g[G.SY]!==group.sy||!isPlayableGame(g))continue;
+        for(const f of NBA_FRANCHISES){if(gameMatchesFranchise(g,f.abbr)){tally[f.abbr]=(tally[f.abbr]||0)+1;break}}
+      }
     }
-    if(nick)break;
+    let best=null,bn=-1;for(const a in tally){if(tally[a]>bn){bn=tally[a];best=a}}
+    if(best)fr=NBA_FRANCHISES.find(f=>f.abbr===best)||null;
   }
-  let fr=null;
-  if(g0){for(const f of NBA_FRANCHISES){if(gameMatchesFranchise(g0,f.abbr)){fr=f;break}}}
-  if(!fr)fr=NBA_FRANCHISES.find(f=>f.abbr===group.abbr)||null;
-  const cleanNick=String(nick||"").replace(/\s*\([^)]*\)\s*$/,"").trim();
   const ab = fr?fr.abbr:group.abbr;
   const slug = ESPN[ab];
   const meta={
     abbr: ab,
     short: ab,
-    name: fr?fr.name:(cleanNick||group.abbr),
-    nick: cleanNick||(fr?fr.name:group.abbr),
+    name: fr?fr.name:group.abbr,
+    nick: fr?fr.name:group.abbr,
     logo: LOGO_OVERRIDE[ab] || (slug?logoUrl(slug):null)
   };
   group._meta=meta; return meta;
@@ -859,8 +865,7 @@ function renderLanded(group){
       const cls="pick-card"+(taken?" taken":(tooFar?" tooFar":""));
       const onclick=(!taken&&!tooFar)?(' onclick="pickPlayer(\''+group.key+'\',\''+escapeHtmlS(p.name).replace(/'/g,"\\'")+'\')"'):"";
       return '<div class="'+cls+'"'+onclick+'>'+
-        '<div class="pc-top"><span class="pc-pos">'+POS_NAMES[p.pos]+'</span>'+
-        '<span class="pc-rtg">RTG <b>'+p.rating.toFixed(1)+'</b></span></div>'+
+        '<div class="pc-top"><span class="pc-pos">'+POS_NAMES[p.pos]+'</span></div>'+
         '<div class="pc-name">'+escapeHtmlS(p.name)+'</div>'+
         '<div class="pc-stats">'+statTriple(p)+'</div>'+
         '<div class="pc-cost">'+fmtM(p.cost)+' <span>· '+p.pct.toFixed(1)+'% cap</span></div>'+
@@ -886,7 +891,7 @@ function pickPlayer(key,name){
   if(pickedNames.has(p.name)||p.cost>remaining+1)return;
 
   remaining-=p.cost;
-  roster.push({name:p.name,sy:p.sy,abbr:group.abbr,pct:p.pct,cost:p.cost,rating:p.rating,ppg:p.ppg,rpg:p.rpg,apg:p.apg,pos:p.pos,key:group.key,meta:resolveGroupMeta(group)});
+  roster.push({name:p.name,sy:p.sy,abbr:group.abbr,pct:p.pct,cost:p.cost,rating:p.rating,ppg:p.ppg,rpg:p.rpg,apg:p.apg,fgpct:p.fgpct,pos:p.pos,key:group.key,meta:resolveGroupMeta(group)});
   rolledGroups.push(group);
   pickedNames.add(p.name);
 
@@ -933,7 +938,7 @@ function buildGauntlet(){
       const e=salaryEntries[Math.floor(Math.random()*salaryEntries.length)];
       const tag=e[0]+"|"+e[1];
       if(seen.has(tag))continue;seen.add(tag);
-      picks.push({name:e[0],sy:e[1]});
+      picks.push({name:e[0],sy:e[1],pos:positionForSeason(e[0],e[1])});
     }
     g.push(picks);
   }
@@ -941,6 +946,25 @@ function buildGauntlet(){
 }
 function buildSimTeam(lineup){
   return lineup.map(p=>({name:p.name,game:sampleSeasonGame(p.name,p.sy)})).filter(x=>x.game);
+}
+// Positional "smoothness" factor applied to a lineup's scoring. A clean
+// PG-SG-SF-PF-C spread gets a small bonus; lineups missing a true point guard,
+// any wing, or any big man get penalized (on top of what the sim already does
+// to lopsided rosters through rebounding & rim protection). Range ~0.80–1.06.
+function lineupBalance(lineup){
+  const ct=[0,0,0,0,0];
+  lineup.forEach(p=>{const k=p.pos;if(k>=0&&k<5)ct[k]++});
+  let f=1.0;
+  if(ct[0]===0)        f-=0.05;   // no true point guard → no initiator
+  if(ct[1]+ct[2]===0)  f-=0.05;   // no wings (SG/SF) → no perimeter size/defense
+  if(ct[3]+ct[4]===0)  f-=0.07;   // no big men (PF/C) → no rim/rebounding
+  if(ct[0]===1&&ct[1]===1&&ct[2]===1&&ct[3]===1&&ct[4]===1){
+    f+=0.04;                       // textbook 1-2-3-4-5 spread
+  }else{
+    const distinct=ct.filter(c=>c>0).length;
+    f+=(distinct-3)*0.015;         // reward coverage, punish clumping
+  }
+  return Math.max(0.80,Math.min(1.06,f));
 }
 function simOneGame(myLineup,oppLineup){
   const a=buildSimTeam(myLineup), b=buildSimTeam(oppLineup);
@@ -950,6 +974,8 @@ function simOneGame(myLineup,oppLineup){
   let pA=0,pB=0;
   teams[0].forEach((_,i)=>{pA+=av(0,i,"PTS")});
   teams[1].forEach((_,i)=>{pB+=av(1,i,"PTS")});
+  pA*=lineupBalance(myLineup);     // positional-smoothness chemistry, applied to both squads
+  pB*=lineupBalance(oppLineup);
   pA=Math.round(pA);pB=Math.round(pB);
   let ot=0;
   while(pA===pB&&ot<6){ot++;pA+=Math.round(8+Math.random()*7);pB+=Math.round(8+Math.random()*7)}
@@ -1009,6 +1035,65 @@ function optimalLineup(){
 }
 
 /* ============================================================
+   BEST SQUAD — chosen by SIMULATED RECORD, not raw talent.
+   Maximizing Game Score alone can return an all-guard lineup that
+   the sim (rebounding, rim protection) rightly buries. So we build a
+   pool of affordable lineups — the user's own picks, the talent-optimal
+   knapsack pick, and many rating-weighted random draws — simulate each
+   over the SAME gauntlet, and keep the one that actually wins most.
+   The user's roster is always in the pool, so "best" is never worse
+   than what they signed.
+   ============================================================ */
+const CANDIDATES_WEIGHTED=140, CANDIDATES_RANDOM=40;
+function materializePick(group,p){
+  return {name:p.name,sy:p.sy,pos:p.pos,rating:p.rating,cost:p.cost,
+          ppg:p.ppg,rpg:p.rpg,apg:p.apg,fgpct:p.fgpct,abbr:group.abbr,key:group.key,
+          meta:resolveGroupMeta(group)};
+}
+function weightedPick(opts){
+  let tot=0;const w=opts.map(p=>{const x=Math.max(0.25,p.rating);return x*x});
+  w.forEach(x=>tot+=x);
+  let r=Math.random()*tot;
+  for(let i=0;i<opts.length;i++){r-=w[i];if(r<=0)return opts[i]}
+  return opts[opts.length-1];
+}
+function genLineup(weighted){
+  const order=shuffle(rolledGroups.slice());
+  const mins=order.map(g=>Math.min.apply(null,g.players.map(p=>p.cost)));
+  const suffix=new Array(order.length+1).fill(0);
+  for(let i=order.length-1;i>=0;i--)suffix[i]=suffix[i+1]+mins[i];
+  let rem=BUDGET;const chosen={};
+  for(let i=0;i<order.length;i++){
+    const g=order[i];
+    const cap=rem-suffix[i+1];               // leave enough for the cheapest in remaining groups
+    const aff=g.players.filter(p=>p.cost<=cap+1);
+    const pool=aff.length?aff:[g.players.reduce((a,b)=>a.cost<b.cost?a:b)];
+    const p=weighted?weightedPick(pool):pool[Math.floor(Math.random()*pool.length)];
+    chosen[g.key]=p;rem-=p.cost;
+  }
+  return rolledGroups.map(g=>materializePick(g,chosen[g.key]));
+}
+function findBestSquad(gauntlet){
+  const seen=new Set(),cands=[];
+  const keyOf=l=>l.map(p=>p.name).slice().sort().join("|");
+  const add=l=>{if(!l||l.length<rolledGroups.length)return;const k=keyOf(l);if(seen.has(k))return;seen.add(k);cands.push(l)};
+  add(roster);
+  const opt=optimalLineup(); add(opt);
+  for(let i=0;i<CANDIDATES_WEIGHTED;i++)add(genLineup(true));
+  for(let i=0;i<CANDIDATES_RANDOM;i++)add(genLineup(false));
+
+  const rosterKey=keyOf(roster);
+  let best=null,bestRec=null,yoursRec=null;
+  const diff=r=>r.ppg-r.oppg;
+  for(const c of cands){
+    const rec=simRecord(c,gauntlet);
+    if(keyOf(c)===rosterKey)yoursRec=rec;
+    if(!best||rec.w>bestRec.w||(rec.w===bestRec.w&&diff(rec)>diff(bestRec))){best=c;bestRec=rec}
+  }
+  return {best,bestRec,yoursRec,sameAsYours:best&&keyOf(best)===rosterKey};
+}
+
+/* ============================================================
    RESULTS
    ============================================================ */
 function gradeFor(w){
@@ -1022,7 +1107,7 @@ function squadRowsHTML(lineup,bestNames){
   return lineup.map(p=>{
     const star=(bestNames&&bestNames.has(p.name))?' <span class="star">★</span>':"";
     return '<div class="sq-row"><span class="pos">'+POS_NAMES[p.pos]+'</span>'+
-      '<span class="nm">'+escapeHtmlS(p.name)+star+'<small>'+escapeHtmlS(p.meta.name)+' · '+formatSeasonYear(p.sy)+' · '+p.ppg.toFixed(1)+'/'+p.rpg.toFixed(1)+'/'+p.apg.toFixed(1)+'</small></span>'+
+      '<span class="nm">'+escapeHtmlS(p.name)+star+'<small>'+escapeHtmlS(p.meta.name)+' · '+formatSeasonYear(p.sy)+' · '+p.ppg.toFixed(1)+'/'+p.rpg.toFixed(1)+'/'+p.apg.toFixed(1)+' · '+p.fgpct.toFixed(1)+'% FG</small></span>'+
       '<span class="rtg">RTG '+p.rating.toFixed(1)+'</span>'+
       '<span class="cost">'+fmtM(p.cost)+'</span></div>';
   }).join("");
@@ -1033,21 +1118,19 @@ function showResults(){
   if(roster.length<3){alert("Sign at least 3 players before simulating.");return}
   $("game").classList.add("hidden");
   const el=$("results");el.classList.remove("hidden");
-  el.innerHTML='<div class="res-record"><div class="rl">Simulating 82 games…</div>'+
+  el.innerHTML='<div class="res-record"><div class="rl">Simulating your season &amp; the alternatives…</div>'+
     '<div class="rv"><span class="spinner-mini"></span></div></div>';
 
   // defer so the spinner paints before the (sync) sim work runs
   setTimeout(()=>{
     const gauntlet=buildGauntlet();
-    const yours=simRecord(roster,gauntlet);
-    const opt=optimalLineup();
-    const optRec=opt?simRecord(opt,gauntlet):null;
+    const {best:opt,bestRec:optRec,yoursRec,sameAsYours}=findBestSquad(gauntlet);
+    const yours=yoursRec||simRecord(roster,gauntlet);
 
     const spent=roster.reduce((s,p)=>s+p.cost,0);
     const yourRtg=roster.reduce((s,p)=>s+p.rating,0);
     const g=gradeFor(yours.w);
-    const bestNames=new Set(opt?opt.map(p=>p.name):[]);
-    const samePicks=opt&&opt.length===roster.length&&roster.every(p=>bestNames.has(p.name));
+    const samePicks=sameAsYours;
 
     let html='<div class="res-record">'+
       '<div class="rl">Your season</div>'+
@@ -1062,7 +1145,7 @@ function showResults(){
       '<span class="totals">spent <b>'+fmtM(spent)+'</b> · total RTG <b>'+yourRtg.toFixed(1)+'</b></span></div>'+
       squadRowsHTML(roster,null)+'</div>';
 
-    // optimal squad gift
+    // best-by-simulation squad gift
     if(opt){
       const optSpent=opt.reduce((s,p)=>s+p.cost,0);
       const optRtg=opt.reduce((s,p)=>s+p.rating,0);
@@ -1071,8 +1154,8 @@ function showResults(){
         '<span class="totals">'+(optRec?'sim record <b>'+optRec.w+'–'+optRec.l+'</b> · ':'')+'spent <b>'+fmtM(optSpent)+'</b> · RTG <b>'+optRtg.toFixed(1)+'</b></span></div>'+
         squadRowsHTML(opt,null)+
         (samePicks
-          ? '<div class="perfect">★ You signed the optimal squad — flawless drafting ★</div>'
-          : '<div class="opt-note">From the exact five team-seasons you drew, this is the highest-talent lineup that fits '+fmtM(BUDGET)+' (optimized by season Game Score). Talent ≠ a guaranteed better record, but it\'s the value play.</div>')+
+          ? '<div class="perfect">★ Nobody from your five team-seasons sims better — flawless drafting ★</div>'
+          : '<div class="opt-note">The best-performing lineup we found from the exact five team-seasons you drew, within '+fmtM(BUDGET)+'. We simulated your picks against many affordable alternatives over the same schedule — this one won the most. Position balance (rebounding, rim protection) often beats raw scoring.</div>')+
         '</div>';
     }
 
