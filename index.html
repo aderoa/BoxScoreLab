@@ -153,6 +153,21 @@ body{background:linear-gradient(145deg,#1a1a3e 0%,#0a0a1a 50%,#ffffff 100%);back
 .btn-play:disabled{opacity:0.5;cursor:not-allowed;transform:none}
 .btn-reset-career{background:#333;font-size:10px;letter-spacing:1px}
 .btn-records{background:#231a0a;border:1px solid #ffd70066;color:#ffd700;letter-spacing:1px;padding:5px 11px;font-size:10px;font-weight:700;border-radius:4px;cursor:pointer;font-family:'Oswald',sans-serif;text-transform:uppercase}
+.btn-help{background:#0e0e2a;border:1px solid #5a5a8a;color:#aaaadd;width:26px;height:26px;padding:0;font-size:14px;font-weight:700;border-radius:50%;cursor:pointer;font-family:'JetBrains Mono',monospace;line-height:1;display:flex;align-items:center;justify-content:center;transition:all 0.15s}
+.btn-help:hover{background:#1a1a3a;border-color:#7a7aaa;color:#fff}
+
+/* ===== Welcome / How-to-play modal ===== */
+.welcome-modal{position:fixed;inset:0;background:rgba(0,0,0,0.78);z-index:1000;display:flex;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(4px);animation:welcomeFadeIn 0.25s ease-out}
+.welcome-modal-content{background:linear-gradient(135deg,#15153a 0%,#0a0a1a 100%);border:1px solid #3a3a6a;border-radius:12px;padding:28px 32px;max-width:560px;width:100%;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.6),0 0 60px rgba(255,215,0,0.08)}
+.welcome-modal-title{font-family:'Oswald',sans-serif;font-size:22px;font-weight:700;letter-spacing:3px;color:#ffd700;text-transform:uppercase;text-align:center;margin-bottom:4px}
+.welcome-modal-tag{font-family:'Oswald',sans-serif;font-size:11px;letter-spacing:2.5px;color:#888899;text-transform:uppercase;text-align:center;margin-bottom:22px}
+.welcome-modal-list{list-style:none;padding:0;margin:0 0 22px;display:flex;flex-direction:column;gap:14px}
+.welcome-modal-list li{display:flex;gap:12px;align-items:flex-start;font-family:'Inter','Segoe UI',sans-serif;font-size:13px;line-height:1.5;color:#d0d0e8}
+.welcome-modal-list li b{color:#ffffff;font-weight:600}
+.welcome-modal-icon{flex-shrink:0;font-size:20px;width:28px;text-align:center;line-height:1.2}
+.welcome-modal-cta{width:100%;display:block}
+@keyframes welcomeFadeIn{from{opacity:0}to{opacity:1}}
+@media(max-width:520px){.welcome-modal-content{padding:22px 18px}.welcome-modal-list li{font-size:12px}.welcome-modal-icon{font-size:17px;width:24px}}
 .btn-records:hover{background:#2e220e;border-color:#ffd700}
 .setup-records-row{display:flex;justify-content:center;margin-top:18px}
 .btn-records-large{background:linear-gradient(135deg,#ffd700 0%,#ff9d2a 100%);color:#1a1a2e;border:none;padding:11px 28px;font-size:13px;font-weight:700;letter-spacing:2.5px;border-radius:6px;cursor:pointer;font-family:'Oswald',sans-serif;text-transform:uppercase;box-shadow:0 4px 16px rgba(255,215,0,0.25);transition:all 0.15s}
@@ -526,6 +541,7 @@ body{background:linear-gradient(145deg,#1a1a3e 0%,#0a0a1a 50%,#ffffff 100%);back
       </div>
       <button class="difficulty-pill" id="difficultyPill" onclick="toggleDifficulty()" title="Switch difficulty">NORMAL</button>
       <div class="career-game-num" id="careerGameNum">GAME #1</div>
+      <button class="btn btn-help" onclick="showWelcomeModal()" title="How to play">?</button>
       <button class="btn btn-records" onclick="openBestRecordsModal()" title="View your best records">RECORDS</button>
       <button class="btn btn-reset-career" onclick="resetCareer()">RESET</button>
     </div>
@@ -533,7 +549,7 @@ body{background:linear-gradient(145deg,#1a1a3e 0%,#0a0a1a 50%,#ffffff 100%);back
     <!-- Screen 0: SETUP (difficulty pick — first thing a fresh career sees) -->
     <div id="careerScreenSetup" class="career-screen">
       <div class="screen-title">Build Your Roster</div>
-      <div class="screen-subtitle">First, pick a difficulty</div>
+      <div class="screen-subtitle">Pick a difficulty to roll your 12-man roster, then beat 5 cups across NBA history</div>
       <div class="difficulty-picker" id="difficultyPicker">
         <div class="difficulty-picker-label">Difficulty</div>
         <div class="difficulty-picker-options">
@@ -4159,6 +4175,44 @@ function renderCareer(justRevealedSlotIdx,pA,pB,gameCup,cupCompleted,otPeriods){
   };
   if(!tryAttach())document.addEventListener("DOMContentLoaded",tryAttach);
 })();
+
+// ===== Welcome / How-to-play modal =====
+const WELCOME_SEEN_KEY="bsl_welcome_seen_v1";
+function showWelcomeModal(){
+  const m=document.getElementById("welcomeModal");
+  if(m)m.style.display="flex";
+}
+function closeWelcomeModal(){
+  const m=document.getElementById("welcomeModal");
+  if(m)m.style.display="none";
+  try{localStorage.setItem(WELCOME_SEEN_KEY,"1")}catch(e){}
+}
+function maybeShowWelcomeOnFirstVisit(){
+  try{if(localStorage.getItem(WELCOME_SEEN_KEY))return}catch(e){}
+  setTimeout(showWelcomeModal,300);
+}
+if(document.readyState==="complete"||document.readyState==="interactive"){
+  setTimeout(maybeShowWelcomeOnFirstVisit,0);
+}else{
+  document.addEventListener("DOMContentLoaded",maybeShowWelcomeOnFirstVisit);
+}
 </script>
+
+<!-- ===== Welcome modal markup ===== -->
+<div id="welcomeModal" class="welcome-modal" style="display:none" onclick="if(event.target.id==='welcomeModal')closeWelcomeModal()">
+  <div class="welcome-modal-content" role="dialog" aria-labelledby="welcomeModalTitle">
+    <div class="welcome-modal-title" id="welcomeModalTitle">HOW TO PLAY</div>
+    <div class="welcome-modal-tag">All-Time NBA Challenge</div>
+    <ul class="welcome-modal-list">
+      <li><span class="welcome-modal-icon">🏀</span><span><b>Build a 12-man roster</b> rolled from across NBA history — any player, any era.</span></li>
+      <li><span class="welcome-modal-icon">🏆</span><span><b>Beat 5 cups:</b> Franchise, States, College, Continents, Decades. Each cup has multiple targets; clear them all to complete your career.</span></li>
+      <li><span class="welcome-modal-icon">🔍</span><span><b>5 Mystery Free Agents</b> sit waiting. Each win reveals one clue (state, status, draft pick, pre-draft team, team/season).</span></li>
+      <li><span class="welcome-modal-icon">✅</span><span><b>Guess them right</b> and you'll earn a <b>bonus teammate</b> from that player's team/season — two signings for the price of one.</span></li>
+      <li><span class="welcome-modal-icon">📊</span><span>Difficulty changes opponent strength, not your roster. Pick higher tiers for tougher opponents and bigger Best Records.</span></li>
+    </ul>
+    <button class="btn btn-play btn-play-big welcome-modal-cta" onclick="closeWelcomeModal()">GOT IT — LET'S PLAY ▶</button>
+  </div>
+</div>
+
 </body>
 </html>
