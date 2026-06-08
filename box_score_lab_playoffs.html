@@ -555,6 +555,10 @@ body{background:linear-gradient(145deg,#1a1a3e 0%,#0a0a1a 50%,#ffffff 100%);back
 .t-series-meta{font-family:'JetBrains Mono',monospace;font-size:11px;color:#888899;letter-spacing:1px;text-align:center;margin-bottom:14px}
 .t-series-controls{display:flex;justify-content:center;gap:10px;margin-top:20px;padding-bottom:24px;flex-wrap:wrap}
 .t-btn-next-game{background:#ff6b35;padding:12px 28px;font-family:'Oswald',sans-serif;font-size:13px;font-weight:700;letter-spacing:2px;text-transform:uppercase;border-radius:5px}
+.t-btn-sim-tourny{background:#8b5cf6;padding:12px 22px;font-family:'Oswald',sans-serif;font-size:13px;font-weight:700;letter-spacing:2px;text-transform:uppercase;border-radius:5px}
+.t-btn-sim-tourny-sm{background:#8b5cf6;padding:6px 12px;font-family:'Oswald',sans-serif;font-size:10px;font-weight:700;letter-spacing:1px;border-radius:4px}
+.t-btn-pause{background:#ffd700;color:#1a1a3e;padding:12px 32px;font-family:'Oswald',sans-serif;font-size:13px;font-weight:700;letter-spacing:2px;text-transform:uppercase;border-radius:5px;box-shadow:0 0 18px rgba(255,215,0,0.35)}
+.t-btn-pause-sm{background:#ffd700;color:#1a1a3e;padding:6px 12px;font-family:'Oswald',sans-serif;font-size:10px;font-weight:700;letter-spacing:1px;border-radius:4px}
 .t-btn-series-done{background:#34d97a;color:#000;padding:12px 28px;font-family:'Oswald',sans-serif;font-size:13px;font-weight:700;letter-spacing:2px;text-transform:uppercase;border-radius:5px}
 .t-series-history{display:flex;justify-content:center;gap:6px;margin-bottom:14px;flex-wrap:wrap}
 .t-series-history-pill{font-family:'JetBrains Mono',monospace;font-size:10px;padding:4px 8px;border-radius:3px;letter-spacing:0.5px;color:#aaa;background:#15153a;border:1px solid #2a2a55}
@@ -688,6 +692,7 @@ body{background:linear-gradient(145deg,#1a1a3e 0%,#0a0a1a 50%,#ffffff 100%);back
       <div class="t-bracket-header">
         <div class="t-bracket-title" id="bracketTitle">Tournament Bracket</div>
         <div class="t-bracket-sub" id="bracketSub">Round 1</div>
+        <span id="bracketSimSlot"></span>
         <button class="btn t-btn-restart" onclick="exitToSetup()" title="Back to setup">↺ NEW TOURNAMENT</button>
       </div>
       <div class="t-bracket-wrap" id="bracketWrap"></div>
@@ -4427,6 +4432,7 @@ function exitToSetup(){
   // Warn only if there's progress
   const hasProgress=tournament.bracket&&tournament.bracket.some(r=>r.some(m=>m.complete||m.games.length));
   if(hasProgress&&!confirm("Exit the current tournament? Progress will be lost.")){return}
+  if(tournament.autoSim)pauseAutoSim();
   tournament.bracket=null;
   tournament.activeMatch=null;
   teams=[[],[]];adjusted=[[],[]];
@@ -4434,6 +4440,7 @@ function exitToSetup(){
 }
 
 function returnToBracket(){
+  if(tournament.autoSim)pauseAutoSim();
   tournament.activeMatch=null;
   teams=[[],[]];adjusted=[[],[]];
   showTournamentScreen("bracket");
@@ -4482,6 +4489,7 @@ function renderBracket(){
     html+='</div>';
   }
   wrap.innerHTML=html;
+  renderBracketHeader();
 }
 
 function renderBracketRow(match,key,wins){
@@ -4602,17 +4610,23 @@ function renderSeriesControls(){
   if(!m)return;
   const el=document.getElementById("seriesControls");
   if(!el)return;
+  // Auto-sim active → only a pause button (any other action would race the timer)
+  if(tournament.autoSim){
+    el.innerHTML='<button class="btn t-btn-pause" onclick="pauseAutoSim()">⏸ PAUSE</button>';
+    return;
+  }
   if(m.complete){
-    // Tournament over?
     const finalMatch=tournament.bracket[tournament.bracket.length-1][0];
     if(finalMatch.complete){
       el.innerHTML='<button class="btn t-btn-series-done" onclick="showFinalChampion()">🏆 CROWN THE CHAMPION</button>';
     }else{
       const winner=teamSeasonCatalog[m.winnerKey].displayName;
-      el.innerHTML='<button class="btn t-btn-series-done" onclick="returnToBracket()">✓ '+tEscapeHtml(winner)+' WINS — BACK TO BRACKET</button>';
+      el.innerHTML='<button class="btn t-btn-series-done" onclick="returnToBracket()">✓ '+tEscapeHtml(winner)+' WINS — BACK TO BRACKET</button>'+
+        '<button class="btn t-btn-sim-tourny" onclick="startAutoSim()">⏩ SIMULATE TOURNAMENT</button>';
     }
   }else{
-    el.innerHTML='<button class="btn t-btn-next-game" onclick="playSeriesGame()">▶ PLAY NEXT GAME</button>';
+    el.innerHTML='<button class="btn t-btn-next-game" onclick="playSeriesGame()">▶ SIMULATE GAME</button>'+
+      '<button class="btn t-btn-sim-tourny" onclick="startAutoSim()">⏩ SIMULATE TOURNAMENT</button>';
   }
 }
 
@@ -4646,6 +4660,107 @@ function showFinalChampion(){
   }
   document.getElementById("championPath").innerHTML=pathHtml;
   showTournamentScreen("champion");
+}
+
+// --- Auto-simulate (Simulate Tournament + Pause) -----------------------------
+// State + tunable delay live on the tournament object so a future
+// "fast / normal / slow" speed selector can drop in without rewiring.
+tournament.autoSim=false;
+tournament.autoSimTimer=null;
+tournament.autoSimDelay=700;   // ms between auto-played games
+
+function startAutoSim(){
+  if(tournament.autoSim)return;
+  tournament.autoSim=true;
+  // If we're not currently in a series (or it's already complete), advance to
+  // the first remaining playable matchup before kicking off the timer chain.
+  if(!tournament.activeMatch||currentMatch().complete){
+    const nxt=findNextPlayableMatch();
+    if(!nxt){
+      // Nothing left to play — tournament's done, jump to champion.
+      tournament.autoSim=false;
+      showFinalChampion();
+      return;
+    }
+    openMatchupSilently(nxt.roundIdx,nxt.matchIdx);
+  }
+  renderSeriesControls();
+  renderBracketHeader();
+  // Slight initial delay so the user can see the screen before the games start firing.
+  tournament.autoSimTimer=setTimeout(autoSimStep,300);
+}
+
+function pauseAutoSim(){
+  tournament.autoSim=false;
+  if(tournament.autoSimTimer){clearTimeout(tournament.autoSimTimer);tournament.autoSimTimer=null}
+  renderSeriesControls();
+  renderBracketHeader();
+}
+
+function autoSimStep(){
+  if(!tournament.autoSim)return;
+  const m=currentMatch();
+  // No active match (or current one just finished) → advance to the next.
+  if(!m||m.complete){
+    const nxt=findNextPlayableMatch();
+    if(!nxt){
+      // Bracket fully resolved.
+      tournament.autoSim=false;
+      renderSeriesControls();
+      renderBracketHeader();
+      showFinalChampion();
+      return;
+    }
+    openMatchupSilently(nxt.roundIdx,nxt.matchIdx);
+    tournament.autoSimTimer=setTimeout(autoSimStep,tournament.autoSimDelay);
+    return;
+  }
+  // Play one game; if the series ends, the next tick will detect it and advance.
+  playSeriesGame();
+  tournament.autoSimTimer=setTimeout(autoSimStep,tournament.autoSimDelay);
+}
+
+function findNextPlayableMatch(){
+  if(!tournament.bracket)return null;
+  for(let r=0;r<tournament.bracket.length;r++){
+    for(let m=0;m<tournament.bracket[r].length;m++){
+      const match=tournament.bracket[r][m];
+      if(!match.complete&&match.teamA&&match.teamB)return {roundIdx:r,matchIdx:m};
+    }
+  }
+  return null;
+}
+
+function openMatchupSilently(roundIdx,matchIdx){
+  // Like openMatchup() but skips the first playSeriesGame() — the auto-sim
+  // step loop is the one driving game rolls now.
+  tournament.activeMatch={roundIdx,matchIdx};
+  showTournamentScreen("series");
+  renderSeriesHeader();
+  // Clear the box score region from the previous matchup until the first
+  // game of THIS matchup is rolled. Otherwise it looks like the new
+  // matchup is borrowing the prior series' final scores.
+  teams=[[],[]];adjusted=[[],[]];
+  render();
+}
+
+// Helper used by both the bracket-screen Simulate button and the pause flow.
+function renderBracketHeader(){
+  // The bracket-screen header has its own simulate / pause control. Keep it
+  // in sync with the autoSim state regardless of which screen the user's on.
+  const slot=document.getElementById("bracketSimSlot");
+  if(!slot)return;
+  if(tournament.autoSim){
+    slot.innerHTML='<button class="btn t-btn-pause-sm" onclick="pauseAutoSim()">⏸ PAUSE</button>';
+  }else{
+    // Only show simulate if there are matches left
+    const next=findNextPlayableMatch();
+    if(next){
+      slot.innerHTML='<button class="btn t-btn-sim-tourny-sm" onclick="startAutoSim()">⏩ SIMULATE TOURNAMENT</button>';
+    }else{
+      slot.innerHTML='';
+    }
+  }
 }
 </script>
 
