@@ -106,7 +106,9 @@ body{background:linear-gradient(160deg,#1a1a3e 0%,#0a0a1a 55%,#050510 100%);back
 .pick-card .pc-pos{font-family:'Oswald',sans-serif;font-size:10px;font-weight:700;letter-spacing:1px;color:var(--orange);background:#2a1a10;border:1px solid #4a2e18;padding:2px 7px;border-radius:5px}
 .pick-card .pc-rtg{font-family:'JetBrains Mono',monospace;font-size:10px;color:#7a7a9e}
 .pick-card .pc-rtg b{color:#bfbfe4}
-.pick-card .pc-name{font-family:'Oswald',sans-serif;font-size:15px;font-weight:600;color:#eaeaff;line-height:1.15;margin-bottom:8px;min-height:34px}
+.pick-card .pc-name{font-family:'Oswald',sans-serif;font-size:15px;font-weight:600;color:#eaeaff;line-height:1.15;margin-bottom:5px;min-height:34px}
+.pick-card .pc-stats{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#9b9bc2;margin-bottom:8px;letter-spacing:.2px}
+.pick-card .pc-stats span{color:#62628a;font-size:9px}
 .pick-card .pc-cost{font-family:'Oswald',sans-serif;font-size:19px;font-weight:700;color:var(--gold)}
 .pick-card .pc-cost span{font-size:11px;color:#8a8ab0;font-weight:400}
 .pick-card.tooFar{cursor:not-allowed;opacity:.4;filter:grayscale(.6)}
@@ -622,12 +624,15 @@ const SLOTS      = 5;             // signings
 const SEASON_GAMES = 82;          // games simulated for the record
 
 function fmtM(d){return "$"+(d/1e6).toFixed(1)+"M"}
+function statTriple(p){return p.ppg.toFixed(1)+' <span>PPG</span> · '+p.rpg.toFixed(1)+' <span>RPG</span> · '+p.apg.toFixed(1)+' <span>APG</span>'}
 function escapeHtmlS(s){return String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]))}
 function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
 function cost2026(pct){return (pct/100)*CAP_2026}
 
-// ESPN CDN logo slugs keyed by modern franchise abbr (SEA = historical Sonics)
-const ESPN={ATL:'atl',BOS:'bos',BKN:'bkn',CHA:'cha',CHI:'chi',CLE:'cle',DAL:'dal',DEN:'den',DET:'det',GSW:'gs',HOU:'hou',IND:'ind',LAC:'lac',LAL:'lal',MEM:'mem',MIA:'mia',MIL:'mil',MIN:'min',NOP:'no',NYK:'ny',OKC:'okc',ORL:'orl',PHI:'phi',PHX:'phx',POR:'por',SAC:'sac',SAS:'sa',TOR:'tor',UTA:'utah',WAS:'wsh',SEA:'sea'};
+// ESPN CDN logo slugs keyed by modern franchise abbr
+const ESPN={ATL:'atl',BOS:'bos',BKN:'bkn',CHA:'cha',CHI:'chi',CLE:'cle',DAL:'dal',DEN:'den',DET:'det',GSW:'gs',HOU:'hou',IND:'ind',LAC:'lac',LAL:'lal',MEM:'mem',MIA:'mia',MIL:'mil',MIN:'min',NOP:'no',NYK:'ny',OKC:'okc',ORL:'orl',PHI:'phi',PHX:'phx',POR:'por',SAC:'sac',SAS:'sa',TOR:'tor',UTA:'utah',WAS:'wsh'};
+// full-URL overrides for franchises ESPN's CDN doesn't carry (historical teams)
+const LOGO_OVERRIDE={SEA:'https://upload.wikimedia.org/wikipedia/en/thumb/a/a4/Seattle_SuperSonics_logo.svg/1280px-Seattle_SuperSonics_logo.svg.png'};
 function logoUrl(slug){return "https://a.espncdn.com/i/teamlogos/nba/500/"+slug+".png"}
 
 /* ---- per-(player,season) helpers ---- */
@@ -649,19 +654,20 @@ function positionForSeason(name,sy){
   if(gs.length){const ct=[0,0,0,0,0];gs.forEach(g=>{ct[getPlayerPos(g)]++});return ct.indexOf(Math.max(...ct))}
   return getMostCommonPos(name);
 }
-// Hollinger Game Score from a player's per-game season averages — used as the
-// talent proxy for display + the optimizer. (The actual record always comes
-// from full simulation, never from this number.)
-function ratingFor(name,sy){
+// One pass over a player's season games → talent proxy + box-score averages.
+// rating = Hollinger Game Score from per-game averages (display + optimizer);
+// ppg/rpg/apg are the per-game season averages shown on the cards.
+// (The actual record always comes from full simulation, never from these.)
+function seasonProfile(name,sy){
   const gs=seasonGames(name,sy);
-  if(!gs.length)return 0;
+  if(!gs.length)return {rating:0,ppg:0,rpg:0,apg:0};
   const sum={};COUNT_STATS.forEach(s=>sum[s]=0);
   gs.forEach(g=>{COUNT_STATS.forEach(s=>{sum[s]+=rawG(g,s)})});
   const n=gs.length, a={};COUNT_STATS.forEach(s=>a[s]=sum[s]/n);
-  const gmsc = a.PTS + 0.4*a.FGM - 0.7*a.FGA - 0.4*(a.FTA-a.FTM)
+  const rating = a.PTS + 0.4*a.FGM - 0.7*a.FGA - 0.4*(a.FTA-a.FTM)
              + 0.7*a.ORB + 0.3*a.DRB + a.STL + 0.7*a.AST + 0.7*a.BLK
              - 0.4*a.PF - a.TOV;
-  return gmsc;
+  return {rating, ppg:a.PTS, rpg:a.REB, apg:a.AST};
 }
 
 /* ---- team-season index (the roulette pool) ---- */
@@ -673,10 +679,12 @@ function buildGroups(){
     const [name,sy,salary,pct,abbr]=e;
     const key=abbr+"|"+sy;
     if(!byKey[key])byKey[key]={key,abbr,sy,players:[]};
+    const prof=seasonProfile(name,sy);
     byKey[key].players.push({
       name, sy, pct, salary,
       cost: cost2026(pct),
-      rating: ratingFor(name,sy),
+      rating: prof.rating,
+      ppg: prof.ppg, rpg: prof.rpg, apg: prof.apg,
       pos: positionForSeason(name,sy)
     });
   }
@@ -705,7 +713,7 @@ function resolveGroupMeta(group){
     short: ab,
     name: fr?fr.name:(cleanNick||group.abbr),
     nick: cleanNick||(fr?fr.name:group.abbr),
-    logo: slug?logoUrl(slug):null
+    logo: LOGO_OVERRIDE[ab] || (slug?logoUrl(slug):null)
   };
   group._meta=meta; return meta;
 }
@@ -854,6 +862,7 @@ function renderLanded(group){
         '<div class="pc-top"><span class="pc-pos">'+POS_NAMES[p.pos]+'</span>'+
         '<span class="pc-rtg">RTG <b>'+p.rating.toFixed(1)+'</b></span></div>'+
         '<div class="pc-name">'+escapeHtmlS(p.name)+'</div>'+
+        '<div class="pc-stats">'+statTriple(p)+'</div>'+
         '<div class="pc-cost">'+fmtM(p.cost)+' <span>· '+p.pct.toFixed(1)+'% cap</span></div>'+
         '</div>';
     }).join("")+'</div>';
@@ -877,7 +886,7 @@ function pickPlayer(key,name){
   if(pickedNames.has(p.name)||p.cost>remaining+1)return;
 
   remaining-=p.cost;
-  roster.push({name:p.name,sy:p.sy,abbr:group.abbr,pct:p.pct,cost:p.cost,rating:p.rating,pos:p.pos,key:group.key,meta:resolveGroupMeta(group)});
+  roster.push({name:p.name,sy:p.sy,abbr:group.abbr,pct:p.pct,cost:p.cost,rating:p.rating,ppg:p.ppg,rpg:p.rpg,apg:p.apg,pos:p.pos,key:group.key,meta:resolveGroupMeta(group)});
   rolledGroups.push(group);
   pickedNames.add(p.name);
 
@@ -1013,7 +1022,7 @@ function squadRowsHTML(lineup,bestNames){
   return lineup.map(p=>{
     const star=(bestNames&&bestNames.has(p.name))?' <span class="star">★</span>':"";
     return '<div class="sq-row"><span class="pos">'+POS_NAMES[p.pos]+'</span>'+
-      '<span class="nm">'+escapeHtmlS(p.name)+star+'<small>'+escapeHtmlS(p.meta.name)+' · '+formatSeasonYear(p.sy)+'</small></span>'+
+      '<span class="nm">'+escapeHtmlS(p.name)+star+'<small>'+escapeHtmlS(p.meta.name)+' · '+formatSeasonYear(p.sy)+' · '+p.ppg.toFixed(1)+'/'+p.rpg.toFixed(1)+'/'+p.apg.toFixed(1)+'</small></span>'+
       '<span class="rtg">RTG '+p.rating.toFixed(1)+'</span>'+
       '<span class="cost">'+fmtM(p.cost)+'</span></div>';
   }).join("");
