@@ -561,6 +561,18 @@ body{background:linear-gradient(145deg,#1a1a3e 0%,#0a0a1a 50%,#ffffff 100%);back
 .t-btn-pause{background:#ffd700;color:#1a1a3e;padding:12px 32px;font-family:'Oswald',sans-serif;font-size:13px;font-weight:700;letter-spacing:2px;text-transform:uppercase;border-radius:5px;box-shadow:0 0 18px rgba(255,215,0,0.35)}
 .t-btn-pause-sm{background:#ffd700;color:#1a1a3e;padding:6px 12px;font-family:'Oswald',sans-serif;font-size:10px;font-weight:700;letter-spacing:1px;border-radius:4px}
 
+/* ===== Team logos ===== */
+.t-logo,.t-logo-xs,.t-logo-sm,.t-logo-md,.t-logo-xl{display:inline-block;vertical-align:middle;object-fit:contain}
+.t-logo-xs{width:18px;height:18px;margin-right:5px}
+.t-logo-sm{width:22px;height:22px;margin-right:7px}
+.t-logo-md{width:32px;height:32px;margin:0 6px;vertical-align:middle}
+.t-logo-xl{width:96px;height:96px;margin-right:14px;filter:drop-shadow(0 0 22px rgba(255,215,0,0.35));vertical-align:middle}
+.t-picker-result-name{display:flex;align-items:center}
+.t-picker-chip{display:inline-flex;align-items:center}
+.t-bracket-team{display:flex;align-items:center}
+.t-bracket-team .t-bracket-name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.t-champion-name{display:flex;align-items:center;justify-content:center;flex-wrap:wrap}
+
 /* ===== Bracket ticker (latest game + leaders + series status) ===== */
 .t-ticker{background:linear-gradient(90deg,#15153a 0%,#1a1a3e 100%);border:1px solid #ff6b3555;border-radius:6px;padding:12px 16px;margin-bottom:14px;display:grid;grid-template-columns:auto 1fr auto;gap:10px 18px;align-items:center}
 .t-ticker-game{display:flex;gap:12px;align-items:baseline}
@@ -1166,10 +1178,11 @@ function processAll(){normalizeTeam(0);normalizeTeam(1);equalizePossessions();ap
           console.table(counts);
         }catch(e){console.warn("Diagnostic logging failed",e)}
 
-        // Tournament boot: pre-compute the team-season catalog (one-off
-        // aggregation over playerIndex), then render the setup screen.
+        // Tournament boot: pre-compute the catalog + outcomes + era index
+        // (one-off aggregations over playerIndex), then render the setup screen.
         buildTeamSeasonCatalog();
         buildGameOutcomesIndex();
+        buildEraAdjustmentIndex();
         showTournamentScreen("setup");
         renderTeamPickerList();
         updatePickerCount();
@@ -4216,28 +4229,34 @@ let teamSeasonCatalog={};  // "TM_SY" → {key,teamId,teamAbbr,sy,displayName,ro
 let teamSeasonKeys=[];     // sorted for display
 
 // --- Position helper (local; salary variant has one but original doesn't) ----
+// Career-wide bucket — kept as a back-pocket fallback. The real
+// classification happens per team-season inside buildTeamSeasonCatalog,
+// which uses the per-game POS data and never drops a player.
 function tPositionBucket(name){
   const bi=bioByName[name];
-  let pos="";
-  if(bi!=null)pos=bioData[bi][3]||"";
-  if(!pos){
-    // fallback: derive from games (getMostCommonPos returns most-played POS code)
-    const code=(typeof getMostCommonPos==="function")?getMostCommonPos(name):"";
-    pos=code||"";
+  if(bi!=null){
+    const pos=bioData[bi][3]||"";
+    if(pos){
+      const primary=String(pos).split("-")[0].trim().toUpperCase();
+      if(primary==="G"||primary==="PG"||primary==="SG")return "G";
+      if(primary==="F"||primary==="SF"||primary==="PF")return "F";
+      if(primary==="C")return "C";
+    }
   }
-  if(!pos)return null;
-  const primary=String(pos).split("-")[0].trim().toUpperCase();
-  if(primary==="G"||primary==="PG"||primary==="SG")return "G";
-  if(primary==="F"||primary==="SF"||primary==="PF")return "F";
-  if(primary==="C")return "C";
+  // Fall back to most-common position from game data. getMostCommonPos
+  // returns a numeric INDEX (0-4 → PG/SG/SF/PF/C), not a string.
+  const idx=getMostCommonPos(name);
+  if(idx===0||idx===1)return "G";
+  if(idx===2||idx===3)return "F";
+  if(idx===4)return "C";
   return null;
 }
 
-// --- Catalog build (one-off on boot) -----------------------------------------
 function buildTeamSeasonCatalog(){
   console.time("[playoffs] catalog");
-  // Aggregate minutes per (team, season, player). One walk over playerIndex —
-  // the heaviest loop in this file, but only runs once at boot.
+  // Aggregate minutes + position counts per (team, season, player).
+  // Every playable gameline has a POS code, so we get a bucket for every
+  // player who logged minutes — no exclusions for missing bio data.
   const agg={};
   for(const name of playerNames){
     const games=playerIndex[name]||[];
@@ -4250,15 +4269,26 @@ function buildTeamSeasonCatalog(){
       if(min<=0)continue;
       const key=tm+"_"+sy;
       if(!agg[key])agg[key]={};
-      agg[key][name]=(agg[key][name]||0)+min;
+      if(!agg[key][name])agg[key][name]={min:0,posCount:[0,0,0,0,0]};
+      agg[key][name].min+=min;
+      const pIdx=getPlayerPos(g);
+      if(pIdx>=0&&pIdx<5)agg[key][name].posCount[pIdx]++;
     }
   }
   // For each team-season, pick the top-12 by minutes that satisfy 4G/4F/2C + 2 flex.
   let kept=0,dropped=0;
   for(const key in agg){
     const pool=Object.entries(agg[key])
-      .map(([name,min])=>({name,min,bucket:tPositionBucket(name)}))
-      .filter(p=>p.bucket)
+      .map(([name,d])=>{
+        // Bucket from THIS team-season's most-common position
+        let maxIdx=0,maxCount=d.posCount[0];
+        for(let i=1;i<5;i++){if(d.posCount[i]>maxCount){maxCount=d.posCount[i];maxIdx=i}}
+        let bucket;
+        if(maxIdx===0||maxIdx===1)bucket="G";
+        else if(maxIdx===2||maxIdx===3)bucket="F";
+        else bucket="C";
+        return {name,min:d.min,bucket};
+      })
       .sort((a,b)=>b.min-a.min);
     const roster=pickPositionBalancedRoster(pool);
     if(!roster){dropped++;continue}
@@ -4270,7 +4300,8 @@ function buildTeamSeasonCatalog(){
       key,teamId:tmId,teamAbbr,sy,
       displayName:teamAbbr+" "+sy+"-"+String((sy+1)%100).padStart(2,"0"),
       roster,
-      totalMin:roster.reduce((s,p)=>s+p.min,0)
+      totalMin:roster.reduce((s,p)=>s+p.min,0),
+      franchiseAbbr:findFranchiseAbbr(teamAbbr,sy)
     };
     kept++;
   }
@@ -4280,7 +4311,122 @@ function buildTeamSeasonCatalog(){
     return ca.sy-cb.sy;
   });
   console.timeEnd("[playoffs] catalog");
-  console.log("[playoffs] catalog ready —",kept,"team-seasons kept,",dropped,"dropped (couldn't field 4G/4F/2C)");
+  console.log("[playoffs] catalog ready —",kept,"team-seasons kept,",dropped,"dropped (couldn't field 4G/4F/2C even with per-team-season positions)");
+}
+
+// --- Era adjustment ---------------------------------------------------------
+// For each season, average box-score PTS across "starter" gamelines (≥20 min)
+// gives us the season's typical scoring output. We pick a single reference
+// baseline (median across all seasons) and compute a per-season multiplier
+// that scales scoring stats toward that baseline. Modern high-scoring seasons
+// shrink slightly; low-scoring eras (notably late-90s / early-2000s) get
+// boosted. Combined with the W-bonus, this brings era-vs-era matchups closer
+// to "feels right" without rewriting the simulation engine.
+let eraMult={};
+let eraReferencePPG=0;
+// Scoring-volume stats only — preserves FG%, 3P%, FT% (volume up, efficiency unchanged).
+const ERA_SCALE_IDX=[G.PT,G.FM,G.FA,G.PM,G.PA,G.FT,G.TA];
+
+function buildEraAdjustmentIndex(){
+  console.time("[playoffs] era index");
+  const sums={};
+  for(const name of playerNames){
+    const games=playerIndex[name]||[];
+    for(let i=0;i<games.length;i++){
+      const g=games[i];
+      if(!isPlayableGame(g))continue;
+      const sy=g[G.SY]||0;
+      if(!sy)continue;
+      const min=parseFloat(g[G.MN])||0;
+      if(min<20)continue;     // starter-ish only — keeps the baseline stable
+      const pts=g[G.PT]||0;
+      if(!sums[sy])sums[sy]={pts:0,gp:0};
+      sums[sy].pts+=pts;
+      sums[sy].gp+=1;
+    }
+  }
+  const seasons=Object.keys(sums);
+  const ppgs=seasons.map(s=>sums[s].pts/sums[s].gp).sort((a,b)=>a-b);
+  eraReferencePPG=ppgs[Math.floor(ppgs.length/2)];     // median
+  for(const sy of seasons){
+    const ppg=sums[sy].pts/sums[sy].gp;
+    eraMult[sy]=eraReferencePPG/ppg;
+  }
+  console.timeEnd("[playoffs] era index");
+  console.log("[playoffs] era reference PPG (median across seasons):",eraReferencePPG.toFixed(2));
+  // Log a sample so we can sanity-check multipliers across decades
+  const sample=[1949,1959,1969,1979,1985,1995,2005,2015,2023];
+  const tbl={};
+  for(const sy of sample){
+    if(sums[sy]){
+      tbl[sy+"-"+String((sy+1)%100).padStart(2,"0")]={
+        ppg:(sums[sy].pts/sums[sy].gp).toFixed(2),
+        mult:eraMult[sy].toFixed(3)
+      };
+    }
+  }
+  console.table(tbl);
+}
+
+function applyEraAdjustment(g,mult){
+  if(!mult||mult===1)return g;
+  const out=g.slice();
+  for(let i=0;i<ERA_SCALE_IDX.length;i++){
+    const idx=ERA_SCALE_IDX[i];
+    if(typeof out[idx]==="number")out[idx]=out[idx]*mult;
+  }
+  return out;
+}
+
+// --- Team logos --------------------------------------------------------------
+// ESPN's logo CDN is the most reliable free source. URL pattern is
+// `/teamlogos/nba/500/{abbr}.png` — but ESPN's abbreviations aren't a 1:1
+// match to standard NBA abbreviations (GSW→gs, NYK→ny, SAS→sa, etc.), so we
+// keep a hand mapping. Defunct franchises (SEA) map to their successor so
+// the user gets the closest available logo.
+const ESPN_LOGO_ABBR={
+  "ATL":"atl","BOS":"bos","BKN":"bkn","CHA":"cha","CHI":"chi",
+  "CLE":"cle","DAL":"dal","DEN":"den","DET":"det","GSW":"gs",
+  "HOU":"hou","IND":"ind","LAC":"lac","LAL":"lal","MEM":"mem",
+  "MIA":"mia","MIL":"mil","MIN":"min","NOP":"no","NYK":"ny",
+  "OKC":"okc","SEA":"okc","ORL":"orl","PHI":"phi","PHX":"phx",
+  "POR":"por","SAC":"sac","SAS":"sa","TOR":"tor","UTA":"utah",
+  "WAS":"wsh"
+};
+
+function findFranchiseAbbr(teamName,sy){
+  // TEAMS[tmId] is a nickname (e.g. "Lakers", "Royals") — match against
+  // NBA_FRANCHISES alts. Handles year-bounded alts (Hornets pre/post-2002).
+  const upper=String(teamName||"").trim().toUpperCase();
+  if(!upper)return null;
+  for(const f of NBA_FRANCHISES){
+    for(const alt of f.alts){
+      if(typeof alt==="string"){
+        if(alt.toUpperCase()===upper)return f.abbr;
+      }else{
+        if(alt.name.toUpperCase()===upper){
+          if(alt.yearMin!=null&&sy<alt.yearMin)continue;
+          if(alt.yearMax!=null&&sy>alt.yearMax)continue;
+          return f.abbr;
+        }
+      }
+    }
+  }
+  return null;
+}
+
+function teamLogoUrl(franchiseAbbr){
+  if(!franchiseAbbr)return null;
+  const e=ESPN_LOGO_ABBR[franchiseAbbr];
+  if(!e)return null;
+  return "https://a.espncdn.com/i/teamlogos/nba/500/"+e+".png";
+}
+
+function teamLogoHtml(franchiseAbbr,cls){
+  const url=teamLogoUrl(franchiseAbbr);
+  if(!url)return "";
+  // Hide on 404 so we fall back to text-only — defunct teams won't have logos.
+  return '<img class="'+(cls||"t-logo")+'" src="'+url+'" alt="" onerror="this.style.display=\'none\'">';
 }
 
 function pickPositionBalancedRoster(pool){
@@ -4444,7 +4590,10 @@ function renderTeamPickerList(){
     const cls="t-picker-result-row"+(sel?" selected":"")+(disabled?" disabled":"");
     const handler=disabled?"":('onclick="toggleTeamSelection(\''+k+'\')"');
     const meta=sel?"✓ SELECTED":(c.roster.length+" players · "+Math.round(c.totalMin).toLocaleString()+" min");
-    return '<div class="'+cls+'" '+handler+'><span class="t-picker-result-name">'+tEscapeHtml(c.displayName)+'</span><span class="t-picker-result-meta">'+meta+'</span></div>';
+    return '<div class="'+cls+'" '+handler+'>'+
+      '<span class="t-picker-result-name">'+teamLogoHtml(c.franchiseAbbr,"t-logo-sm")+tEscapeHtml(c.displayName)+'</span>'+
+      '<span class="t-picker-result-meta">'+meta+'</span>'+
+    '</div>';
   }).join("");
   if(!limited.length){
     html='<div class="t-picker-empty">No team-seasons match "'+tEscapeHtml(q)+'"</div>';
@@ -4481,7 +4630,7 @@ function renderSelectedChips(){
   }
   el.innerHTML=tournament.selectedTeams.map((k,i)=>{
     const c=teamSeasonCatalog[k];
-    return '<span class="t-picker-chip">'+tEscapeHtml(c.displayName)+'<button class="t-picker-chip-x" onclick="removeSelectedAt('+i+')" title="Remove">×</button></span>';
+    return '<span class="t-picker-chip">'+teamLogoHtml(c.franchiseAbbr,"t-logo-xs")+tEscapeHtml(c.displayName)+'<button class="t-picker-chip-x" onclick="removeSelectedAt('+i+')" title="Remove">×</button></span>';
   }).join("");
 }
 
@@ -4603,12 +4752,16 @@ function renderBracket(){
 function renderBracketRow(match,key,wins){
   let cls="t-bracket-team";
   let label="TBD";
-  if(key)label=teamSeasonCatalog[key].displayName;
-  else cls+=" tbd";
+  let logoHtml="";
+  if(key){
+    const c=teamSeasonCatalog[key];
+    label=c.displayName;
+    logoHtml=teamLogoHtml(c.franchiseAbbr,"t-logo-sm");
+  }else cls+=" tbd";
   if(match.complete&&key){
     cls+=(match.winnerKey===key)?" winner":" loser";
   }
-  return '<div class="'+cls+'"><span class="t-bracket-name">'+tEscapeHtml(label)+'</span><span class="t-bracket-score">'+(key?wins:"")+'</span></div>';
+  return '<div class="'+cls+'">'+logoHtml+'<span class="t-bracket-name">'+tEscapeHtml(label)+'</span><span class="t-bracket-score">'+(key?wins:"")+'</span></div>';
 }
 
 // --- Series sim --------------------------------------------------------------
@@ -4693,13 +4846,17 @@ function openSeriesReview(){
   let html="";
   for(let i=0;i<m.games.length;i++){
     const g=m.games[i];
+    // Re-fetch franchise abbrs from the cataloged team (game snapshot doesn't carry them)
+    const aCat=teamSeasonCatalog[m.teamA],bCat=teamSeasonCatalog[m.teamB];
+    const aLogo=teamLogoHtml(aCat&&aCat.franchiseAbbr,"t-logo-xs");
+    const bLogo=teamLogoHtml(bCat&&bCat.franchiseAbbr,"t-logo-xs");
     html+='<div class="t-game-review">'+
       '<div class="t-game-review-header">'+
         '<div class="t-game-review-label">GAME '+(i+1)+'</div>'+
         '<div class="t-game-review-score">'+
-          '<span class="'+(g.winnerSide==="A"?"win":"")+'">'+tEscapeHtml(g.teamAName)+' '+g.ptsA+'</span>'+
+          '<span class="'+(g.winnerSide==="A"?"win":"")+'">'+aLogo+tEscapeHtml(g.teamAName)+' '+g.ptsA+'</span>'+
           '<span class="t-game-review-dash">–</span>'+
-          '<span class="'+(g.winnerSide==="B"?"win":"")+'">'+g.ptsB+' '+tEscapeHtml(g.teamBName)+'</span>'+
+          '<span class="'+(g.winnerSide==="B"?"win":"")+'">'+g.ptsB+' '+tEscapeHtml(g.teamBName)+bLogo+'</span>'+
           (g.otPeriods>0?' <span class="t-game-review-ot">'+(g.otPeriods===1?"OT":(g.otPeriods+"OT"))+'</span>':"")+
         '</div>'+
       '</div>'+
@@ -4766,21 +4923,20 @@ function renderSnapshotBoxScore(teamName,roster,headerColor){
 function buildTeamForSim(key){
   const c=teamSeasonCatalog[key];
   if(!c)return [];
+  const eraM=eraMult[c.sy]||1.0;
   return c.roster.map(p=>{
     // Pull only games where this player was on THIS team in THIS season
     const games=(playerIndex[p.name]||[]).filter(g=>
       isPlayableGame(g)&&g[G.TM]===c.teamId&&g[G.SY]===c.sy);
     if(!games.length)return null;
-    const game=games[Math.floor(Math.random()*games.length)];
-    // W-bonus: if this gameline came from a winning game (or — when DT is
-    // missing — from a winning season head-to-head), boost the player's
-    // counting stats by +10%. Good teams sample more often from wins, so
-    // they get more boosted contributions; bad teams get fewer. Helps
-    // counterbalance the modern-team scoring inflation (era effect) by
-    // amplifying the team-quality signal that's already in the data.
-    if(didPlayerTeamWin(game)){
-      return {name:p.name,game:applyStatBonus(game,STAT_BONUS_MULT)};
-    }
+    let game=games[Math.floor(Math.random()*games.length)];
+    // Capture W/L FIRST (uses original team/opponent ids, not affected by era scaling)
+    const isWin=didPlayerTeamWin(game);
+    // Era adjustment — scales scoring volume toward the league median PPG.
+    // Preserves FG% / 3P% / FT% (boosts FGM and FGA together).
+    if(eraM!==1)game=applyEraAdjustment(game,eraM);
+    // W-bonus stacks on top — winning gamelines get +10% across positive stats.
+    if(isWin)game=applyStatBonus(game,STAT_BONUS_MULT);
     return {name:p.name,game};
   }).filter(Boolean);
 }
@@ -4892,7 +5048,9 @@ function renderSeriesHeader(){
   const m=currentMatch();
   if(!m)return;
   const a=teamSeasonCatalog[m.teamA],b=teamSeasonCatalog[m.teamB];
-  document.getElementById("seriesTitle").textContent=a.displayName+" vs "+b.displayName;
+  const aLogo=teamLogoHtml(a.franchiseAbbr,"t-logo-md");
+  const bLogo=teamLogoHtml(b.franchiseAbbr,"t-logo-md");
+  document.getElementById("seriesTitle").innerHTML=aLogo+tEscapeHtml(a.displayName)+' <span style="color:#666;padding:0 6px">vs</span> '+bLogo+tEscapeHtml(b.displayName);
   const gamesNeeded=Math.floor(tournament.gamesPerSeries/2)+1;
   let scoreTxt=m.winsA+"-"+m.winsB;
   if(tournament.gamesPerSeries>1)scoreTxt+=" · First to "+gamesNeeded;
@@ -4942,7 +5100,8 @@ function showFinalChampion(){
   const finalMatch=tournament.bracket[tournament.bracket.length-1][0];
   const champKey=finalMatch.winnerKey;
   const champ=teamSeasonCatalog[champKey];
-  document.getElementById("championName").textContent=champ.displayName;
+  const champLogo=teamLogoHtml(champ.franchiseAbbr,"t-logo-xl");
+  document.getElementById("championName").innerHTML=champLogo+'<span>'+tEscapeHtml(champ.displayName)+'</span>';
   // Path: every round, the match where the champion played
   const roundNames=bracketRoundNames(tournament.bracketSize);
   let pathHtml="";
@@ -4952,8 +5111,9 @@ function showFinalChampion(){
       if(m.winnerKey===champKey){
         const loserKey=(m.teamA===champKey)?m.teamB:m.teamA;
         const loser=teamSeasonCatalog[loserKey];
+        const loserLogo=teamLogoHtml(loser.franchiseAbbr,"t-logo-xs");
         const score=(m.teamA===champKey)?(m.winsA+"-"+m.winsB):(m.winsB+"-"+m.winsA);
-        pathHtml+='<div><span class="path-round">'+roundNames[r]+'</span>defeated '+tEscapeHtml(loser.displayName)+' ('+score+')</div>';
+        pathHtml+='<div><span class="path-round">'+roundNames[r]+'</span>defeated '+loserLogo+tEscapeHtml(loser.displayName)+' ('+score+')</div>';
       }
     }
   }
@@ -5037,13 +5197,16 @@ function renderGameTicker(match,gameIdx){
   const ticker=document.getElementById("bracketTicker");
   if(!ticker||!match.games[gameIdx])return;
   const g=match.games[gameIdx];
-  // Game line: "GAME 3 · Lakers 110-95 Celtics (OT)"
+  // Game line with logos
   const aName=g.teamAName,bName=g.teamBName;
   const winA=g.winnerSide==="A";
   const otTxt=g.otPeriods>0?" "+(g.otPeriods===1?"OT":g.otPeriods+"OT"):"";
-  const scoreHtml='<span class="t-ticker-team'+(winA?" win":"")+'">'+tEscapeHtml(aName)+' '+g.ptsA+'</span>'+
+  const aCat=teamSeasonCatalog[match.teamA],bCat=teamSeasonCatalog[match.teamB];
+  const aLogo=teamLogoHtml(aCat&&aCat.franchiseAbbr,"t-logo-xs");
+  const bLogo=teamLogoHtml(bCat&&bCat.franchiseAbbr,"t-logo-xs");
+  const scoreHtml='<span class="t-ticker-team'+(winA?" win":"")+'">'+aLogo+tEscapeHtml(aName)+' '+g.ptsA+'</span>'+
     '<span class="t-ticker-dash">–</span>'+
-    '<span class="t-ticker-team'+(winA?"":" win")+'">'+g.ptsB+' '+tEscapeHtml(bName)+'</span>'+
+    '<span class="t-ticker-team'+(winA?"":" win")+'">'+g.ptsB+' '+tEscapeHtml(bName)+bLogo+'</span>'+
     (otTxt?'<span class="t-ticker-ot">'+otTxt+'</span>':"");
   // Leaders across BOTH teams
   const all=g.teamA.concat(g.teamB);
