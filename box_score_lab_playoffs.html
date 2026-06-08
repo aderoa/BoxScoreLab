@@ -1133,6 +1133,7 @@ function processAll(){normalizeTeam(0);normalizeTeam(1);equalizePossessions();ap
         // Tournament boot: pre-compute the team-season catalog (one-off
         // aggregation over playerIndex), then render the setup screen.
         buildTeamSeasonCatalog();
+        buildGameOutcomesIndex();
         showTournamentScreen("setup");
         renderTeamPickerList();
         updatePickerCount();
@@ -4268,6 +4269,73 @@ function pickPositionBalancedRoster(pool){
   return picks.length===12?picks:null;
 }
 
+// --- Game outcomes (winner per game) ----------------------------------------
+// Builds a map from canonical game key → winning team id. Canonical key is
+// (min(TM,OP), max(TM,OP), SY, DT). With DT populated this is per-game; with
+// DT missing/zero across the dataset it collapses to per-season head-to-head
+// — still a meaningful "did team A beat team B that season" signal. Used by
+// buildTeamForSim() to apply a +10% stat bonus to winning gamelines so good
+// teams (more wins → more boosted samples) outperform their raw box-score
+// inputs would suggest.
+let gameOutcomes=null;
+const STAT_BONUS_IDX=[G.PT,G.FM,G.FA,G.PM,G.PA,G.FT,G.TA,G.OR,G.DR,G.RB,G.AS,G.ST,G.BK];
+const STAT_BONUS_MULT=1.10;
+
+function buildGameOutcomesIndex(){
+  console.time("[playoffs] game outcomes");
+  const tallies={};   // canonical → {teamId: pts}
+  let dtNonZero=0,total=0;
+  for(const name of playerNames){
+    const games=playerIndex[name]||[];
+    for(let i=0;i<games.length;i++){
+      const g=games[i];
+      if(!isPlayableGame(g))continue;
+      const tm=g[G.TM],op=g[G.OP];
+      if(tm==null||op==null)continue;
+      const sy=g[G.SY]||0,dt=g[G.DT]||0;
+      const pts=g[G.PT]||0;
+      const lo=Math.min(tm,op),hi=Math.max(tm,op);
+      const key=lo+"_"+hi+"_"+sy+"_"+dt;
+      if(!tallies[key])tallies[key]={};
+      tallies[key][tm]=(tallies[key][tm]||0)+pts;
+      if(dt)dtNonZero++;
+      total++;
+    }
+  }
+  gameOutcomes={};
+  for(const key in tallies){
+    const totals=tallies[key];
+    let winner=-1,max=-1;
+    for(const id in totals){if(totals[id]>max){max=totals[id];winner=parseInt(id)}}
+    gameOutcomes[key]=winner;
+  }
+  console.timeEnd("[playoffs] game outcomes");
+  const granularity=(dtNonZero/total>0.5)?"per-game (DT populated)":"per-season head-to-head (DT missing — bonus applies to entire season vs that opponent)";
+  console.log("[playoffs] outcomes: "+Object.keys(gameOutcomes).length+" buckets, "+granularity);
+}
+
+function didPlayerTeamWin(g){
+  if(!gameOutcomes||!g)return false;
+  const tm=g[G.TM],op=g[G.OP];
+  if(tm==null||op==null)return false;
+  const sy=g[G.SY]||0,dt=g[G.DT]||0;
+  const lo=Math.min(tm,op),hi=Math.max(tm,op);
+  return gameOutcomes[lo+"_"+hi+"_"+sy+"_"+dt]===tm;
+}
+
+// Returns a SHALLOW COPY of the gameline with positive box-score stats
+// scaled by mult. Negatives (TOV, PF) and meta cols (TM/OP/POS/MIN/SY/etc.)
+// are untouched. We never mutate playerIndex — every sampled game survives
+// for future picks at its real values.
+function applyStatBonus(g,mult){
+  const out=g.slice();
+  for(let i=0;i<STAT_BONUS_IDX.length;i++){
+    const idx=STAT_BONUS_IDX[i];
+    if(typeof out[idx]==="number")out[idx]=out[idx]*mult;
+  }
+  return out;
+}
+
 // --- Screen nav --------------------------------------------------------------
 function showTournamentScreen(name){
   const screens=["setup","bracket","series","champion"];
@@ -4527,7 +4595,17 @@ function buildTeamForSim(key){
     const games=(playerIndex[p.name]||[]).filter(g=>
       isPlayableGame(g)&&g[G.TM]===c.teamId&&g[G.SY]===c.sy);
     if(!games.length)return null;
-    return {name:p.name,game:games[Math.floor(Math.random()*games.length)]};
+    const game=games[Math.floor(Math.random()*games.length)];
+    // W-bonus: if this gameline came from a winning game (or — when DT is
+    // missing — from a winning season head-to-head), boost the player's
+    // counting stats by +10%. Good teams sample more often from wins, so
+    // they get more boosted contributions; bad teams get fewer. Helps
+    // counterbalance the modern-team scoring inflation (era effect) by
+    // amplifying the team-quality signal that's already in the data.
+    if(didPlayerTeamWin(game)){
+      return {name:p.name,game:applyStatBonus(game,STAT_BONUS_MULT)};
+    }
+    return {name:p.name,game};
   }).filter(Boolean);
 }
 
