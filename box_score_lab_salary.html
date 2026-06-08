@@ -391,6 +391,8 @@ body{background:linear-gradient(145deg,#1a1a3e 0%,#0a0a1a 50%,#ffffff 100%);back
 .modal-roster-player:hover{background:#15153a;border-color:#ff6b35}
 .modal-roster-left{flex:1;min-width:0}
 .modal-roster-name{font-family:'Oswald',sans-serif;font-size:13px;font-weight:600;letter-spacing:1px;color:#fff;margin-bottom:3px;text-transform:uppercase}
+.modal-roster-right{display:flex;flex-direction:column;align-items:flex-end;gap:4px}
+.roster-pct-badge{font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:600;letter-spacing:0.5px;color:#34d97a;background:#0a1a14;border:1px solid #34d97a55;padding:2px 6px;border-radius:3px;white-space:nowrap}
 .modal-stat-line{display:block;font-family:'JetBrains Mono',monospace;font-size:10px;color:#8888aa;line-height:1.4}
 .modal-stat-line b{color:#ffd700;font-weight:700}
 .modal-stat-new{color:#ffd700;font-style:italic}
@@ -4037,12 +4039,19 @@ function openReplaceChooserFor(mysteryName,kind){
     const fn=(kind==="bonus")?"confirmReplaceBonus":"confirmReplace";
     const handler=valid?'onclick="'+fn+'('+origIdx+')"':'';
     const lockHTML=lockReason?'<span class="modal-row-lock">'+lockReason+'</span>':'';
+    // Salary % badge — shown next to the position chip so the user can
+    // identify overvalued roster cuts when deciding who to release.
+    const sal=(careerState.rosterSalary&&careerState.rosterSalary[name])?careerState.rosterSalary[name]:null;
+    const pctBadge=sal?'<span class="roster-pct-badge">'+sal.pct.toFixed(2)+'% CAP</span>':'';
     return '<div class="'+cls+'" '+handler+'>'+
       '<div class="modal-roster-left">'+
-        '<div class="modal-roster-name">'+escapeHtmlS(name)+(careerState.rosterSalary&&careerState.rosterSalary[name]?'<span class="roster-card-season"> \''+String((careerState.rosterSalary[name].sy+1)%100).padStart(2,"0")+'</span>':'')+'</div>'+
+        '<div class="modal-roster-name">'+escapeHtmlS(name)+(sal?'<span class="roster-card-season"> \''+String((sal.sy+1)%100).padStart(2,"0")+'</span>':'')+'</div>'+
         statHTML+lockHTML+
       '</div>'+
-      '<span class="roster-pos">'+escapeHtmlS(pos)+'</span>'+
+      '<div class="modal-roster-right">'+
+        '<span class="roster-pos">'+escapeHtmlS(pos)+'</span>'+
+        pctBadge+
+      '</div>'+
     '</div>';
   }).join("");
   modal.classList.add("active");
