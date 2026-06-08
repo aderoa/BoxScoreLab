@@ -284,27 +284,35 @@ function normalizeTeam(ti){
   const rawMins=team.map(p=>Math.max(rawG(p.game,"MIN"),1)); // at least 1 to avoid 0-division
   const rawSum=rawMins.reduce((a,b)=>a+b,0);
 
-  // Scale proportionally to hit TARGET_MIN
-  let targetMins=rawMins.map(m=>Math.round(m*(TARGET_MIN/rawSum)));
+  // Total minutes to fill: a real team plays 240, but a thin (<5-man) roster
+  // can't legally exceed 48 per man, so never target more than 48*n. This is
+  // what stops a lone starter on a bench-heavy five from being handed 100+
+  // simulated minutes and putting up absurd numbers.
+  const effTarget=Math.min(TARGET_MIN,48*n);
 
-  // Clamp: nobody over 48, nobody under 2 (unless team has >24 players somehow)
+  // Scale proportionally toward the target
+  let targetMins=rawMins.map(m=>Math.round(m*(effTarget/rawSum)));
+
+  // Clamp: nobody over 48, nobody under 2
   targetMins=targetMins.map(m=>Math.max(2,Math.min(48,m)));
 
-  // Fix rounding drift to hit exactly TARGET_MIN
-  let diff=TARGET_MIN-targetMins.reduce((a,b)=>a+b,0);
-  // Sort indices by raw minutes desc to distribute surplus/deficit to top players first
+  // Distribute rounding/clamp drift so the team hits effTarget exactly, giving
+  // spare minutes to the highest-raw-minute players first. Loops until it
+  // actually converges — the old n*3 cap left large deficits that got dumped
+  // onto a single player, inflating him to 100+ minutes and 90+ points.
   const sortedIdx=[...Array(n).keys()].sort((a,b)=>rawMins[b]-rawMins[a]);
-  let iter=0;
-  while(diff!==0&&iter<n*3){
-    const i=sortedIdx[iter%n];
-    if(diff>0&&targetMins[i]<48){targetMins[i]++;diff--}
-    else if(diff<0&&targetMins[i]>2){targetMins[i]--;diff++}
-    iter++;
+  let diff=effTarget-targetMins.reduce((a,b)=>a+b,0), guard=0;
+  while(diff!==0&&guard<2000){
+    let moved=false;
+    for(let k=0;k<n&&diff!==0;k++){
+      const i=sortedIdx[k];
+      if(diff>0&&targetMins[i]<48){targetMins[i]++;diff--;moved=true}
+      else if(diff<0&&targetMins[i]>2){targetMins[i]--;diff++;moved=true}
+    }
+    if(!moved)break;
+    guard++;
   }
-  // Fallback: if heavy clamping prevented convergence, dump remaining
-  // drift into the highest-raw-minutes player (relaxing the [2,48]
-  // clamp only on that one slot). Keeps the team-minutes invariant
-  // exactly at TARGET_MIN regardless of clamp pressure.
+  // Last resort (only reachable for sub-5-man rosters that can't fill effTarget)
   if(diff!==0){
     targetMins[sortedIdx[0]]+=diff;
   }
@@ -324,6 +332,26 @@ function normalizeTeam(ti){
     if(a["3PM"]>a.FGM)a["3PM"]=a.FGM;
     if(a["3PM"]>a["3PA"])a["3PM"]=a["3PA"];
     if(a.FTM>a.FTA)a.FTM=a.FTA;
+    // === Small-sample efficiency regression ===
+    // A deep-bench player's shooting % comes from a tiny garbage-time sample
+    // and would NOT survive a full starter's load against starters. The pace
+    // equalizer preserves efficiency while pushing every team to ~90+
+    // possessions, so without this a 56%-on-1-shot scrub scaled to starter
+    // volume scores like an All-Star. Pull such players' percentages toward a
+    // below-average baseline in proportion to how few minutes they truly played.
+    const cred=Math.max(0,Math.min(1,(rawMin-6)/18)); // 0 at ≤6 min, 1 at ≥24 min
+    if(cred<1){
+      const BFG=0.41, B3=0.30, BFT=0.72;
+      if(a.FGA>0){a.FGM=Math.max(0,Math.min(a.FGA,Math.round(((a.FGM/a.FGA)*cred+BFG*(1-cred))*a.FGA)));}
+      if(a["3PA"]>0){a["3PM"]=Math.max(0,Math.min(a["3PA"],a.FGM,Math.round(((a["3PM"]/a["3PA"])*cred+B3*(1-cred))*a["3PA"])));}
+      if(a.FTA>0){a.FTM=Math.max(0,Math.min(a.FTA,Math.round(((a.FTM/a.FTA)*cred+BFT*(1-cred))*a.FTA)));}
+      // Non-shooting counting stats were scaled up with minutes too — a 1.5-rpg
+      // scrub stretched to starter minutes shouldn't post 9 boards. Damp the
+      // "production" stats (turnovers are left intact, so stretched scrubs keep
+      // coughing it up). Equalize doesn't touch these, so the damp sticks.
+      const vol=0.35+0.65*cred;
+      ["ORB","DRB","AST","STL","BLK"].forEach(s=>{a[s]=Math.round((a[s]||0)*vol);});
+    }
     // Recalc PTS from makes
     a.PTS=(a.FGM-a["3PM"])*2+a["3PM"]*3+a.FTM;
     // REB = ORB + DRB
