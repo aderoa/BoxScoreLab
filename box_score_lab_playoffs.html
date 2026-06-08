@@ -535,8 +535,8 @@ body{background:linear-gradient(145deg,#1a1a3e 0%,#0a0a1a 50%,#ffffff 100%);back
 .t-bracket-round-label{font-family:'Oswald',sans-serif;font-size:10px;letter-spacing:2px;color:#888899;text-transform:uppercase;text-align:center;margin-bottom:8px}
 .t-bracket-match{background:#0a0a1a;border:1px solid #2a2a55;border-radius:5px;overflow:hidden;cursor:pointer;transition:all 0.15s;min-height:64px;display:flex;flex-direction:column}
 .t-bracket-match:hover{border-color:#5a5a8a;box-shadow:0 0 12px rgba(255,107,53,0.15)}
-.t-bracket-match.complete{cursor:default}
-.t-bracket-match.complete:hover{border-color:#2a2a55;box-shadow:none}
+.t-bracket-match.complete{cursor:pointer}
+.t-bracket-match.complete:hover{border-color:#ffd70066;box-shadow:0 0 12px rgba(255,215,0,0.12)}
 .t-bracket-match.in-progress{border-color:#ff6b35;box-shadow:0 0 12px rgba(255,107,53,0.25)}
 .t-bracket-team{display:flex;justify-content:space-between;align-items:center;padding:6px 10px;font-family:'Oswald',sans-serif;font-size:11px;letter-spacing:0.5px;color:#aaaadd;text-transform:uppercase;border-bottom:1px solid #1a1a3e}
 .t-bracket-team:last-child{border-bottom:none}
@@ -555,10 +555,43 @@ body{background:linear-gradient(145deg,#1a1a3e 0%,#0a0a1a 50%,#ffffff 100%);back
 .t-series-meta{font-family:'JetBrains Mono',monospace;font-size:11px;color:#888899;letter-spacing:1px;text-align:center;margin-bottom:14px}
 .t-series-controls{display:flex;justify-content:center;gap:10px;margin-top:20px;padding-bottom:24px;flex-wrap:wrap}
 .t-btn-next-game{background:#ff6b35;padding:12px 28px;font-family:'Oswald',sans-serif;font-size:13px;font-weight:700;letter-spacing:2px;text-transform:uppercase;border-radius:5px}
+.t-btn-next-game-sm{background:#ff6b35;padding:6px 12px;font-family:'Oswald',sans-serif;font-size:10px;font-weight:700;letter-spacing:1px;border-radius:4px}
 .t-btn-sim-tourny{background:#8b5cf6;padding:12px 22px;font-family:'Oswald',sans-serif;font-size:13px;font-weight:700;letter-spacing:2px;text-transform:uppercase;border-radius:5px}
 .t-btn-sim-tourny-sm{background:#8b5cf6;padding:6px 12px;font-family:'Oswald',sans-serif;font-size:10px;font-weight:700;letter-spacing:1px;border-radius:4px}
 .t-btn-pause{background:#ffd700;color:#1a1a3e;padding:12px 32px;font-family:'Oswald',sans-serif;font-size:13px;font-weight:700;letter-spacing:2px;text-transform:uppercase;border-radius:5px;box-shadow:0 0 18px rgba(255,215,0,0.35)}
 .t-btn-pause-sm{background:#ffd700;color:#1a1a3e;padding:6px 12px;font-family:'Oswald',sans-serif;font-size:10px;font-weight:700;letter-spacing:1px;border-radius:4px}
+
+/* ===== Bracket ticker (latest game + leaders + series status) ===== */
+.t-ticker{background:linear-gradient(90deg,#15153a 0%,#1a1a3e 100%);border:1px solid #ff6b3555;border-radius:6px;padding:12px 16px;margin-bottom:14px;display:grid;grid-template-columns:auto 1fr auto;gap:10px 18px;align-items:center}
+.t-ticker-game{display:flex;gap:12px;align-items:baseline}
+.t-ticker-label{font-family:'Oswald',sans-serif;font-size:10px;letter-spacing:2px;color:#888899;text-transform:uppercase;background:#0a0a1a;padding:3px 8px;border-radius:3px;border:1px solid #2a2a55}
+.t-ticker-score{font-family:'Oswald',sans-serif;font-size:16px;font-weight:600;color:#fff;display:flex;gap:8px;align-items:baseline;white-space:nowrap}
+.t-ticker-team{color:#aaaadd}
+.t-ticker-team.win{color:#fff}
+.t-ticker-dash{color:#666}
+.t-ticker-ot{font-family:'Oswald',sans-serif;font-size:10px;color:#ffd700;background:#2a230e;border:1px solid #e6c64a55;border-radius:3px;padding:1px 5px;margin-left:4px}
+.t-ticker-leaders{font-family:'JetBrains Mono',monospace;font-size:11px;color:#aaaadd;display:flex;gap:14px;flex-wrap:wrap;justify-self:center}
+.t-ticker-lead{letter-spacing:0.3px}
+.t-ticker-lead b{color:#ffd700;font-weight:700;margin-left:3px}
+.t-ticker-lead-cat{color:#888899;font-family:'Oswald',sans-serif;font-size:10px;letter-spacing:1px;margin-right:4px}
+.t-ticker-series{font-family:'Oswald',sans-serif;font-size:11px;letter-spacing:1px;text-align:right;justify-self:end;text-transform:uppercase}
+.t-ticker-series-live{color:#aaaadd}
+.t-ticker-series-done{color:#34d97a;font-weight:600}
+@media(max-width:720px){
+  .t-ticker{grid-template-columns:1fr;gap:6px}
+  .t-ticker-leaders{justify-self:start}
+  .t-ticker-series{justify-self:start;text-align:left}
+}
+
+/* ===== Series review (clicked completed matchup) ===== */
+.t-series-review{margin-top:18px;padding-bottom:24px}
+.t-game-review{margin-bottom:28px;animation:fadeIn 0.3s ease}
+.t-game-review-header{display:flex;gap:14px;align-items:center;margin-bottom:6px;padding:8px 12px;background:#0a0a1a;border-left:3px solid #ffd700;border-radius:3px;flex-wrap:wrap}
+.t-game-review-label{font-family:'Oswald',sans-serif;font-size:12px;letter-spacing:2px;color:#ffd700;font-weight:700}
+.t-game-review-score{font-family:'Oswald',sans-serif;font-size:14px;font-weight:600;color:#aaaadd;display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
+.t-game-review-score .win{color:#fff}
+.t-game-review-dash{color:#666}
+.t-game-review-ot{font-family:'Oswald',sans-serif;font-size:10px;color:#ffd700;background:#2a230e;border:1px solid #e6c64a55;border-radius:3px;padding:1px 5px;margin-left:4px}
 .t-btn-series-done{background:#34d97a;color:#000;padding:12px 28px;font-family:'Oswald',sans-serif;font-size:13px;font-weight:700;letter-spacing:2px;text-transform:uppercase;border-radius:5px}
 .t-series-history{display:flex;justify-content:center;gap:6px;margin-bottom:14px;flex-wrap:wrap}
 .t-series-history-pill{font-family:'JetBrains Mono',monospace;font-size:10px;padding:4px 8px;border-radius:3px;letter-spacing:0.5px;color:#aaa;background:#15153a;border:1px solid #2a2a55}
@@ -695,6 +728,8 @@ body{background:linear-gradient(145deg,#1a1a3e 0%,#0a0a1a 50%,#ffffff 100%);back
         <span id="bracketSimSlot"></span>
         <button class="btn t-btn-restart" onclick="exitToSetup()" title="Back to setup">↺ NEW TOURNAMENT</button>
       </div>
+      <!-- Latest game ticker — populated by renderGameTicker after each sim step -->
+      <div id="bracketTicker" class="t-ticker" style="display:none"></div>
       <div class="t-bracket-wrap" id="bracketWrap"></div>
     </div>
 
@@ -706,6 +741,9 @@ body{background:linear-gradient(145deg,#1a1a3e 0%,#0a0a1a 50%,#ffffff 100%);back
         <div class="t-series-score" id="seriesScore"></div>
       </div>
       <div class="t-series-meta" id="seriesMeta"></div>
+
+      <!-- Controls moved ABOVE the box score per spec — "Simulate Next Game" sits at the top -->
+      <div class="t-series-controls" id="seriesControls"></div>
 
       <!-- Shared scoreboard + box-score region (rendered by the engine's render()) -->
       <div id="scoreboard" class="scoreboard" style="display:none">
@@ -725,8 +763,6 @@ body{background:linear-gradient(145deg,#1a1a3e 0%,#0a0a1a 50%,#ffffff 100%);back
       <div id="teamASection"></div>
       <div id="teamBSection"></div>
       <div id="emptyMsg" class="empty-state" style="display:none"><div class="icon">🏀</div>SELECT A MATCHUP TO BEGIN</div>
-
-      <div class="t-series-controls" id="seriesControls"></div>
     </div>
 
     <!-- Screen: CHAMPION -->
@@ -4504,6 +4540,10 @@ function exitToSetup(){
   tournament.bracket=null;
   tournament.activeMatch=null;
   teams=[[],[]];adjusted=[[],[]];
+  clearGameTicker();
+  // Reset review container if it was left in the DOM
+  const revEl=document.getElementById("seriesReview");
+  if(revEl){revEl.style.display="none";revEl.innerHTML=""}
   showTournamentScreen("setup");
 }
 
@@ -4544,11 +4584,11 @@ function renderBracket(){
     html+='<div class="t-bracket-round"><div class="t-bracket-round-label">'+roundNames[r]+'</div>';
     for(let m=0;m<round.length;m++){
       const match=round[m];
-      const canPlay=!match.complete&&match.teamA&&match.teamB;
-      const handler=canPlay?('onclick="openMatchup('+r+','+m+')"'):"";
+      const canClick=(match.teamA&&match.teamB);  // playable OR completed-review
+      const handler=canClick?('onclick="openMatchup('+r+','+m+')"'):"";
       let cls="t-bracket-match";
       if(match.complete)cls+=" complete";
-      else if(canPlay)cls+=" in-progress";
+      else if(canClick)cls+=" in-progress";
       html+='<div class="'+cls+'" '+handler+'>';
       html+=renderBracketRow(match,match.teamA,match.winsA);
       html+=renderBracketRow(match,match.teamB,match.winsB);
@@ -4580,11 +4620,147 @@ function currentMatch(){
 
 function openMatchup(roundIdx,matchIdx){
   const m=tournament.bracket[roundIdx][matchIdx];
-  if(!m||m.complete||!m.teamA||!m.teamB)return;
+  if(!m||!m.teamA||!m.teamB)return;
+  // Pause any running auto-sim — the user is taking manual control
+  if(tournament.autoSim)pauseAutoSim();
   tournament.activeMatch={roundIdx,matchIdx};
+  if(m.complete){
+    openSeriesReview();
+    return;
+  }
+  // Live (in-progress) series view — make sure any prior review content is hidden
+  const revEl=document.getElementById("seriesReview");
+  if(revEl){revEl.style.display="none";revEl.innerHTML=""}
   showTournamentScreen("series");
   renderSeriesHeader();
-  playSeriesGame();
+  renderSeriesControls();
+  // Auto-play game 1 if no games yet — user clicked the matchup expecting to see action
+  if(m.games.length===0){
+    playSeriesGame();
+  }else{
+    // Re-render the LAST played game's box score so the screen isn't blank
+    renderSavedGameOntoSeriesScreen(m.games[m.games.length-1]);
+  }
+}
+
+// Rebuild the engine's box score region from a saved game snapshot — used
+// when re-opening an in-progress series that already has games played.
+function renderSavedGameOntoSeriesScreen(g){
+  document.getElementById("scoreboard").style.display="flex";
+  document.getElementById("emptyMsg").style.display="none";
+  document.getElementById("scoreALabel").textContent=g.teamAName;
+  document.getElementById("scoreBLabel").textContent=g.teamBName;
+  document.getElementById("scoreAPts").textContent=g.ptsA;
+  document.getElementById("scoreBPts").textContent=g.ptsB;
+  document.getElementById("scoreAPts").className="score-pts"+(g.ptsA>g.ptsB?" score-winner":"");
+  document.getElementById("scoreBPts").className="score-pts"+(g.ptsB>g.ptsA?" score-winner":"");
+  const otEl=document.getElementById("scoreOT");
+  if(otEl){
+    if(g.otPeriods>0){otEl.style.display="inline-block";otEl.textContent=g.otPeriods===1?"OT":(g.otPeriods+"OT")}
+    else{otEl.style.display="none"}
+  }
+  document.getElementById("teamASection").innerHTML=renderSnapshotBoxScore(g.teamAName,g.teamA,"#e63946");
+  document.getElementById("teamBSection").innerHTML=renderSnapshotBoxScore(g.teamBName,g.teamB,"#1d3557");
+  // Empty scoreboard records (no career-mode context here)
+  const recA=document.getElementById("scoreARecord");if(recA)recA.textContent="";
+  const recB=document.getElementById("scoreBRecord");if(recB)recB.textContent="";
+}
+
+// --- Series review (clicking a completed matchup) ---------------------------
+function openSeriesReview(){
+  const ref=tournament.activeMatch;
+  if(!ref)return;
+  const m=tournament.bracket[ref.roundIdx][ref.matchIdx];
+  if(!m)return;
+  // Switch to series screen but with full review content. We hide the live
+  // engine box-score region and inject our own stacked-games HTML.
+  showTournamentScreen("series");
+  renderSeriesHeader();
+  // Hide live engine output and the per-game controls — completed series are read-only
+  document.getElementById("scoreboard").style.display="none";
+  document.getElementById("emptyMsg").style.display="none";
+  document.getElementById("teamASection").innerHTML="";
+  document.getElementById("teamBSection").innerHTML="";
+  document.getElementById("seriesControls").innerHTML='<button class="btn t-btn-back" onclick="returnToBracket()">← BACK TO BRACKET</button>';
+  // Build the stacked-games HTML and tuck it into the series-review container
+  let revEl=document.getElementById("seriesReview");
+  if(!revEl){
+    revEl=document.createElement("div");
+    revEl.id="seriesReview";
+    revEl.className="t-series-review";
+    document.getElementById("screenSeries").appendChild(revEl);
+  }
+  let html="";
+  for(let i=0;i<m.games.length;i++){
+    const g=m.games[i];
+    html+='<div class="t-game-review">'+
+      '<div class="t-game-review-header">'+
+        '<div class="t-game-review-label">GAME '+(i+1)+'</div>'+
+        '<div class="t-game-review-score">'+
+          '<span class="'+(g.winnerSide==="A"?"win":"")+'">'+tEscapeHtml(g.teamAName)+' '+g.ptsA+'</span>'+
+          '<span class="t-game-review-dash">–</span>'+
+          '<span class="'+(g.winnerSide==="B"?"win":"")+'">'+g.ptsB+' '+tEscapeHtml(g.teamBName)+'</span>'+
+          (g.otPeriods>0?' <span class="t-game-review-ot">'+(g.otPeriods===1?"OT":(g.otPeriods+"OT"))+'</span>':"")+
+        '</div>'+
+      '</div>'+
+      renderSnapshotBoxScore(g.teamAName,g.teamA,"#e63946")+
+      renderSnapshotBoxScore(g.teamBName,g.teamB,"#1d3557")+
+    '</div>';
+  }
+  revEl.innerHTML=html;
+  revEl.style.display="block";
+}
+
+// Render a single team's saved box score (used by review + saved-game replay).
+// Matches the engine's renderTeam structure visually but reads from the
+// snapshotTeamStats() shape so we don't need teams[] / adjusted[] set up.
+function renderSnapshotBoxScore(teamName,roster,headerColor){
+  const sorted=roster.slice().sort((a,b)=>b.pts-a.pts||b.min-a.min);
+  const tot={min:0,pts:0,fgm:0,fga:0,pm3:0,pa3:0,ftm:0,fta:0,or:0,dr:0,reb:0,ast:0,stl:0,blk:0,tov:0,pf:0};
+  // No OREB/DREB on the snapshot (we didn't capture them separately) — show only total REB.
+  sorted.forEach(p=>{
+    tot.min+=p.min;tot.pts+=p.pts;tot.fgm+=p.fgm;tot.fga+=p.fga;
+    tot.pm3+=p.pm3;tot.pa3+=p.pa3;tot.ftm+=p.ftm;tot.fta+=p.fta;
+    tot.reb+=p.reb;tot.ast+=p.ast;tot.stl+=p.stl;tot.blk+=p.blk;tot.tov+=p.tov;tot.pf+=p.pf;
+  });
+  const fgPct=tot.fga?(tot.fgm/tot.fga).toFixed(3).replace(/^0/,""):"-";
+  const ftPct=tot.fta?(tot.ftm/tot.fta).toFixed(3).replace(/^0/,""):"-";
+  const rows=sorted.map((p,i)=>{
+    const cls=i%2===0?"row-even":"row-odd";
+    const fg=p.fga?(p.fgm/p.fga).toFixed(3).replace(/^0/,""):"-";
+    const ft=p.fta?(p.ftm/p.fta).toFixed(3).replace(/^0/,""):"-";
+    return '<tr class="'+cls+'">'+
+      '<td class="pname">'+tEscapeHtml(p.name)+' <span class="pos-tag">'+tEscapeHtml(p.pos)+'</span> <span class="yr-tag">\''+String(((p.sy||0)+1)%100).padStart(2,"0")+'</span></td>'+
+      '<td class="r">'+p.min+'</td>'+
+      '<td class="r">'+p.pts+'</td>'+
+      '<td class="r">'+p.fgm+'</td><td class="r">'+p.fga+'</td><td class="r">'+fg+'</td>'+
+      '<td class="r">'+p.pm3+'</td><td class="r">'+p.pa3+'</td>'+
+      '<td class="r">'+p.ftm+'</td><td class="r">'+p.fta+'</td><td class="r">'+ft+'</td>'+
+      '<td class="r">'+p.reb+'</td>'+
+      '<td class="r">'+p.ast+'</td><td class="r">'+p.stl+'</td><td class="r">'+p.blk+'</td>'+
+      '<td class="r">'+p.tov+'</td><td class="r">'+p.pf+'</td>'+
+    '</tr>';
+  }).join("");
+  return '<div class="team-section">'+
+    '<div class="team-hdr" style="background:'+headerColor+'">'+
+      '<div class="team-hdr-left"><div class="team-hdr-name">'+tEscapeHtml(teamName)+'</div></div>'+
+      '<div class="team-hdr-pts">'+tot.pts+'</div>'+
+    '</div>'+
+    '<div class="tbl-wrap"><table class="box-tbl"><thead><tr>'+
+      '<th>PLAYER</th><th class="r">MIN</th><th class="r">PTS</th>'+
+      '<th class="r">FGM</th><th class="r">FGA</th><th class="r">FG%</th>'+
+      '<th class="r">3PM</th><th class="r">3PA</th>'+
+      '<th class="r">FTM</th><th class="r">FTA</th><th class="r">FT%</th>'+
+      '<th class="r">REB</th><th class="r">AST</th><th class="r">STL</th><th class="r">BLK</th><th class="r">TOV</th><th class="r">PF</th>'+
+    '</tr></thead><tbody>'+rows+
+    '<tr class="totals"><td>TOTALS</td><td class="r">'+tot.min+'</td><td class="r">'+tot.pts+'</td>'+
+      '<td class="r">'+tot.fgm+'</td><td class="r">'+tot.fga+'</td><td class="r">'+fgPct+'</td>'+
+      '<td class="r">'+tot.pm3+'</td><td class="r">'+tot.pa3+'</td>'+
+      '<td class="r">'+tot.ftm+'</td><td class="r">'+tot.fta+'</td><td class="r">'+ftPct+'</td>'+
+      '<td class="r">'+tot.reb+'</td><td class="r">'+tot.ast+'</td><td class="r">'+tot.stl+'</td><td class="r">'+tot.blk+'</td>'+
+      '<td class="r">'+tot.tov+'</td><td class="r">'+tot.pf+'</td>'+
+    '</tr>'+
+    '</tbody></table></div></div>';
 }
 
 function buildTeamForSim(key){
@@ -4609,16 +4785,48 @@ function buildTeamForSim(key){
   }).filter(Boolean);
 }
 
-function playSeriesGame(){
-  const m=currentMatch();
-  if(!m||m.complete)return;
+// Snapshot every player's adjusted stats on team ti, used to persist a
+// game's box score for series review + ticker display. Stored as plain
+// objects (no engine deps) so series review can render without re-running
+// processAll() — important because the engine globals get overwritten
+// the moment the next game is rolled.
+function snapshotTeamStats(ti){
+  return teams[ti].map((p,i)=>({
+    name:p.name,
+    pos:POS[p.game[G.PS]]||"",
+    sy:p.game[G.SY]||0,
+    min:Math.round(av(ti,i,"MIN")),
+    pts:Math.round(av(ti,i,"PTS")),
+    reb:Math.round(av(ti,i,"REB")),
+    ast:Math.round(av(ti,i,"AST")),
+    stl:Math.round(av(ti,i,"STL")),
+    blk:Math.round(av(ti,i,"BLK")),
+    tov:Math.round(av(ti,i,"TOV")),
+    fgm:Math.round(av(ti,i,"FGM")),
+    fga:Math.round(av(ti,i,"FGA")),
+    pm3:Math.round(av(ti,i,"3PM")),
+    pa3:Math.round(av(ti,i,"3PA")),
+    ftm:Math.round(av(ti,i,"FTM")),
+    fta:Math.round(av(ti,i,"FTA")),
+    pf:Math.round(av(ti,i,"PF"))
+  }));
+}
+
+// Core: roll one game for the matchup at (roundIdx, matchIdx). Runs the
+// engine pipeline, snapshots both teams' stats, records the result on the
+// match, and propagates the winner into the next round if the series ended.
+// Returns {match, gameIdx} so the caller can display it (or null if the
+// match couldn't be played).
+function playOneGame(roundIdx,matchIdx){
+  const m=tournament.bracket[roundIdx][matchIdx];
+  if(!m||m.complete||!m.teamA||!m.teamB)return null;
   // Build both teams with fresh game samples
   teams[0]=buildTeamForSim(m.teamA);
   teams[1]=buildTeamForSim(m.teamB);
   teamNames[0]=teamSeasonCatalog[m.teamA].displayName;
   teamNames[1]=teamSeasonCatalog[m.teamB].displayName;
   processAll();
-  // Tally final score (with OT logic — engine doesn't handle ties)
+  // Final score with OT
   let pA=0,pB=0;
   teams[0].forEach((_,i)=>{pA+=av(0,i,"PTS")});
   teams[1].forEach((_,i)=>{pB+=av(1,i,"PTS")});
@@ -4631,30 +4839,50 @@ function playSeriesGame(){
   }
   if(pA===pB){Math.random()<0.5?pA++:pB++}
   const winnerSide=pA>pB?"A":"B";
-  m.games.push({ptsA:pA,ptsB:pB,winnerSide,otPeriods});
+  // Snapshot + record
+  m.games.push({
+    ptsA:pA,ptsB:pB,winnerSide,otPeriods,
+    teamA:snapshotTeamStats(0),
+    teamB:snapshotTeamStats(1),
+    teamAName:teamNames[0],teamBName:teamNames[1]
+  });
   if(winnerSide==="A")m.winsA++;else m.winsB++;
-
-  // Render box scores via the engine
-  render();
-  // Override scoreboard pts with our final tally (render uses pre-OT totals)
-  const aEl=document.getElementById("scoreAPts"),bEl=document.getElementById("scoreBPts");
-  if(aEl)aEl.textContent=pA;
-  if(bEl)bEl.textContent=pB;
-  if(aEl)aEl.className="score-pts"+(pA>pB?" score-winner":"");
-  if(bEl)bEl.className="score-pts"+(pB>pA?" score-winner":"");
-  const otEl=document.getElementById("scoreOT");
-  if(otEl){
-    if(otPeriods>0){otEl.style.display="inline-block";otEl.textContent=otPeriods===1?"OT":(otPeriods+"OT")}
-    else{otEl.style.display="none"}
-  }
-
-  // Series done?
+  // Series complete?
   const needed=Math.floor(tournament.gamesPerSeries/2)+1;
   if(m.winsA>=needed||m.winsB>=needed){
     m.complete=true;
     m.winnerKey=m.winsA>=needed?m.teamA:m.teamB;
     m.loserKey=m.winsA>=needed?m.teamB:m.teamA;
-    propagateWinner();
+    // Propagate winner forward (no-op if this was the final)
+    if(roundIdx<tournament.bracket.length-1){
+      const nextMatch=tournament.bracket[roundIdx+1][Math.floor(matchIdx/2)];
+      if(matchIdx%2===0)nextMatch.teamA=m.winnerKey;
+      else nextMatch.teamB=m.winnerKey;
+    }
+  }
+  return {match:m,gameIdx:m.games.length-1};
+}
+
+function playSeriesGame(){
+  // Series-screen "Simulate Next Game": plays the next game in the active
+  // matchup specifically (not round-robin — the user is focused here).
+  const ref=tournament.activeMatch;
+  if(!ref)return;
+  const result=playOneGame(ref.roundIdx,ref.matchIdx);
+  if(!result)return;
+  // Engine renders box score from teams[] / adjusted[] (still the just-played game)
+  render();
+  // Override the scoreboard pts/OT label with our post-OT tally
+  const last=result.match.games[result.gameIdx];
+  const aEl=document.getElementById("scoreAPts"),bEl=document.getElementById("scoreBPts");
+  if(aEl)aEl.textContent=last.ptsA;
+  if(bEl)bEl.textContent=last.ptsB;
+  if(aEl)aEl.className="score-pts"+(last.ptsA>last.ptsB?" score-winner":"");
+  if(bEl)bEl.className="score-pts"+(last.ptsB>last.ptsA?" score-winner":"");
+  const otEl=document.getElementById("scoreOT");
+  if(otEl){
+    if(last.otPeriods>0){otEl.style.display="inline-block";otEl.textContent=last.otPeriods===1?"OT":(last.otPeriods+"OT")}
+    else{otEl.style.display="none"}
   }
   renderSeriesHeader();
   renderSeriesControls();
@@ -4688,33 +4916,26 @@ function renderSeriesControls(){
   if(!m)return;
   const el=document.getElementById("seriesControls");
   if(!el)return;
-  // Auto-sim active → only a pause button (any other action would race the timer)
-  if(tournament.autoSim){
-    el.innerHTML='<button class="btn t-btn-pause" onclick="pauseAutoSim()">⏸ PAUSE</button>';
-    return;
-  }
   if(m.complete){
     const finalMatch=tournament.bracket[tournament.bracket.length-1][0];
     if(finalMatch.complete){
-      el.innerHTML='<button class="btn t-btn-series-done" onclick="showFinalChampion()">🏆 CROWN THE CHAMPION</button>';
+      el.innerHTML='<button class="btn t-btn-back" onclick="returnToBracket()">← BACK TO BRACKET</button>'+
+        '<button class="btn t-btn-series-done" onclick="showFinalChampion()">🏆 CROWN THE CHAMPION</button>';
     }else{
       const winner=teamSeasonCatalog[m.winnerKey].displayName;
-      el.innerHTML='<button class="btn t-btn-series-done" onclick="returnToBracket()">✓ '+tEscapeHtml(winner)+' WINS — BACK TO BRACKET</button>'+
-        '<button class="btn t-btn-sim-tourny" onclick="startAutoSim()">⏩ SIMULATE TOURNAMENT</button>';
+      el.innerHTML='<button class="btn t-btn-back" onclick="returnToBracket()">← BACK TO BRACKET</button>'+
+        '<button class="btn t-btn-series-done" onclick="returnToBracket()">✓ '+tEscapeHtml(winner)+' WINS</button>';
     }
   }else{
-    el.innerHTML='<button class="btn t-btn-next-game" onclick="playSeriesGame()">▶ SIMULATE GAME</button>'+
+    el.innerHTML='<button class="btn t-btn-back" onclick="returnToBracket()">← BACK TO BRACKET</button>'+
+      '<button class="btn t-btn-next-game" onclick="playSeriesGame()">▶ SIMULATE NEXT GAME</button>'+
       '<button class="btn t-btn-sim-tourny" onclick="startAutoSim()">⏩ SIMULATE TOURNAMENT</button>';
   }
 }
 
 function propagateWinner(){
-  const{roundIdx,matchIdx}=tournament.activeMatch;
-  if(roundIdx>=tournament.bracket.length-1)return;
-  const match=tournament.bracket[roundIdx][matchIdx];
-  const nextMatch=tournament.bracket[roundIdx+1][Math.floor(matchIdx/2)];
-  if(matchIdx%2===0)nextMatch.teamA=match.winnerKey;
-  else nextMatch.teamB=match.winnerKey;
+  // Stale helper — playOneGame() now handles winner propagation inline.
+  // Left as a no-op so anything left calling it doesn't crash.
 }
 
 function showFinalChampion(){
@@ -4747,98 +4968,133 @@ tournament.autoSim=false;
 tournament.autoSimTimer=null;
 tournament.autoSimDelay=700;   // ms between auto-played games
 
+// Round-robin matchup picker. Walks rounds in order, finds the matchup in
+// the earliest incomplete round with the FEWEST games played and returns it.
+// Sequence becomes Game 1 across all matchups → Game 2 across all → …,
+// instead of finishing one series before starting the next.
+function findNextSimMatchup(){
+  if(!tournament.bracket)return null;
+  for(let r=0;r<tournament.bracket.length;r++){
+    const round=tournament.bracket[r];
+    let best=null,bestGames=Infinity;
+    for(let i=0;i<round.length;i++){
+      const m=round[i];
+      if(m.complete||!m.teamA||!m.teamB)continue;
+      if(m.games.length<bestGames){bestGames=m.games.length;best={roundIdx:r,matchIdx:i}}
+    }
+    if(best)return best;
+  }
+  return null;
+}
+
+// Plays one game in the next round-robin matchup, stays on the bracket
+// screen, updates the bracket + ticker. Returns true if a game was played.
+function simulateOneFromBracket(){
+  const next=findNextSimMatchup();
+  if(!next)return false;
+  const result=playOneGame(next.roundIdx,next.matchIdx);
+  if(!result)return false;
+  renderBracket();   // updates wins, winner highlight, current-round subtitle
+  renderGameTicker(result.match,result.gameIdx);
+  return true;
+}
+
 function startAutoSim(){
   if(tournament.autoSim)return;
-  tournament.autoSim=true;
-  // If we're not currently in a series (or it's already complete), advance to
-  // the first remaining playable matchup before kicking off the timer chain.
-  if(!tournament.activeMatch||currentMatch().complete){
-    const nxt=findNextPlayableMatch();
-    if(!nxt){
-      // Nothing left to play — tournament's done, jump to champion.
-      tournament.autoSim=false;
-      showFinalChampion();
-      return;
-    }
-    openMatchupSilently(nxt.roundIdx,nxt.matchIdx);
+  // Make sure we're on the bracket screen — that's where the auto-sim lives now.
+  if(!findNextSimMatchup()){
+    showFinalChampion();
+    return;
   }
-  renderSeriesControls();
+  showTournamentScreen("bracket");
+  tournament.autoSim=true;
   renderBracketHeader();
-  // Slight initial delay so the user can see the screen before the games start firing.
+  // Small initial pause so the user can register that sim has started.
   tournament.autoSimTimer=setTimeout(autoSimStep,300);
 }
 
 function pauseAutoSim(){
   tournament.autoSim=false;
   if(tournament.autoSimTimer){clearTimeout(tournament.autoSimTimer);tournament.autoSimTimer=null}
-  renderSeriesControls();
   renderBracketHeader();
 }
 
 function autoSimStep(){
   if(!tournament.autoSim)return;
-  const m=currentMatch();
-  // No active match (or current one just finished) → advance to the next.
-  if(!m||m.complete){
-    const nxt=findNextPlayableMatch();
-    if(!nxt){
-      // Bracket fully resolved.
-      tournament.autoSim=false;
-      renderSeriesControls();
-      renderBracketHeader();
-      showFinalChampion();
-      return;
-    }
-    openMatchupSilently(nxt.roundIdx,nxt.matchIdx);
-    tournament.autoSimTimer=setTimeout(autoSimStep,tournament.autoSimDelay);
+  const ok=simulateOneFromBracket();
+  if(!ok){
+    // Tournament fully resolved → champion screen
+    tournament.autoSim=false;
+    renderBracketHeader();
+    showFinalChampion();
     return;
   }
-  // Play one game; if the series ends, the next tick will detect it and advance.
-  playSeriesGame();
   tournament.autoSimTimer=setTimeout(autoSimStep,tournament.autoSimDelay);
 }
 
-function findNextPlayableMatch(){
-  if(!tournament.bracket)return null;
-  for(let r=0;r<tournament.bracket.length;r++){
-    for(let m=0;m<tournament.bracket[r].length;m++){
-      const match=tournament.bracket[r][m];
-      if(!match.complete&&match.teamA&&match.teamB)return {roundIdx:r,matchIdx:m};
-    }
+// --- Bracket-screen ticker + header controls ---------------------------------
+function renderGameTicker(match,gameIdx){
+  const ticker=document.getElementById("bracketTicker");
+  if(!ticker||!match.games[gameIdx])return;
+  const g=match.games[gameIdx];
+  // Game line: "GAME 3 · Lakers 110-95 Celtics (OT)"
+  const aName=g.teamAName,bName=g.teamBName;
+  const winA=g.winnerSide==="A";
+  const otTxt=g.otPeriods>0?" "+(g.otPeriods===1?"OT":g.otPeriods+"OT"):"";
+  const scoreHtml='<span class="t-ticker-team'+(winA?" win":"")+'">'+tEscapeHtml(aName)+' '+g.ptsA+'</span>'+
+    '<span class="t-ticker-dash">–</span>'+
+    '<span class="t-ticker-team'+(winA?"":" win")+'">'+g.ptsB+' '+tEscapeHtml(bName)+'</span>'+
+    (otTxt?'<span class="t-ticker-ot">'+otTxt+'</span>':"");
+  // Leaders across BOTH teams
+  const all=g.teamA.concat(g.teamB);
+  const lead=(stat)=>all.reduce((mx,p)=>p[stat]>mx[stat]?p:mx,all[0]);
+  const ptsL=lead("pts"),rebL=lead("reb"),astL=lead("ast");
+  const leadersHtml=
+    '<span class="t-ticker-lead"><span class="t-ticker-lead-cat">PTS</span> '+tEscapeHtml(ptsL.name)+' <b>'+ptsL.pts+'</b></span>'+
+    '<span class="t-ticker-lead"><span class="t-ticker-lead-cat">REB</span> '+tEscapeHtml(rebL.name)+' <b>'+rebL.reb+'</b></span>'+
+    '<span class="t-ticker-lead"><span class="t-ticker-lead-cat">AST</span> '+tEscapeHtml(astL.name)+' <b>'+astL.ast+'</b></span>';
+  // Series status
+  const winsTxt=match.winsA+"–"+match.winsB;
+  let seriesHtml;
+  if(match.complete){
+    const w=teamSeasonCatalog[match.winnerKey].displayName;
+    seriesHtml='<span class="t-ticker-series-done">'+tEscapeHtml(w)+' wins series '+winsTxt+'</span>';
+  }else{
+    const needed=Math.floor(tournament.gamesPerSeries/2)+1;
+    let lead="";
+    if(match.winsA>match.winsB)lead=tEscapeHtml(teamSeasonCatalog[match.teamA].displayName)+" leads";
+    else if(match.winsB>match.winsA)lead=tEscapeHtml(teamSeasonCatalog[match.teamB].displayName)+" leads";
+    else lead="Tied";
+    seriesHtml='<span class="t-ticker-series-live">'+lead+' '+winsTxt+' · First to '+needed+'</span>';
   }
-  return null;
+  ticker.innerHTML=
+    '<div class="t-ticker-game">'+
+      '<div class="t-ticker-label">GAME '+(gameIdx+1)+'</div>'+
+      '<div class="t-ticker-score">'+scoreHtml+'</div>'+
+    '</div>'+
+    '<div class="t-ticker-leaders">'+leadersHtml+'</div>'+
+    '<div class="t-ticker-series">'+seriesHtml+'</div>';
+  ticker.style.display="grid";
 }
 
-function openMatchupSilently(roundIdx,matchIdx){
-  // Like openMatchup() but skips the first playSeriesGame() — the auto-sim
-  // step loop is the one driving game rolls now.
-  tournament.activeMatch={roundIdx,matchIdx};
-  showTournamentScreen("series");
-  renderSeriesHeader();
-  // Clear the box score region from the previous matchup until the first
-  // game of THIS matchup is rolled. Otherwise it looks like the new
-  // matchup is borrowing the prior series' final scores.
-  teams=[[],[]];adjusted=[[],[]];
-  render();
+function clearGameTicker(){
+  const t=document.getElementById("bracketTicker");
+  if(t){t.style.display="none";t.innerHTML=""}
 }
 
-// Helper used by both the bracket-screen Simulate button and the pause flow.
+// Helper used by both the bracket-screen Simulate buttons and the pause flow.
 function renderBracketHeader(){
-  // The bracket-screen header has its own simulate / pause control. Keep it
-  // in sync with the autoSim state regardless of which screen the user's on.
   const slot=document.getElementById("bracketSimSlot");
   if(!slot)return;
   if(tournament.autoSim){
     slot.innerHTML='<button class="btn t-btn-pause-sm" onclick="pauseAutoSim()">⏸ PAUSE</button>';
-  }else{
-    // Only show simulate if there are matches left
-    const next=findNextPlayableMatch();
-    if(next){
-      slot.innerHTML='<button class="btn t-btn-sim-tourny-sm" onclick="startAutoSim()">⏩ SIMULATE TOURNAMENT</button>';
-    }else{
-      slot.innerHTML='';
-    }
+    return;
   }
+  const next=findNextSimMatchup();
+  if(!next){slot.innerHTML="";return}
+  slot.innerHTML=
+    '<button class="btn t-btn-next-game-sm" onclick="simulateOneFromBracket()">▶ SIMULATE GAME</button>'+
+    '<button class="btn t-btn-sim-tourny-sm" onclick="startAutoSim()">⏩ SIMULATE TOURNAMENT</button>';
 }
 </script>
 
