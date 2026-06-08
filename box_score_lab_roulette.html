@@ -1,0 +1,1147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>All-Time NBA Challenge — Draft Roulette</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎰</text></svg>">
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
+<style>
+:root{
+  --gold:#ffd700; --orange:#ff6b35; --green:#34d97a; --amber:#ffd24a; --red:#ff6666;
+  --ink:#c8c8e0; --dim:#8888aa; --panel:#12122a; --panel2:#0c0c1e; --line:#2a2a52;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:linear-gradient(160deg,#1a1a3e 0%,#0a0a1a 55%,#050510 100%);background-attachment:fixed;color:var(--ink);font-family:'JetBrains Mono',monospace;min-height:100vh;-webkit-font-smoothing:antialiased}
+.wrap{max-width:920px;margin:0 auto;padding:18px 14px 60px}
+@keyframes shimmer{0%,100%{background-position:0 0}50%{background-position:200% 0}}
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@keyframes pop{0%{transform:scale(.85);opacity:0}60%{transform:scale(1.04)}100%{transform:scale(1);opacity:1}}
+
+/* ===== Load screen ===== */
+#loadScreen{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:90vh;text-align:center}
+.logo-main{font-family:'Oswald',sans-serif;font-size:52px;font-weight:700;letter-spacing:6px;text-transform:uppercase;line-height:1.05;background:linear-gradient(135deg,#ff6b35 0%,#ffd700 50%,#ff6b35 100%);background-size:200% auto;-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;animation:shimmer 3s ease-in-out infinite}
+.subtitle{font-size:12px;color:var(--dim);letter-spacing:3px;text-transform:uppercase;margin:10px 0 40px;font-family:'Oswald',sans-serif}
+#progressLabel{font-size:13px;color:var(--dim);margin-bottom:14px;font-family:'Oswald',sans-serif;letter-spacing:1px}
+.bar{width:min(420px,80vw);height:8px;background:#1c1c3a;border-radius:6px;overflow:hidden;border:1px solid var(--line)}
+.bar>div{height:100%;width:0;background:linear-gradient(90deg,var(--orange),var(--gold));transition:width .25s}
+#progressText{font-size:11px;color:#666688;margin-top:10px}
+
+/* ===== Generic ===== */
+.hidden{display:none!important}
+.btn{font-family:'Oswald',sans-serif;font-weight:700;letter-spacing:2px;text-transform:uppercase;border:none;border-radius:8px;cursor:pointer;padding:14px 30px;font-size:15px;background:linear-gradient(135deg,var(--orange),var(--gold));color:#1a1006;transition:transform .12s,box-shadow .12s;box-shadow:0 6px 18px rgba(255,107,53,.25)}
+.btn:hover{transform:translateY(-2px);box-shadow:0 10px 24px rgba(255,107,53,.35)}
+.btn:active{transform:translateY(0)}
+.btn.ghost{background:transparent;color:var(--gold);border:1px solid #4a4a7a;box-shadow:none}
+.btn.ghost:hover{border-color:var(--gold)}
+.btn:disabled{opacity:.4;cursor:not-allowed;transform:none;box-shadow:none}
+
+/* ===== Intro ===== */
+#intro{text-align:center;animation:fadeIn .4s}
+#intro .logo-main{font-size:46px}
+.rules{max-width:640px;margin:26px auto 8px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:22px 24px;text-align:left;font-size:13px;line-height:1.85}
+.rules b{color:var(--gold)}
+.rules .num{display:inline-block;width:22px;height:22px;line-height:22px;text-align:center;border-radius:50%;background:var(--orange);color:#1a1006;font-family:'Oswald',sans-serif;font-weight:700;font-size:12px;margin-right:8px}
+.budget-hero{font-family:'Oswald',sans-serif;font-weight:700;font-size:13px;letter-spacing:2px;color:var(--green);text-transform:uppercase;margin:18px 0 4px}
+.budget-hero .big{display:block;font-size:40px;color:#fff;letter-spacing:1px;margin-top:2px}
+.fine{font-size:11px;color:#6a6a8c;letter-spacing:.5px;margin-top:18px}
+
+/* ===== HUD ===== */
+.hud{display:flex;align-items:center;justify-content:space-between;gap:12px;background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:12px 16px;margin-bottom:16px;position:sticky;top:8px;z-index:20;backdrop-filter:blur(6px)}
+.hud-left{display:flex;flex-direction:column;gap:3px}
+.hud-title{font-family:'Oswald',sans-serif;font-weight:700;letter-spacing:3px;font-size:14px;background:linear-gradient(90deg,var(--orange),var(--gold));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;text-transform:uppercase}
+.slot-dots{display:flex;gap:6px}
+.slot-dots i{width:11px;height:11px;border-radius:50%;background:#2a2a4e;border:1px solid #3a3a62;display:block;transition:all .2s}
+.slot-dots i.done{background:var(--gold);border-color:var(--gold);box-shadow:0 0 8px rgba(255,215,0,.5)}
+.slot-dots i.active{background:var(--orange);border-color:var(--orange);animation:dotPulse 1.2s infinite}
+@keyframes dotPulse{0%,100%{box-shadow:0 0 0 0 rgba(255,107,53,.5)}50%{box-shadow:0 0 0 5px rgba(255,107,53,0)}}
+.cap-pill{font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;letter-spacing:.5px;padding:8px 14px;background:#0a1a14;border:1px solid #34d97a55;color:var(--green);border-radius:8px;white-space:nowrap;transition:all .2s;text-align:right}
+.cap-pill .lab{display:block;font-size:9px;letter-spacing:2px;color:#5fae85;font-family:'Oswald',sans-serif;text-transform:uppercase}
+.cap-pill.warn{background:#231a0a;border-color:#ffd70055;color:var(--amber)}
+.cap-pill.warn .lab{color:#b59a4a}
+.cap-pill.low{background:#1f0a0a;border-color:#ef444455;color:var(--red)}
+.cap-pill.low .lab{color:#b56a6a}
+
+/* ===== Picked strip ===== */
+.strip{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:18px}
+.slot{background:var(--panel);border:1px dashed #34345e;border-radius:10px;min-height:74px;padding:8px;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;gap:2px;transition:all .2s}
+.slot.filled{border-style:solid;border-color:#4a4a7a;background:linear-gradient(160deg,#16162f,#0e0e22);animation:pop .35s}
+.slot .empty-lab{font-family:'Oswald',sans-serif;font-size:11px;color:#4a4a6e;letter-spacing:1px}
+.slot .pos{font-family:'Oswald',sans-serif;font-size:9px;letter-spacing:1px;color:var(--orange);font-weight:700}
+.slot .nm{font-size:11px;color:#e6e6ff;font-weight:600;line-height:1.15;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.slot .tm{font-size:9px;color:#7a7a9e}
+.slot .cost{font-family:'Oswald',sans-serif;font-size:12px;font-weight:700;color:var(--gold)}
+
+/* ===== Reel ===== */
+.reel-stage{background:var(--panel2);border:1px solid var(--line);border-radius:14px;padding:18px 14px 20px;text-align:center;position:relative}
+.reel-window{position:relative;height:120px;overflow:hidden;border-radius:10px;background:radial-gradient(circle at 50% 50%,#16163a,#0a0a1e);border:1px solid #26264c;margin:6px 0 16px}
+.reel-window::before,.reel-window::after{content:"";position:absolute;top:0;bottom:0;width:90px;z-index:3;pointer-events:none}
+.reel-window::before{left:0;background:linear-gradient(90deg,#0a0a1e,transparent)}
+.reel-window::after{right:0;background:linear-gradient(270deg,#0a0a1e,transparent)}
+.reel-marker{position:absolute;left:50%;top:0;bottom:0;width:0;transform:translateX(-50%);border-left:2px solid var(--gold);z-index:4;box-shadow:0 0 14px rgba(255,215,0,.7)}
+.reel-marker::before,.reel-marker::after{content:"";position:absolute;left:50%;transform:translateX(-50%);border:7px solid transparent;z-index:5}
+.reel-marker::before{top:-1px;border-top-color:var(--gold)}
+.reel-marker::after{bottom:-1px;border-bottom-color:var(--gold)}
+.reel-track{display:flex;align-items:center;height:100%;will-change:transform}
+.reel-tile{flex:0 0 120px;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;opacity:.55}
+.reel-tile img{width:62px;height:62px;object-fit:contain;filter:drop-shadow(0 2px 6px rgba(0,0,0,.5))}
+.reel-tile .badge{width:58px;height:58px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'Oswald',sans-serif;font-weight:700;font-size:16px;letter-spacing:1px;background:#1d1d40;border:2px solid #3a3a6e;color:#cfcff0}
+.reel-tile small{font-family:'Oswald',sans-serif;font-size:10px;letter-spacing:1px;color:#8a8ab0;text-transform:uppercase}
+.reel-hint{font-family:'Oswald',sans-serif;font-size:12px;letter-spacing:2px;color:var(--dim);text-transform:uppercase;margin-bottom:8px}
+
+/* ===== Landed team + picks ===== */
+.landed{margin-top:18px;animation:fadeIn .4s}
+.landed-hdr{display:flex;align-items:center;justify-content:center;gap:14px;margin-bottom:6px}
+.landed-hdr img{width:54px;height:54px;object-fit:contain}
+.landed-hdr .badge{width:50px;height:50px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'Oswald',sans-serif;font-weight:700;background:#1d1d40;border:2px solid #3a3a6e;color:#cfcff0;font-size:15px}
+.landed-hdr .meta{text-align:left}
+.landed-hdr .yr{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--gold);letter-spacing:1px}
+.landed-hdr .tn{font-family:'Oswald',sans-serif;font-size:24px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#fff;line-height:1.05}
+.landed-sub{font-size:11px;color:var(--dim);letter-spacing:1px;text-transform:uppercase;font-family:'Oswald',sans-serif;margin-bottom:14px}
+.pick-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.pick-card{background:linear-gradient(160deg,#16162f,#0e0e22);border:1px solid var(--line);border-radius:10px;padding:11px 12px;cursor:pointer;transition:transform .12s,border-color .12s,box-shadow .12s;position:relative;text-align:left}
+.pick-card:hover{transform:translateY(-3px);border-color:var(--gold);box-shadow:0 8px 20px rgba(255,215,0,.12)}
+.pick-card .pc-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.pick-card .pc-pos{font-family:'Oswald',sans-serif;font-size:10px;font-weight:700;letter-spacing:1px;color:var(--orange);background:#2a1a10;border:1px solid #4a2e18;padding:2px 7px;border-radius:5px}
+.pick-card .pc-rtg{font-family:'JetBrains Mono',monospace;font-size:10px;color:#7a7a9e}
+.pick-card .pc-rtg b{color:#bfbfe4}
+.pick-card .pc-name{font-family:'Oswald',sans-serif;font-size:15px;font-weight:600;color:#eaeaff;line-height:1.15;margin-bottom:8px;min-height:34px}
+.pick-card .pc-cost{font-family:'Oswald',sans-serif;font-size:19px;font-weight:700;color:var(--gold)}
+.pick-card .pc-cost span{font-size:11px;color:#8a8ab0;font-weight:400}
+.pick-card.tooFar{cursor:not-allowed;opacity:.4;filter:grayscale(.6)}
+.pick-card.tooFar:hover{transform:none;border-color:var(--line);box-shadow:none}
+.pick-card.tooFar .pc-cost{color:var(--red)}
+.pick-card.taken{cursor:not-allowed;opacity:.3}
+.pick-card.taken::after{content:"PICKED";position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:'Oswald',sans-serif;letter-spacing:2px;font-size:13px;color:#9a9ac0;background:rgba(8,8,20,.55);border-radius:10px}
+.none-affordable{text-align:center;padding:22px;color:var(--amber);font-family:'Oswald',sans-serif;letter-spacing:1px;font-size:14px}
+.center{text-align:center;margin-top:18px}
+
+/* ===== Results ===== */
+#results{animation:fadeIn .45s}
+.res-record{text-align:center;margin:4px 0 18px}
+.res-record .rl{font-family:'Oswald',sans-serif;font-size:13px;letter-spacing:4px;color:var(--dim);text-transform:uppercase}
+.res-record .rv{font-family:'Oswald',sans-serif;font-size:74px;font-weight:700;line-height:1;letter-spacing:2px;color:#fff;margin:4px 0}
+.res-record .rv .dash{color:#4a4a7a;margin:0 6px}
+.res-record .grade{display:inline-block;font-family:'Oswald',sans-serif;font-weight:700;letter-spacing:2px;font-size:14px;padding:5px 16px;border-radius:20px;text-transform:uppercase;margin-top:4px}
+.res-sub{text-align:center;font-size:12px;color:var(--dim);letter-spacing:1px;margin-bottom:22px}
+.sq{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 16px 14px;margin-bottom:16px}
+.sq.optimal{border-color:#caa23a;background:linear-gradient(160deg,#1d1a10,#11100a)}
+.sq-hdr{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:12px;flex-wrap:wrap;gap:6px}
+.sq-hdr .t{font-family:'Oswald',sans-serif;font-weight:700;letter-spacing:2px;text-transform:uppercase;font-size:15px}
+.sq.yours .sq-hdr .t{color:#cfcff0}
+.sq.optimal .sq-hdr .t{color:var(--gold)}
+.sq-hdr .totals{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--dim)}
+.sq-hdr .totals b{color:#e6e6ff}
+.sq-row{display:grid;grid-template-columns:38px 1fr auto auto;gap:10px;align-items:center;padding:7px 0;border-top:1px solid #20203e}
+.sq-row:first-of-type{border-top:none}
+.sq-row .pos{font-family:'Oswald',sans-serif;font-size:10px;font-weight:700;letter-spacing:1px;color:var(--orange)}
+.sq-row .nm{font-family:'Oswald',sans-serif;font-size:15px;color:#eaeaff;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sq-row .nm small{display:block;font-family:'JetBrains Mono',monospace;font-size:10px;color:#7a7a9e;font-weight:400}
+.sq-row .rtg{font-family:'JetBrains Mono',monospace;font-size:11px;color:#9a9ac0}
+.sq-row .cost{font-family:'Oswald',sans-serif;font-size:15px;font-weight:700;color:var(--gold);text-align:right;min-width:62px}
+.sq-row .star{color:var(--gold)}
+.opt-note{font-size:11px;color:#b59a4a;letter-spacing:.5px;margin-top:10px;line-height:1.6}
+.perfect{text-align:center;color:var(--green);font-family:'Oswald',sans-serif;letter-spacing:2px;font-size:14px;padding:6px;text-transform:uppercase}
+.spinner-mini{display:inline-block;width:14px;height:14px;border:2px solid #ffffff44;border-top-color:var(--gold);border-radius:50%;animation:spin .7s linear infinite;vertical-align:-2px;margin-right:8px}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+@media(max-width:560px){
+  .strip{grid-template-columns:repeat(5,1fr);gap:5px}
+  .slot{min-height:66px;padding:5px}
+  .slot .nm{font-size:10px}
+  .logo-main,#intro .logo-main{font-size:34px;letter-spacing:3px}
+  .res-record .rv{font-size:56px}
+  .reel-tile{flex:0 0 96px}
+  .reel-tile img{width:50px;height:50px}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- LOAD -->
+  <div id="loadScreen">
+    <div class="logo-main">ALL-TIME NBA<br>CHALLENGE</div>
+    <div class="subtitle">Draft Roulette</div>
+    <div id="progressLabel">Loading game data...</div>
+    <div class="bar"><div id="progressFill"></div></div>
+    <div id="progressText">0.0 / ~11 MB</div>
+  </div>
+
+  <!-- INTRO -->
+  <div id="intro" class="hidden">
+    <div class="logo-main">DRAFT<br>ROULETTE</div>
+    <div class="subtitle">Spin · Pick · Build · Simulate</div>
+    <div class="budget-hero">Your bankroll<span class="big" id="introBudget">$120.0M</span></div>
+    <div class="rules">
+      <div><span class="num">1</span>The wheel spins to a random <b>team-season</b> (1990–2024).</div>
+      <div><span class="num">2</span>Sign <b>one player</b> from it. Each costs what their deal would be worth at the <b>2026 cap</b>.</div>
+      <div><span class="num">3</span>Five spins, five signings. You can only sign players you can <b>still afford</b>.</div>
+      <div><span class="num">4</span>Blow it early and you'll be scraping minimum-salary scrubs by the fifth slot.</div>
+      <div><span class="num">5</span>We simulate an <b>82-game season</b> and hand you a record — plus the <b>best squad</b> you could've signed.</div>
+    </div>
+    <div class="fine" id="introFine"></div>
+    <div class="center" style="margin-top:26px"><button class="btn" id="startBtn">Start the wheel</button></div>
+  </div>
+
+  <!-- GAME -->
+  <div id="game" class="hidden">
+    <div class="hud">
+      <div class="hud-left">
+        <div class="hud-title">Draft Roulette</div>
+        <div class="slot-dots" id="slotDots"></div>
+      </div>
+      <div class="cap-pill" id="capPill"><span class="lab">Remaining</span>$120.0M</div>
+    </div>
+
+    <div class="strip" id="strip"></div>
+
+    <div class="reel-stage">
+      <div class="reel-hint" id="reelHint">Spin the wheel to draw a team</div>
+      <div class="reel-window">
+        <div class="reel-marker"></div>
+        <div class="reel-track" id="reelTrack"></div>
+      </div>
+      <button class="btn" id="spinBtn">Spin</button>
+    </div>
+
+    <div id="landed" class="landed hidden"></div>
+  </div>
+
+  <!-- RESULTS -->
+  <div id="results" class="hidden"></div>
+
+</div>
+
+<script>
+/* ===== SIMULATION ENGINE (verbatim from All-Time NBA Challenge) ===== */
+const G={TM:0,OP:1,PS:2,MN:3,PT:4,FM:5,FA:6,PM:7,PA:8,FT:9,TA:10,OR:11,DR:12,RB:13,AS:14,ST:15,BK:16,TO:17,PF:18,TY:19,SY:20,GY:21,DT:22};
+const STAT_KEYS=["MIN","PTS","FGM","FGA","FG%","3PM","3PA","FTM","FTA","FT%","ORB","DRB","REB","AST","STL","BLK","TOV","PF"];
+const COUNT_STATS=["PTS","FGM","FGA","3PM","3PA","FTM","FTA","ORB","DRB","REB","AST","STL","BLK","TOV","PF"];
+const TYPE_LABELS=["RS","Playoffs","Finals"];
+const COLORS=["#e63946","#4a90e2"];  // [user-red, opponent-light-blue] — blue is bright enough to read as a label/points color on the dark bg
+const TARGET_MIN=240;
+const POS_NAMES=["PG","SG","SF","PF","C"];
+
+function positionBucket(posStr){
+  const s=(posStr||"").trim().toUpperCase();
+  if(!s)return null;
+  const first=s[0]; // P/S/F/C → reduce
+  if(s.startsWith("PG")||s.startsWith("SG")||s==="G")return "G";
+  if(s.startsWith("SF")||s.startsWith("PF")||s==="F")return "F";
+  if(s==="C")return "C";
+  // Combo-format fallback: first letter
+  if(first==="G")return "G";
+  if(first==="F")return "F";
+  if(first==="C")return "C";
+  return null;
+}
+
+let currentMode="career";   // default landing tab — was "sandbox"
+
+function rawG(game,s){
+  switch(s){
+    case"PTS":return game[G.PT];case"FGM":return game[G.FM];case"FGA":return game[G.FA];
+    case"3PM":return game[G.PM];case"3PA":return game[G.PA];case"FTM":return game[G.FT];
+    case"FTA":return game[G.TA];case"ORB":return game[G.OR];case"DRB":return game[G.DR];
+    case"REB":return game[G.RB];case"AST":return game[G.AS];case"STL":return game[G.ST];
+    case"BLK":return game[G.BK];case"TOV":return game[G.TO];case"PF":return game[G.PF];
+    case"MIN":return parseFloat(game[G.MN])||0;
+    default:return 0;
+  }
+}
+function av(ti,pi,s){
+  if(adjusted[ti]&&adjusted[ti][pi]&&adjusted[ti][pi][s]!==undefined)return adjusted[ti][pi][s];
+  return rawG(teams[ti][pi].game,s);
+}
+
+
+function getPlayerPos(game){
+  const p=POS[game[G.PS]];
+  const idx=POS_NAMES.indexOf(p);
+  return idx>=0?idx:2;
+}
+function getMostCommonPos(name){
+  const games=playerIndex[name];if(!games)return 2;
+  const ct=[0,0,0,0,0];
+  games.forEach(g=>{const p=getPlayerPos(g);ct[p]++});
+  return ct.indexOf(Math.max(...ct));
+}
+
+// === MINUTES & STAT SCALING ===
+// Proportional scaling: keep each player's original minutes ratio, scale to 240
+
+function normalizeTeam(ti){
+  const team=teams[ti];
+  if(!team.length){adjusted[ti]=[];return}
+  adjusted[ti]=team.map(()=>({}));
+  const n=team.length;
+
+  // Get raw minutes
+  const rawMins=team.map(p=>Math.max(rawG(p.game,"MIN"),1)); // at least 1 to avoid 0-division
+  const rawSum=rawMins.reduce((a,b)=>a+b,0);
+
+  // Scale proportionally to hit TARGET_MIN
+  let targetMins=rawMins.map(m=>Math.round(m*(TARGET_MIN/rawSum)));
+
+  // Clamp: nobody over 48, nobody under 2 (unless team has >24 players somehow)
+  targetMins=targetMins.map(m=>Math.max(2,Math.min(48,m)));
+
+  // Fix rounding drift to hit exactly TARGET_MIN
+  let diff=TARGET_MIN-targetMins.reduce((a,b)=>a+b,0);
+  // Sort indices by raw minutes desc to distribute surplus/deficit to top players first
+  const sortedIdx=[...Array(n).keys()].sort((a,b)=>rawMins[b]-rawMins[a]);
+  let iter=0;
+  while(diff!==0&&iter<n*3){
+    const i=sortedIdx[iter%n];
+    if(diff>0&&targetMins[i]<48){targetMins[i]++;diff--}
+    else if(diff<0&&targetMins[i]>2){targetMins[i]--;diff++}
+    iter++;
+  }
+  // Fallback: if heavy clamping prevented convergence, dump remaining
+  // drift into the highest-raw-minutes player (relaxing the [2,48]
+  // clamp only on that one slot). Keeps the team-minutes invariant
+  // exactly at TARGET_MIN regardless of clamp pressure.
+  if(diff!==0){
+    targetMins[sortedIdx[0]]+=diff;
+  }
+
+  // Apply minutes and scale all counting stats
+  team.forEach((p,i)=>{
+    const rawMin=rawG(p.game,"MIN")||1;
+    const tgtMin=targetMins[i];
+    adjusted[ti][i].MIN=tgtMin;
+    const scale=tgtMin/rawMin;
+    COUNT_STATS.forEach(s=>{
+      adjusted[ti][i][s]=Math.round(rawG(p.game,s)*scale);
+    });
+    // Fix shooting consistency
+    const a=adjusted[ti][i];
+    if(a.FGM>a.FGA)a.FGM=a.FGA;
+    if(a["3PM"]>a.FGM)a["3PM"]=a.FGM;
+    if(a["3PM"]>a["3PA"])a["3PM"]=a["3PA"];
+    if(a.FTM>a.FTA)a.FTM=a.FTA;
+    // Recalc PTS from makes
+    a.PTS=(a.FGM-a["3PM"])*2+a["3PM"]*3+a.FTM;
+    // REB = ORB + DRB
+    a.REB=a.ORB+a.DRB;
+
+    // === Pre-tracking-era backfill ===
+    // STL and BLK weren't tracked before 1973-74; TOV before 1977-78.
+    // Players from those eras come into the sim with raw 0 in those
+    // columns, which:
+    //   - Hands 60s teams a possession advantage (0 TOV → low poss
+    //     estimate → equalizePossessions scales them UP)
+    //   - Makes them unbeatable in HoF mode where their top talent is
+    //     already stacked
+    // Backfill virtual numbers correlated with stats that WERE tracked:
+    //   STL ≈ baseline + AST factor   (good passers see lanes)
+    //   BLK ≈ baseline + REB factor   (rim-protector size & timing)
+    //   TOV ≈ baseline + AST factor + FG% miss penalty
+    //         (high-volume creators + less efficient finishers turn it over more)
+    // Scaled to per-(targetMin) values so they match the rest of the
+    // box score. Numbers are deliberately modest — meant to fix the
+    // possession exploit, not produce 5-STL games out of thin air.
+    const sy=p.game[G.SY]||0;
+    const min=tgtMin;
+    if(sy>0&&sy<1974&&(rawG(p.game,"STL")||0)===0){
+      // STL: 0.6/36min baseline + 0.18 per assist
+      a.STL=Math.round((0.6*(min/36))+(a.AST||0)*0.18);
+      if(a.STL<0)a.STL=0;
+    }
+    if(sy>0&&sy<1974&&(rawG(p.game,"BLK")||0)===0){
+      // BLK: 0.2/36min baseline + 0.07 per rebound (rebound rate ≈ size)
+      a.BLK=Math.round((0.2*(min/36))+(a.REB||0)*0.07);
+      if(a.BLK<0)a.BLK=0;
+    }
+    if(sy>0&&sy<1978&&(rawG(p.game,"TOV")||0)===0){
+      // TOV: 1.4/36min baseline + 0.30 per assist + 1.5 * (max(0, .50 − FG%))
+      const fgPct=a.FGA>0?(a.FGM/a.FGA):0.45;
+      const missPenalty=1.5*Math.max(0,0.50-fgPct);
+      a.TOV=Math.round((1.4*(min/36))+(a.AST||0)*0.30+missPenalty);
+      if(a.TOV<0)a.TOV=0;
+    }
+  });
+}
+
+// === CROSS-TEAM RECONCILIATION ===
+// Both teams' constraint checks should reference the SAME baseline. The
+// previous version adjusted team 0 first, then computed team 1's
+// constraints against team 0's already-mutated totals — order-dependent
+// bias that surfaced on lopsided matchups. Snapshotting once up front
+// gives both teams identical reference points.
+function reconcile(){
+  if(teams[0].length===0||teams[1].length===0)return;
+  function total(ti,s){let t=0;teams[ti].forEach((_,i)=>{t+=av(ti,i,s)});return t}
+
+  // Snapshot original totals BEFORE any team adjustment
+  const orig=[{},{}];
+  ['STL','TOV','BLK','FGA','FGM','FTA','FTM','AST','ORB','DRB'].forEach(s=>{
+    orig[0][s]=total(0,s); orig[1][s]=total(1,s);
+  });
+
+  for(let t=0;t<2;t++){
+    const opp=1-t;
+    const stl=orig[t].STL, tov=orig[opp].TOV;
+    if(stl>tov&&stl>0){const sc=tov/stl;teams[t].forEach((_,i)=>{adjusted[t][i].STL=Math.round(av(t,i,"STL")*sc)})}
+    const blk=orig[t].BLK, oFGA=orig[opp].FGA;
+    const maxBlk=Math.round(oFGA*0.12);
+    if(blk>maxBlk&&blk>0){const sc=maxBlk/blk;teams[t].forEach((_,i)=>{adjusted[t][i].BLK=Math.round(av(t,i,"BLK")*sc)})}
+    const ast=orig[t].AST, fgm=orig[t].FGM;
+    if(ast>fgm&&ast>0){const sc=fgm/ast;teams[t].forEach((_,i)=>{adjusted[t][i].AST=Math.round(av(t,i,"AST")*sc)})}
+    const myFGA=orig[t].FGA, myFGM=orig[t].FGM, opFGA=orig[opp].FGA, opFGM=orig[opp].FGM;
+    const myFTA=orig[t].FTA, myFTM=orig[t].FTM, opFTA=orig[opp].FTA, opFTM=orig[opp].FTM;
+    const maxORB=Math.round((myFGA-myFGM)*0.35+(myFTA-myFTM)*0.15);
+    const maxDRB=Math.round((opFGA-opFGM)*0.85+(opFTA-opFTM)*0.15);
+    const myORB=orig[t].ORB, myDRB=orig[t].DRB;
+    let need=false,orbSc=1,drbSc=1;
+    if(myORB>maxORB&&myORB>0){orbSc=maxORB/myORB;need=true}
+    if(myDRB>maxDRB&&myDRB>0){drbSc=maxDRB/myDRB;need=true}
+    if(need){teams[t].forEach((_,i)=>{adjusted[t][i].ORB=Math.round(av(t,i,"ORB")*orbSc);adjusted[t][i].DRB=Math.round(av(t,i,"DRB")*drbSc);adjusted[t][i].REB=adjusted[t][i].ORB+adjusted[t][i].DRB})}
+  }
+}
+// === DEFENSIVE PRESSURE → SCORE IMPACT ===
+// Translates above-baseline defensive activity into actual box-score
+// changes. Calibrated against league averages so a "neutral" defensive
+// performance (matching baselines) leaves both teams' natural offense
+// alone; an exceptional defensive game tilts the score noticeably.
+//
+// Coefficients (pts per extra event):
+//   STL +1 vs baseline  → +1.3 for you (transition is efficient)
+//                       → −1.1 for opp (each lost possession)
+//   BLK +1 vs baseline  → −1.5 for opp (forced miss, sometimes opp ORB)
+//   ORB +1 vs baseline  → +1.0 for you (second-chance points)
+//   OPP PF +1 vs base   → +0.42 for you (~0.55 FTA × 76% FT%)
+//
+// Below-baseline stats DON'T subtract — the natural offense in each
+// player's game log already reflects an average defensive matchup, so
+// underperforming defense doesn't double-degrade.
+// === POSSESSION EQUALIZATION ===
+// Real NBA games have both teams within ~1-2 possessions of each other —
+// possessions are essentially a shared resource (you score, ball goes
+// the other way). The raw simulation samples ONE real game per player
+// and sums their volume stats; without a team-level cap, you can land
+// on a team whose 12 selected games happen to be high-volume (159 PTS,
+// 119 FGA, 43 FTA from one team while the other has 85 PTS, 74 FGA,
+// 17 FTA — totally unrealistic). This pass scales both teams' shot
+// volume so each side hits the same possession count, clamped to the
+// realistic NBA range. Scoring imbalance comes from FG% / 3P% / FT%
+// efficiency differences (preserved by the proportional scaling),
+// which is exactly how real blowouts happen — not by one team taking
+// 60% more shots than the other.
+function equalizePossessions(){
+  if(teams[0].length===0||teams[1].length===0)return;
+  function total(ti,s){let v=0;teams[ti].forEach((_,i)=>{v+=av(ti,i,s)});return v}
+
+  // Possession estimate: FGA + 0.44 * FTA + TOV − ORB (standard formula).
+  // Subtracting ORB removes the double-counting from offensive boards
+  // (which extend the same possession rather than starting a new one).
+  const possEst=ti=>total(ti,"FGA")+0.44*total(ti,"FTA")+total(ti,"TOV")-total(ti,"ORB");
+  const poss=[possEst(0),possEst(1)];
+
+  // Target = average of both teams, clamped to realistic NBA range.
+  // The 90-105 band covers historical slow paces (mid-90s 76ers ~90)
+  // up through modern fast paces (Hawks/Pacers ~105+). Anything outside
+  // this range almost certainly came from unrealistic stat sampling
+  // rather than a deliberate pace; clamping pulls the game back to
+  // believable territory.
+  let target=(poss[0]+poss[1])/2;
+  target=Math.max(90,Math.min(105,target));
+
+  for(let t=0;t<2;t++){
+    if(poss[t]<=0)continue;
+    const ratio=target/poss[t];
+    // Skip pointless adjustments (already within 3% of target)
+    if(Math.abs(ratio-1)<0.03)continue;
+
+    teams[t].forEach((_,i)=>{
+      const a=adjusted[t][i];
+      // Scale shot volume + turnovers proportionally — efficiency
+      // (FGM/FGA, 3PM/3PA, FTM/FTA) is preserved by the equal ratio
+      // applied to both numerator and denominator.
+      ["FGA","FGM","3PA","3PM","FTA","FTM","TOV"].forEach(s=>{
+        a[s]=Math.round((a[s]||0)*ratio);
+      });
+      // Re-clamp made≤attempted invariants (rounding can push them apart)
+      if(a.FGM>a.FGA)a.FGM=a.FGA;
+      if(a["3PM"]>a.FGM)a["3PM"]=a.FGM;
+      if(a["3PM"]>a["3PA"])a["3PM"]=a["3PA"];
+      if(a.FTM>a.FTA)a.FTM=a.FTA;
+      a.PTS=(a.FGM-a["3PM"])*2+a["3PM"]*3+a.FTM;
+    });
+  }
+}
+
+function applyDefensiveImpact(){
+  if(teams[0].length===0||teams[1].length===0)return;
+  function total(ti,s){let v=0;teams[ti].forEach((_,i)=>{v+=av(ti,i,s)});return v}
+
+  // League-average per-team-per-game baselines (modern NBA estimates)
+  const BASE={STL:7.5,BLK:5,ORB:10,PF:20};
+
+  const adjust=[0,0];  // net PTS swing per team
+  for(let t=0;t<2;t++){
+    const opp=1-t;
+    const stlExtra=Math.max(0,total(t,"STL")-BASE.STL);
+    const blkExtra=Math.max(0,total(t,"BLK")-BASE.BLK);
+    const orbExtra=Math.max(0,total(t,"ORB")-BASE.ORB);
+    const oppPfExtra=Math.max(0,total(opp,"PF")-BASE.PF);
+
+    // Your bonuses (above-baseline contributions tilt the game your way)
+    adjust[t]+=stlExtra*1.3;        // transition points
+    adjust[t]+=orbExtra*1.0;        // second-chance points
+    adjust[t]+=oppPfExtra*0.42;     // free throws from opp fouls
+
+    // Opp penalties (your defense suppresses their natural offense)
+    adjust[opp]-=stlExtra*1.1;      // lost possessions
+    adjust[opp]-=blkExtra*1.5;      // forced misses
+  }
+
+  // Apply: scale every player's shot makes and attempts proportionally so
+  // the team's PTS hits the target. Distributing across the team (not just
+  // the high-scorers) keeps the box score internally consistent and
+  // reflects that the whole roster benefits from extra possessions.
+  for(let t=0;t<2;t++){
+    if(Math.abs(adjust[t])<0.5)continue;
+    const curPts=total(t,"PTS");
+    if(curPts===0)continue;
+    const target=curPts+adjust[t];
+    if(target<=0)continue;
+    const scale=target/curPts;
+
+    teams[t].forEach((_,i)=>{
+      const a=adjusted[t][i];
+      a.FGM=Math.round(a.FGM*scale);
+      a.FGA=Math.round(a.FGA*scale);
+      a["3PM"]=Math.round(a["3PM"]*scale);
+      a["3PA"]=Math.round(a["3PA"]*scale);
+      a.FTM=Math.round(a.FTM*scale);
+      a.FTA=Math.round(a.FTA*scale);
+      // Preserve shot-line consistency
+      if(a.FGM>a.FGA)a.FGM=a.FGA;
+      if(a["3PM"]>a.FGM)a["3PM"]=a.FGM;
+      if(a["3PM"]>a["3PA"])a["3PM"]=a["3PA"];
+      if(a.FTM>a.FTA)a.FTM=a.FTA;
+      // Recalc PTS from final makes — keeps box score totals coherent
+      a.PTS=(a.FGM-a["3PM"])*2+a["3PM"]*3+a.FTM;
+    });
+  }
+}
+
+// Order matters:
+//   1) normalize minutes (each team to 240, individual stats scale by min ratio)
+//   2) equalize team possessions (fixes lopsided FGA/FTA gaps)
+//   3) defensive impact (above-baseline STL/BLK/ORB/PF tilt the score)
+//   4) reconcile (cross-team caps on STL, BLK, AST, REB)
+function processAll(){normalizeTeam(0);normalizeTeam(1);equalizePossessions();applyDefensiveImpact();reconcile()}
+
+const NBA_FRANCHISES=[
+  {abbr:"ATL",name:"Atlanta Hawks",alts:["Hawks","Blackhawks"]},
+  {abbr:"BOS",name:"Boston Celtics",alts:["Celtics"]},
+  {abbr:"BKN",name:"Brooklyn Nets",alts:["Nets"]},
+  {abbr:"CHA",name:"Charlotte Hornets",alts:["Hornets",{name:"Hornets (1988)",yearMax:2001}]},
+  {abbr:"CHI",name:"Chicago Bulls",alts:["Bulls"]},
+  {abbr:"CLE",name:"Cleveland Cavaliers",alts:["Cavaliers"]},
+  {abbr:"DAL",name:"Dallas Mavericks",alts:["Mavericks"]},
+  {abbr:"DEN",name:"Denver Nuggets",alts:["Nuggets"]},
+  {abbr:"DET",name:"Detroit Pistons",alts:["Pistons"]},
+  {abbr:"GSW",name:"Golden State Warriors",alts:["Warriors"]},
+  {abbr:"HOU",name:"Houston Rockets",alts:["Rockets"]},
+  {abbr:"IND",name:"Indiana Pacers",alts:["Pacers"]},
+  {abbr:"LAC",name:"LA Clippers",alts:["Clippers","Braves"]},
+  {abbr:"LAL",name:"LA Lakers",alts:["Lakers"]},
+  {abbr:"MEM",name:"Memphis Grizzlies",alts:["Grizzlies"]},
+  {abbr:"MIA",name:"Miami Heat",alts:["Heat"]},
+  {abbr:"MIL",name:"Milwaukee Bucks",alts:["Bucks"]},
+  {abbr:"MIN",name:"Minnesota Timberwolves",alts:["Timberwolves"]},
+  {abbr:"NOP",name:"New Orleans Pelicans",alts:["Pelicans",{name:"Hornets (1988)",yearMin:2002}]},
+  {abbr:"NYK",name:"New York Knicks",alts:["Knicks"]},
+  {abbr:"OKC",name:"Oklahoma City Thunder",alts:["Thunder"]},
+  {abbr:"SEA",name:"Seattle SuperSonics",alts:[{name:"SuperSonics",yearMax:2008}]},
+  {abbr:"ORL",name:"Orlando Magic",alts:["Magic"]},
+  {abbr:"PHI",name:"Philadelphia 76ers",alts:["Sixers","Nationals"]},
+  {abbr:"PHX",name:"Phoenix Suns",alts:["Suns"]},
+  {abbr:"POR",name:"Portland Trail Blazers",alts:["Trail Blazers"]},
+  {abbr:"SAC",name:"Sacramento Kings",alts:["Kings","Royals"]},
+  {abbr:"SAS",name:"San Antonio Spurs",alts:["Spurs"]},
+  {abbr:"TOR",name:"Toronto Raptors",alts:["Raptors"]},
+  {abbr:"UTA",name:"Utah Jazz",alts:["Jazz"]},
+  {abbr:"WAS",name:"Washington Wizards",alts:["Wizards","Bullets","Packers","Zephyrs"]}
+];
+
+function gameMatchesFranchise(g,abbr){
+  const tn=String(TEAMS[g[G.TM]]||"").trim().toUpperCase();
+  if(!tn)return false;
+  const yr=g[G.SY];
+  const f=NBA_FRANCHISES.find(x=>x.abbr===abbr);
+  if(!f)return false;
+  for(const alt of (f.alts||[])){
+    const name=(typeof alt==="string"?alt:alt.name);
+    if(String(name).toUpperCase()!==tn)continue;
+    if(typeof alt==="object"){
+      if(alt.yearMin!=null&&yr<alt.yearMin)continue;
+      if(alt.yearMax!=null&&yr>alt.yearMax)continue;
+    }
+    return true;
+  }
+  return false;
+}
+
+/* ============================================================
+   DRAFT ROULETTE — game logic
+   Reuses the All-Time NBA Challenge simulation engine (above):
+   processAll() = normalizeTeam → equalizePossessions →
+   applyDefensiveImpact → reconcile, then PTS comparison.
+   ============================================================ */
+
+// --- season-year format flag (matches source: SY is the START year) ---
+const SY_IS_START=true;
+const SY_MIN=1990, SY_MAX=2024;
+
+// --- engine helpers carried over from the source ---
+const PLAYABLE_GAME_TYPES=new Set([0,1,2]);   // RS / Playoffs / Finals
+function isPlayableGame(g){return PLAYABLE_GAME_TYPES.has(g[G.TY])}
+function formatSeasonYear(sy){
+  if(sy==null||sy==="")return "";
+  const n=parseInt(sy);if(!n)return "";
+  const start=SY_IS_START?n:n-1, end=SY_IS_START?n+1:n;
+  return start+"-"+String(end).slice(-2).padStart(2,"0");
+}
+
+// --- engine state the pipeline reads/writes ---
+let TEAMS=[], POS=[], playerIndex={}, playerNames=[];
+let bioData=[], bioByName={};
+let salaryByPlayer={}, salaryEntries=[], CAP_BY_SY={};
+let teams=[[],[]], adjusted=[[],[]], teamNames=["YOUR SQUAD","OPPONENT"];
+
+// --- tunable game constants (easy to tweak / move to a config later) ---
+const CAP_2026   = 165_000_000;   // 2026-27 projected NBA salary cap ($165M, ESPN/Shams Mar 2026)
+const BUDGET     = 120_000_000;   // bankroll
+const SLOTS      = 5;             // signings
+const SEASON_GAMES = 82;          // games simulated for the record
+
+function fmtM(d){return "$"+(d/1e6).toFixed(1)+"M"}
+function escapeHtmlS(s){return String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]))}
+function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
+function cost2026(pct){return (pct/100)*CAP_2026}
+
+// ESPN CDN logo slugs keyed by modern franchise abbr (SEA = historical Sonics)
+const ESPN={ATL:'atl',BOS:'bos',BKN:'bkn',CHA:'cha',CHI:'chi',CLE:'cle',DAL:'dal',DEN:'den',DET:'det',GSW:'gs',HOU:'hou',IND:'ind',LAC:'lac',LAL:'lal',MEM:'mem',MIA:'mia',MIL:'mil',MIN:'min',NOP:'no',NYK:'ny',OKC:'okc',ORL:'orl',PHI:'phi',PHX:'phx',POR:'por',SAC:'sac',SAS:'sa',TOR:'tor',UTA:'utah',WAS:'wsh',SEA:'sea'};
+function logoUrl(slug){return "https://a.espncdn.com/i/teamlogos/nba/500/"+slug+".png"}
+
+/* ---- per-(player,season) helpers ---- */
+const _seasonGamesCache={};
+function seasonGames(name,sy){
+  const k=name+"|"+sy;
+  if(_seasonGamesCache[k])return _seasonGamesCache[k];
+  const out=(playerIndex[name]||[]).filter(g=>g[G.SY]===sy&&isPlayableGame(g));
+  _seasonGamesCache[k]=out; return out;
+}
+function sampleSeasonGame(name,sy){
+  let gs=seasonGames(name,sy);
+  if(!gs.length)gs=(playerIndex[name]||[]).filter(isPlayableGame); // fallback to any era
+  if(!gs.length)return null;
+  return gs[Math.floor(Math.random()*gs.length)];
+}
+function positionForSeason(name,sy){
+  const gs=seasonGames(name,sy);
+  if(gs.length){const ct=[0,0,0,0,0];gs.forEach(g=>{ct[getPlayerPos(g)]++});return ct.indexOf(Math.max(...ct))}
+  return getMostCommonPos(name);
+}
+// Hollinger Game Score from a player's per-game season averages — used as the
+// talent proxy for display + the optimizer. (The actual record always comes
+// from full simulation, never from this number.)
+function ratingFor(name,sy){
+  const gs=seasonGames(name,sy);
+  if(!gs.length)return 0;
+  const sum={};COUNT_STATS.forEach(s=>sum[s]=0);
+  gs.forEach(g=>{COUNT_STATS.forEach(s=>{sum[s]+=rawG(g,s)})});
+  const n=gs.length, a={};COUNT_STATS.forEach(s=>a[s]=sum[s]/n);
+  const gmsc = a.PTS + 0.4*a.FGM - 0.7*a.FGA - 0.4*(a.FTA-a.FTM)
+             + 0.7*a.ORB + 0.3*a.DRB + a.STL + 0.7*a.AST + 0.7*a.BLK
+             - 0.4*a.PF - a.TOV;
+  return gmsc;
+}
+
+/* ---- team-season index (the roulette pool) ---- */
+let GROUPS=[];           // [{key, abbr, sy, players:[{name,sy,pct,salary,cost,rating,pos}], _meta}]
+let GROUP_BY_KEY={};
+function buildGroups(){
+  const byKey={};
+  for(const e of salaryEntries){
+    const [name,sy,salary,pct,abbr]=e;
+    const key=abbr+"|"+sy;
+    if(!byKey[key])byKey[key]={key,abbr,sy,players:[]};
+    byKey[key].players.push({
+      name, sy, pct, salary,
+      cost: cost2026(pct),
+      rating: ratingFor(name,sy),
+      pos: positionForSeason(name,sy)
+    });
+  }
+  GROUPS=Object.values(byKey).filter(g=>g.players.length>=2); // need a real choice
+  GROUP_BY_KEY={};GROUPS.forEach(g=>{GROUP_BY_KEY[g.key]=g});
+  // precompute cost units for the optimizer
+  GROUPS.forEach(g=>g.players.forEach(p=>{p.costUnit=Math.round(p.cost/1e5)}));
+}
+function resolveGroupMeta(group){
+  if(group._meta)return group._meta;
+  let nick="",g0=null;
+  for(const p of group.players){
+    for(const g of (playerIndex[p.name]||[])){
+      if(g[G.SY]===group.sy&&isPlayableGame(g)){nick=TEAMS[g[G.TM]]||"";g0=g;break}
+    }
+    if(nick)break;
+  }
+  let fr=null;
+  if(g0){for(const f of NBA_FRANCHISES){if(gameMatchesFranchise(g0,f.abbr)){fr=f;break}}}
+  if(!fr)fr=NBA_FRANCHISES.find(f=>f.abbr===group.abbr)||null;
+  const cleanNick=String(nick||"").replace(/\s*\([^)]*\)\s*$/,"").trim();
+  const ab = fr?fr.abbr:group.abbr;
+  const slug = ESPN[ab];
+  const meta={
+    abbr: ab,
+    short: ab,
+    name: fr?fr.name:(cleanNick||group.abbr),
+    nick: cleanNick||(fr?fr.name:group.abbr),
+    logo: slug?logoUrl(slug):null
+  };
+  group._meta=meta; return meta;
+}
+function logoMarkup(meta,imgClass){
+  const short=escapeHtmlS(meta.short);
+  if(meta.logo){
+    return '<img class="'+imgClass+'" src="'+meta.logo+'" alt="" '+
+      'onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'flex\'">'+
+      '<span class="badge" style="display:none">'+short+'</span>';
+  }
+  return '<span class="badge">'+short+'</span>';
+}
+
+/* ============================================================
+   GAME STATE + FLOW
+   ============================================================ */
+let remaining=BUDGET;
+let roster=[];          // [{name,sy,abbr,pct,cost,rating,pos,key,meta}]
+let rolledGroups=[];    // the group object the user actually drew for each slot
+let pickedNames=new Set();
+let usedKeys=new Set();
+let currentGroup=null;  // landed group awaiting a pick
+let spinning=false;
+
+function $(id){return document.getElementById(id)}
+
+function startGame(){
+  remaining=BUDGET; roster=[]; rolledGroups=[]; pickedNames=new Set(); usedKeys=new Set();
+  currentGroup=null; spinning=false;
+  $("intro").classList.add("hidden");
+  $("results").classList.add("hidden");
+  $("game").classList.remove("hidden");
+  $("landed").classList.add("hidden");
+  $("spinBtn").textContent="Spin";
+  $("spinBtn").disabled=false;
+  $("spinBtn").onclick=spin;
+  $("reelHint").textContent="Spin the wheel to draw a team";
+  buildReelIdle();
+  updateHud();
+}
+
+function updateHud(){
+  const pill=$("capPill");
+  pill.innerHTML='<span class="lab">Remaining</span>'+fmtM(remaining);
+  pill.classList.remove("warn","low");
+  const frac=remaining/BUDGET;
+  if(frac<0.15)pill.classList.add("low");
+  else if(frac<0.40)pill.classList.add("warn");
+  // dots
+  const dots=$("slotDots");dots.innerHTML="";
+  for(let i=0;i<SLOTS;i++){
+    const d=document.createElement("i");
+    if(i<roster.length)d.className="done";
+    else if(i===roster.length)d.className="active";
+    dots.appendChild(d);
+  }
+  // strip
+  const strip=$("strip");strip.innerHTML="";
+  for(let i=0;i<SLOTS;i++){
+    const cell=document.createElement("div");
+    const p=roster[i];
+    if(p){
+      cell.className="slot filled";
+      cell.innerHTML='<div class="pos">'+POS_NAMES[p.pos]+'</div>'+
+        '<div class="nm">'+escapeHtmlS(p.name)+'</div>'+
+        '<div class="tm">'+escapeHtmlS(p.meta.short)+" '"+String(p.sy+1).slice(-2)+'</div>'+
+        '<div class="cost">'+fmtM(p.cost)+'</div>';
+    }else{
+      cell.className="slot";
+      cell.innerHTML='<div class="empty-lab">SLOT '+(i+1)+'</div>';
+    }
+    strip.appendChild(cell);
+  }
+}
+
+/* ---- pickable pools ---- */
+function unpickedPlayers(g){return g.players.filter(p=>!pickedNames.has(p.name))}
+function groupHasAffordable(g){return unpickedPlayers(g).some(p=>p.cost<=remaining+1)}
+function groupHasUnpicked(g){return unpickedPlayers(g).length>0}
+
+function spin(){
+  if(spinning)return;
+  if(roster.length>=SLOTS){showResults();return}
+  spinning=true;
+  $("spinBtn").disabled=true;
+  $("landed").classList.add("hidden");
+  $("reelHint").textContent="Drawing a team-season…";
+
+  // Prefer team-seasons where you can still sign someone; only fall back to
+  // "can't afford anyone here" groups if literally nothing is affordable.
+  let pool=GROUPS.filter(g=>!usedKeys.has(g.key)&&groupHasAffordable(g));
+  if(!pool.length)pool=GROUPS.filter(g=>!usedKeys.has(g.key)&&groupHasUnpicked(g));
+  if(!pool.length){spinning=false;showResults();return}
+  const target=pool[Math.floor(Math.random()*pool.length)];
+
+  // Build the reel strip: filler tiles + target near the end.
+  const track=$("reelTrack");
+  const TILE=(window.innerWidth<560)?96:120;
+  const N=44, TARGET_IDX=40;
+  const filler=shuffle(GROUPS.slice()).slice(0,N);
+  filler[TARGET_IDX]=target;
+  track.style.transition="none";
+  track.style.transform="translateX(0)";
+  track.innerHTML=filler.map(g=>{
+    const m=resolveGroupMeta(g);
+    return '<div class="reel-tile">'+logoMarkup(m,"")+'<small>'+escapeHtmlS(m.short)+" '"+String(g.sy+1).slice(-2)+'</small></div>';
+  }).join("");
+
+  // Center the target tile under the marker.
+  const W=$("reelTrack").parentElement.getBoundingClientRect().width;
+  const dx=-(TARGET_IDX*TILE + TILE/2 - W/2);
+  // force reflow, then animate
+  void track.offsetWidth;
+  track.style.transition="transform 2.7s cubic-bezier(.13,.66,.16,1)";
+  track.style.transform="translateX("+dx+"px)";
+
+  let done=false;
+  const finish=()=>{
+    if(done)return;done=true;
+    spinning=false;
+    currentGroup=target;
+    usedKeys.add(target.key);
+    renderLanded(target);
+  };
+  track.addEventListener("transitionend",finish,{once:true});
+  setTimeout(finish,2850); // safety in case transitionend doesn't fire
+}
+
+function renderLanded(group){
+  const m=resolveGroupMeta(group);
+  const el=$("landed");
+  const seasonStr=formatSeasonYear(group.sy);
+  const players=unpickedPlayers(group).slice().sort((a,b)=>b.cost-a.cost);
+  const anyAffordable=players.some(p=>p.cost<=remaining+1);
+
+  let cards;
+  if(!anyAffordable){
+    cards='<div class="none-affordable">⚠ Nobody here fits your '+fmtM(remaining)+' — spin again.</div>';
+  }else{
+    cards='<div class="pick-grid">'+players.map(p=>{
+      const taken=pickedNames.has(p.name);
+      const tooFar=p.cost>remaining+1;
+      const cls="pick-card"+(taken?" taken":(tooFar?" tooFar":""));
+      const onclick=(!taken&&!tooFar)?(' onclick="pickPlayer(\''+group.key+'\',\''+escapeHtmlS(p.name).replace(/'/g,"\\'")+'\')"'):"";
+      return '<div class="'+cls+'"'+onclick+'>'+
+        '<div class="pc-top"><span class="pc-pos">'+POS_NAMES[p.pos]+'</span>'+
+        '<span class="pc-rtg">RTG <b>'+p.rating.toFixed(1)+'</b></span></div>'+
+        '<div class="pc-name">'+escapeHtmlS(p.name)+'</div>'+
+        '<div class="pc-cost">'+fmtM(p.cost)+' <span>· '+p.pct.toFixed(1)+'% cap</span></div>'+
+        '</div>';
+    }).join("")+'</div>';
+  }
+
+  el.innerHTML=
+    '<div class="landed-hdr">'+logoMarkup(m,"")+
+      '<div class="meta"><div class="yr">'+seasonStr+'</div><div class="tn">'+escapeHtmlS(m.name)+'</div></div></div>'+
+    '<div class="landed-sub">Slot '+(roster.length+1)+' of '+SLOTS+' — sign one player</div>'+
+    cards+
+    (anyAffordable?'':'<div class="center"><button class="btn" onclick="spin()">Spin again</button></div>');
+  el.classList.remove("hidden");
+  $("reelHint").textContent="Landed: "+m.name+" "+seasonStr;
+  $("spinBtn").disabled=true;
+}
+
+function pickPlayer(key,name){
+  if(spinning)return;
+  const group=GROUP_BY_KEY[key]; if(!group)return;
+  const p=group.players.find(x=>x.name===name); if(!p)return;
+  if(pickedNames.has(p.name)||p.cost>remaining+1)return;
+
+  remaining-=p.cost;
+  roster.push({name:p.name,sy:p.sy,abbr:group.abbr,pct:p.pct,cost:p.cost,rating:p.rating,pos:p.pos,key:group.key,meta:resolveGroupMeta(group)});
+  rolledGroups.push(group);
+  pickedNames.add(p.name);
+
+  $("landed").classList.add("hidden");
+  currentGroup=null;
+  updateHud();
+
+  if(roster.length>=SLOTS){
+    $("reelHint").textContent="Roster complete — simulate your season";
+    $("spinBtn").textContent="Simulate season";
+    $("spinBtn").disabled=false;
+    $("spinBtn").onclick=showResults;
+    buildReelIdle();
+  }else{
+    $("reelHint").textContent="Spin for slot "+(roster.length+1);
+    $("spinBtn").disabled=false;
+    buildReelIdle();
+  }
+}
+
+function buildReelIdle(){
+  // a still, dimmed strip of random logos so the window isn't empty
+  const track=$("reelTrack");
+  const tiles=shuffle(GROUPS.slice()).slice(0,10);
+  track.style.transition="none";track.style.transform="translateX(0)";
+  track.innerHTML=tiles.map(g=>{
+    const m=resolveGroupMeta(g);
+    return '<div class="reel-tile">'+logoMarkup(m,"")+'<small>'+escapeHtmlS(m.short)+'</small></div>';
+  }).join("");
+}
+
+/* ============================================================
+   SIMULATION
+   ============================================================ */
+function buildGauntlet(){
+  // 82 opponent fives drawn from the full salary pool — the same gauntlet is
+  // reused for your squad AND the optimal squad so the comparison is fair.
+  const g=[];
+  for(let i=0;i<SEASON_GAMES;i++){
+    const picks=[];const seen=new Set();
+    let tries=0;
+    while(picks.length<5&&tries<60){
+      tries++;
+      const e=salaryEntries[Math.floor(Math.random()*salaryEntries.length)];
+      const tag=e[0]+"|"+e[1];
+      if(seen.has(tag))continue;seen.add(tag);
+      picks.push({name:e[0],sy:e[1]});
+    }
+    g.push(picks);
+  }
+  return g;
+}
+function buildSimTeam(lineup){
+  return lineup.map(p=>({name:p.name,game:sampleSeasonGame(p.name,p.sy)})).filter(x=>x.game);
+}
+function simOneGame(myLineup,oppLineup){
+  const a=buildSimTeam(myLineup), b=buildSimTeam(oppLineup);
+  if(a.length<3||b.length<3)return null;
+  teams[0]=a;teams[1]=b;adjusted=[[],[]];
+  processAll();
+  let pA=0,pB=0;
+  teams[0].forEach((_,i)=>{pA+=av(0,i,"PTS")});
+  teams[1].forEach((_,i)=>{pB+=av(1,i,"PTS")});
+  pA=Math.round(pA);pB=Math.round(pB);
+  let ot=0;
+  while(pA===pB&&ot<6){ot++;pA+=Math.round(8+Math.random()*7);pB+=Math.round(8+Math.random()*7)}
+  if(pA===pB){Math.random()<0.5?pA++:pB++}
+  return {pA,pB,win:pA>pB};
+}
+function simRecord(lineup,gauntlet){
+  let w=0,l=0,pf=0,pa=0,played=0;
+  for(const opp of gauntlet){
+    const r=simOneGame(lineup,opp);
+    if(!r)continue;
+    played++;pf+=r.pA;pa+=r.pB;
+    if(r.win)w++;else l++;
+  }
+  return {w,l,played,ppg:played?pf/played:0,oppg:played?pa/played:0};
+}
+
+/* ============================================================
+   OPTIMIZER — multiple-choice knapsack over the drawn team-seasons
+   (one player per drawn team-season, maximize total RTG within budget)
+   ============================================================ */
+function optimalLineup(){
+  const groups=rolledGroups;
+  if(!groups.length)return null;
+  const BU=Math.floor(BUDGET/1e5);
+  let dp=new Float64Array(BU+1).fill(-Infinity);dp[0]=0;
+  const choiceLayers=[],prevLayers=[];
+  for(let gi=0;gi<groups.length;gi++){
+    const opts=groups[gi].players;
+    const ndp=new Float64Array(BU+1).fill(-Infinity);
+    const choice=new Int32Array(BU+1).fill(-1);
+    const prev=new Int32Array(BU+1).fill(-1);
+    for(let b=0;b<=BU;b++){
+      if(dp[b]===-Infinity)continue;
+      for(let pi=0;pi<opts.length;pi++){
+        const cu=opts[pi].costUnit, nb=b+cu;
+        if(nb>BU)continue;
+        const val=dp[b]+opts[pi].rating;
+        if(val>ndp[nb]){ndp[nb]=val;choice[nb]=pi;prev[nb]=b}
+      }
+    }
+    dp=ndp;choiceLayers.push(choice);prevLayers.push(prev);
+  }
+  // best feasible budget bucket
+  let bestB=-1,bestV=-Infinity;
+  for(let b=0;b<=BU;b++){if(dp[b]>bestV){bestV=dp[b];bestB=b}}
+  if(bestB<0)return null;
+  // reconstruct
+  const chosen=new Array(groups.length);
+  let b=bestB;
+  for(let gi=groups.length-1;gi>=0;gi--){
+    const pi=choiceLayers[gi][b];
+    chosen[gi]=groups[gi].players[pi];
+    b=prevLayers[gi][b];
+  }
+  return chosen.map((p,gi)=>({...p,abbr:groups[gi].abbr,meta:resolveGroupMeta(groups[gi])}));
+}
+
+/* ============================================================
+   RESULTS
+   ============================================================ */
+function gradeFor(w){
+  if(w>=60)return {t:"Title contender",c:"var(--gold)",bg:"#2a230a"};
+  if(w>=50)return {t:"Playoff lock",c:"var(--green)",bg:"#0e2018"};
+  if(w>=41)return {t:"Play-in team",c:"var(--amber)",bg:"#231d0a"};
+  if(w>=30)return {t:"Lottery-bound",c:"#ff9b5a",bg:"#241405"};
+  return {t:"Tank commander",c:"var(--red)",bg:"#220c0c"};
+}
+function squadRowsHTML(lineup,bestNames){
+  return lineup.map(p=>{
+    const star=(bestNames&&bestNames.has(p.name))?' <span class="star">★</span>':"";
+    return '<div class="sq-row"><span class="pos">'+POS_NAMES[p.pos]+'</span>'+
+      '<span class="nm">'+escapeHtmlS(p.name)+star+'<small>'+escapeHtmlS(p.meta.name)+' · '+formatSeasonYear(p.sy)+'</small></span>'+
+      '<span class="rtg">RTG '+p.rating.toFixed(1)+'</span>'+
+      '<span class="cost">'+fmtM(p.cost)+'</span></div>';
+  }).join("");
+}
+
+function showResults(){
+  if(spinning)return;
+  if(roster.length<3){alert("Sign at least 3 players before simulating.");return}
+  $("game").classList.add("hidden");
+  const el=$("results");el.classList.remove("hidden");
+  el.innerHTML='<div class="res-record"><div class="rl">Simulating 82 games…</div>'+
+    '<div class="rv"><span class="spinner-mini"></span></div></div>';
+
+  // defer so the spinner paints before the (sync) sim work runs
+  setTimeout(()=>{
+    const gauntlet=buildGauntlet();
+    const yours=simRecord(roster,gauntlet);
+    const opt=optimalLineup();
+    const optRec=opt?simRecord(opt,gauntlet):null;
+
+    const spent=roster.reduce((s,p)=>s+p.cost,0);
+    const yourRtg=roster.reduce((s,p)=>s+p.rating,0);
+    const g=gradeFor(yours.w);
+    const bestNames=new Set(opt?opt.map(p=>p.name):[]);
+    const samePicks=opt&&opt.length===roster.length&&roster.every(p=>bestNames.has(p.name));
+
+    let html='<div class="res-record">'+
+      '<div class="rl">Your season</div>'+
+      '<div class="rv">'+yours.w+'<span class="dash">–</span>'+yours.l+'</div>'+
+      '<div class="grade" style="color:'+g.c+';background:'+g.bg+';border:1px solid '+g.c+'55">'+g.t+'</div>'+
+      '</div>'+
+      '<div class="res-sub">'+yours.ppg.toFixed(1)+' – '+yours.oppg.toFixed(1)+' PPG vs all-era fives · spent '+fmtM(spent)+' of '+fmtM(BUDGET)+'</div>';
+
+    // your squad
+    html+='<div class="sq yours">'+
+      '<div class="sq-hdr"><span class="t">Your squad</span>'+
+      '<span class="totals">spent <b>'+fmtM(spent)+'</b> · total RTG <b>'+yourRtg.toFixed(1)+'</b></span></div>'+
+      squadRowsHTML(roster,null)+'</div>';
+
+    // optimal squad gift
+    if(opt){
+      const optSpent=opt.reduce((s,p)=>s+p.cost,0);
+      const optRtg=opt.reduce((s,p)=>s+p.rating,0);
+      html+='<div class="sq optimal">'+
+        '<div class="sq-hdr"><span class="t">🏆 Best squad you could\'ve signed</span>'+
+        '<span class="totals">'+(optRec?'sim record <b>'+optRec.w+'–'+optRec.l+'</b> · ':'')+'spent <b>'+fmtM(optSpent)+'</b> · RTG <b>'+optRtg.toFixed(1)+'</b></span></div>'+
+        squadRowsHTML(opt,null)+
+        (samePicks
+          ? '<div class="perfect">★ You signed the optimal squad — flawless drafting ★</div>'
+          : '<div class="opt-note">From the exact five team-seasons you drew, this is the highest-talent lineup that fits '+fmtM(BUDGET)+' (optimized by season Game Score). Talent ≠ a guaranteed better record, but it\'s the value play.</div>')+
+        '</div>';
+    }
+
+    html+='<div class="center"><button class="btn" onclick="startGame()">Play again</button> '+
+      '<button class="btn ghost" onclick="reSim()">Re-simulate</button></div>';
+    el.innerHTML=html;
+  },40);
+}
+
+// re-roll the 82-game gauntlet against the same two squads (variance flavor)
+function reSim(){ showResults(); }
+
+/* ============================================================
+   BOOT / DATA LOADING (mirrors the salary variant's loader)
+   ============================================================ */
+(async function(){
+  const fill=$("progressFill"),text=$("progressText"),label=$("progressLabel");
+  try{
+    const resp=await fetch("data.bin");
+    if(!resp.ok)throw new Error("HTTP "+resp.status+" — make sure data.bin is in the same folder");
+    const reader=resp.body.getReader();
+    const total=parseInt(resp.headers.get("content-length"))||11000000;
+    let received=0;const chunks=[];
+    while(true){const{done,value}=await reader.read();if(done)break;chunks.push(value);received+=value.length;
+      fill.style.width=Math.min(80,Math.round(received/total*80))+"%";
+      text.textContent=(received/1048576).toFixed(1)+" / ~"+(total/1048576).toFixed(0)+" MB"}
+    label.textContent="Decompressing...";fill.style.width="85%";
+    const compressed=new Uint8Array(received);let off=0;for(const c of chunks){compressed.set(c,off);off+=c.length}
+    const decompressed=pako.inflate(compressed,{to:'string'});
+    label.textContent="Parsing...";fill.style.width="92%";
+    const raw=JSON.parse(decompressed);
+    TEAMS=raw.t;POS=raw.p;playerIndex=raw.d;playerNames=Object.keys(playerIndex).sort();
+
+    label.textContent="Loading bio data...";fill.style.width="95%";
+    try{
+      const bioResp=await fetch("bio.json");
+      if(bioResp.ok){
+        const bioRaw=await bioResp.json();
+        bioData=bioRaw.filter(r=>playerIndex[r[0]]&&playerIndex[r[0]].length>=20);
+        bioData.forEach((r,i)=>{bioByName[r[0]]=i});
+      }
+    }catch(e){console.warn("bio.json load failed",e)}
+
+    label.textContent="Loading salary data...";fill.style.width="98%";
+    const salResp=await fetch("salaries.json");
+    if(!salResp.ok)throw new Error("salaries.json HTTP "+salResp.status);
+    const salJson=await salResp.json();
+    CAP_BY_SY=salJson.cap_by_sy||{};
+    for(const e of (salJson.entries||[])){
+      const [name,sy]=e;
+      if(!bioByName.hasOwnProperty(name))continue;     // needs a bio entry (parity w/ salary variant)
+      const games=playerIndex[name]||[];
+      let gp=0;for(const g of games){if(g[G.SY]===sy&&isPlayableGame(g)){gp++;if(gp>=10)break}}
+      if(gp<10)continue;                                // ≥10 playable games that season
+      if(!salaryByPlayer[name])salaryByPlayer[name]=[];
+      salaryByPlayer[name].push({sy:e[1],salary:e[2],pct:e[3],team:e[4]});
+      salaryEntries.push(e);
+    }
+    console.log("[ROULETTE] "+salaryEntries.length+" eligible player-seasons");
+
+    label.textContent="Building team-seasons...";fill.style.width="99%";
+    buildGroups();
+    console.log("[ROULETTE] "+GROUPS.length+" team-seasons in the wheel");
+
+    fill.style.width="100%";text.textContent="Done!";
+    setTimeout(()=>{
+      $("loadScreen").style.display="none";
+      $("introBudget").textContent=fmtM(BUDGET);
+      $("introFine").textContent="Pricing at the projected "+fmtM(CAP_2026)+" cap · "+GROUPS.length+" team-seasons (1990–2024) on the wheel";
+      $("intro").classList.remove("hidden");
+      $("startBtn").onclick=startGame;
+    },350);
+  }catch(err){
+    label.textContent="Load failed";
+    text.textContent=String(err.message||err);
+    console.error(err);
+  }
+})();
+</script>
+</body>
+</html>
