@@ -673,20 +673,24 @@ function seasonProfile(name,sy){
 /* ---- team-season index (the roulette pool) ---- */
 let GROUPS=[];           // [{key, abbr, sy, players:[{name,sy,pct,salary,cost,rating,pos}], _meta}]
 let GROUP_BY_KEY={};
+let entriesByPos=[[],[],[],[],[]];  // opponent pool bucketed by position (for coherent gauntlet fives)
 function buildGroups(){
   const byKey={};
+  entriesByPos=[[],[],[],[],[]];
   for(const e of salaryEntries){
     const [name,sy,salary,pct,abbr]=e;
     const key=abbr+"|"+sy;
     if(!byKey[key])byKey[key]={key,abbr,sy,players:[]};
     const prof=seasonProfile(name,sy);
+    const pos=positionForSeason(name,sy);
     byKey[key].players.push({
       name, sy, pct, salary,
       cost: cost2026(pct),
       rating: prof.rating,
       ppg: prof.ppg, rpg: prof.rpg, apg: prof.apg, fgpct: prof.fgpct,
-      pos: positionForSeason(name,sy)
+      pos
     });
+    if(pos>=0&&pos<5)entriesByPos[pos].push({name,sy,pos});
   }
   GROUPS=Object.values(byKey).filter(g=>g.players.length>=2); // need a real choice
   GROUP_BY_KEY={};GROUPS.forEach(g=>{GROUP_BY_KEY[g.key]=g});
@@ -927,18 +931,18 @@ function buildReelIdle(){
    SIMULATION
    ============================================================ */
 function buildGauntlet(){
-  // 82 opponent fives drawn from the full salary pool — the same gauntlet is
-  // reused for your squad AND the optimal squad so the comparison is fair.
+  // 82 opponent fives, each a coherent PG-SG-SF-PF-C team drawn from the pool.
+  // Balanced opponents make a real benchmark — a clumped roster (e.g. three
+  // centers) can't pad wins against incoherent scrub lineups. The same gauntlet
+  // is reused for every candidate squad so the comparison stays fair.
   const g=[];
   for(let i=0;i<SEASON_GAMES;i++){
-    const picks=[];const seen=new Set();
-    let tries=0;
-    while(picks.length<5&&tries<60){
-      tries++;
-      const e=salaryEntries[Math.floor(Math.random()*salaryEntries.length)];
-      const tag=e[0]+"|"+e[1];
-      if(seen.has(tag))continue;seen.add(tag);
-      picks.push({name:e[0],sy:e[1],pos:positionForSeason(e[0],e[1])});
+    const picks=[];
+    for(let pos=0;pos<5;pos++){
+      const bucket=(entriesByPos[pos]&&entriesByPos[pos].length)?entriesByPos[pos]:null;
+      const e=bucket?bucket[Math.floor(Math.random()*bucket.length)]
+                    :salaryEntries[Math.floor(Math.random()*salaryEntries.length)];
+      picks.push({name:e[0]!==undefined?e[0]:e.name,sy:e[1]!==undefined?e[1]:e.sy,pos});
     }
     g.push(picks);
   }
@@ -948,23 +952,32 @@ function buildSimTeam(lineup){
   return lineup.map(p=>({name:p.name,game:sampleSeasonGame(p.name,p.sy)})).filter(x=>x.game);
 }
 // Positional "smoothness" factor applied to a lineup's scoring. A clean
-// PG-SG-SF-PF-C spread gets a small bonus; lineups missing a true point guard,
-// any wing, or any big man get penalized (on top of what the sim already does
-// to lopsided rosters through rebounding & rim protection). Range ~0.80–1.06.
+// PG-SG-SF-PF-C spread gets a small bonus; lineups that miss a true point guard,
+// any wing, or any big — OR stack redundant bodies at one spot (three centers,
+// four guards) — get penalized hard. This is on top of what the sim already does
+// to lopsided rosters through rebounding & rim protection. Range ~0.70–1.07.
 function lineupBalance(lineup){
   const ct=[0,0,0,0,0];
   lineup.forEach(p=>{const k=p.pos;if(k>=0&&k<5)ct[k]++});
   let f=1.0;
-  if(ct[0]===0)        f-=0.05;   // no true point guard → no initiator
-  if(ct[1]+ct[2]===0)  f-=0.05;   // no wings (SG/SF) → no perimeter size/defense
-  if(ct[3]+ct[4]===0)  f-=0.07;   // no big men (PF/C) → no rim/rebounding
+  // missing whole roles
+  if(ct[0]===0)        f-=0.06;   // no true point guard → no initiator/spacing
+  if(ct[1]+ct[2]===0)  f-=0.06;   // no wings (SG/SF) → no perimeter size/defense
+  if(ct[3]+ct[4]===0)  f-=0.08;   // no big men (PF/C) → no rim/rebounding
+  // redundancy: three-plus bodies at one position can't all play
+  ct.forEach(c=>{ if(c>=3) f-=0.07*(c-2); });   // 3 of a spot −0.07, 4 −0.14, 5 −0.21
+  // bucket clumping (no spacing with too many bigs, no size with too many guards)
+  const guards=ct[0]+ct[1], bigs=ct[3]+ct[4];
+  if(bigs>=3)   f-=0.06;
+  if(guards>=4) f-=0.05;
+  // positional spread
   if(ct[0]===1&&ct[1]===1&&ct[2]===1&&ct[3]===1&&ct[4]===1){
-    f+=0.04;                       // textbook 1-2-3-4-5 spread
+    f+=0.05;                       // textbook 1-2-3-4-5
   }else{
     const distinct=ct.filter(c=>c>0).length;
-    f+=(distinct-3)*0.015;         // reward coverage, punish clumping
+    f+=(distinct-4)*0.02;          // 4 distinct →0, 3 →−0.02, 2 →−0.04, 1 →−0.06
   }
-  return Math.max(0.80,Math.min(1.06,f));
+  return Math.max(0.70,Math.min(1.07,f));
 }
 function simOneGame(myLineup,oppLineup){
   const a=buildSimTeam(myLineup), b=buildSimTeam(oppLineup);
@@ -1073,23 +1086,47 @@ function genLineup(weighted){
   }
   return rolledGroups.map(g=>materializePick(g,chosen[g.key]));
 }
+// Average a lineup's record over several gauntlets, scaled back to one season.
+// Sampling over multiple schedules removes most of the single-run variance.
+function avgRecord(lineup,gauntlets){
+  let w=0,pf=0,pa=0,played=0;
+  for(const G of gauntlets){
+    for(const opp of G){
+      const r=simOneGame(lineup,opp);
+      if(!r)continue;played++;pf+=r.pA;pa+=r.pB;if(r.win)w++;
+    }
+  }
+  if(!played)return {w:0,l:SEASON_GAMES,played:0,ppg:0,oppg:0};
+  const w82=Math.round(w/played*SEASON_GAMES);
+  return {w:w82,l:SEASON_GAMES-w82,played,ppg:pf/played,oppg:pa/played};
+}
+const FINALISTS=6, EXTRA_GAUNTLETS=2;
 function findBestSquad(gauntlet){
   const seen=new Set(),cands=[];
   const keyOf=l=>l.map(p=>p.name).slice().sort().join("|");
   const add=l=>{if(!l||l.length<rolledGroups.length)return;const k=keyOf(l);if(seen.has(k))return;seen.add(k);cands.push(l)};
   add(roster);
-  const opt=optimalLineup(); add(opt);
+  add(optimalLineup());
   for(let i=0;i<CANDIDATES_WEIGHTED;i++)add(genLineup(true));
   for(let i=0;i<CANDIDATES_RANDOM;i++)add(genLineup(false));
 
   const rosterKey=keyOf(roster);
+  // pass 1 — quick single-gauntlet rank to shortlist
+  const scored=cands.map(c=>({c,w:simRecord(c,gauntlet).w})).sort((a,b)=>b.w-a.w);
+  const finalists=scored.slice(0,FINALISTS).map(s=>s.c);
+  if(!finalists.some(c=>keyOf(c)===rosterKey))finalists.push(roster);
+
+  // pass 2 — average the shortlist over several fresh gauntlets for a fair record
+  const pool=[gauntlet];
+  for(let i=0;i<EXTRA_GAUNTLETS;i++)pool.push(buildGauntlet());
   let best=null,bestRec=null,yoursRec=null;
   const diff=r=>r.ppg-r.oppg;
-  for(const c of cands){
-    const rec=simRecord(c,gauntlet);
+  for(const c of finalists){
+    const rec=avgRecord(c,pool);
     if(keyOf(c)===rosterKey)yoursRec=rec;
     if(!best||rec.w>bestRec.w||(rec.w===bestRec.w&&diff(rec)>diff(bestRec))){best=c;bestRec=rec}
   }
+  if(!yoursRec)yoursRec=avgRecord(roster,pool);
   return {best,bestRec,yoursRec,sameAsYours:best&&keyOf(best)===rosterKey};
 }
 
