@@ -1682,7 +1682,7 @@ function saveCareer(){
 // Saved automatically at two points: (a) the moment all 5 cups close
 // (full career sweep), and (b) when the user clicks RESET — capturing
 // partial-career progress that would otherwise vanish.
-const BEST_RECORDS_KEY="bsl_best_records_v1";
+const BEST_RECORDS_KEY="bsl_salary_best_records_v1";   // Salary-variant best records — independent slot from the original game's bsl_best_records_v1
 function loadBestRecords(){
   try{
     const raw=localStorage.getItem(BEST_RECORDS_KEY);
