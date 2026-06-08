@@ -1312,23 +1312,20 @@ function processAll(){normalizeTeam(0);normalizeTeam(1);equalizePossessions();ap
         updateTabs();
         const saved=loadCareer();
         // Salary variant: an in-progress career is one where 12 players are
-        // already locked in. An in-flight FA draft saves with difficulty set
-        // and roster=[], faDraft populated — restore that mid-draft state.
+        // already locked in. Anything less (no difficulty / no roster) falls
+        // through to a clean setup. The old "resume mid-FA-draft" branch was
+        // retired when the FA draft was replaced with auto-build.
         if(saved&&saved.roster&&saved.difficulty&&saved.roster.length===12){
           careerState=saved;
-        }else if(saved&&saved.difficulty&&saved.faDraft&&Array.isArray(saved.faDraft.pool)&&saved.faDraft.pool.length){
-          careerState=saved;                 // resume the FA draft where they left it
         }else{
           // Fresh career — no roster yet, drop on the Setup screen so the
           // user picks a difficulty first.
           initCareerState(null);
         }
-        // Setup if no difficulty chosen yet; FA-draft if mid-pick; Roster
-        // after the lock-in but before Game #1; FreeAgents post-first-game.
+        // Setup if no difficulty chosen yet; Roster after the auto-build
+        // but before Game #1; FreeAgents post-first-game.
         if(!careerState.difficulty){
           careerScreen="setup";
-        }else if(careerState.faDraft&&Array.isArray(careerState.faDraft.pool)&&careerState.faDraft.pool.length){
-          careerScreen="fa_draft";
         }else if(careerState.games>0){
           careerScreen="freeagents";
         }else{
@@ -2949,25 +2946,126 @@ function pickDifficulty(diff){
   }
   const prev=careerState.difficulty||null;
   if(prev===diff)return; // no-op if unchanged
-  // SALARY VARIANT: first difficulty selection branches into the FA draft
-  // instead of rolling a random roster. The user blind-picks 12 of 24
-  // player-seasons (4G/4F/2C + 2 flex, ≤100% cap). Roster fields get
-  // populated by lockFaRoster() once the picks are confirmed.
+  // SALARY VARIANT: first difficulty selection auto-builds a balanced
+  // 12-man roster (4G/4F/2C/2flex, ≤100% cap) from salaryEntries and
+  // drops the user directly on the roster screen. The 24-FA draft step
+  // was retired per Alberto's revised spec — random auto-roster only.
   if(!prev){
     careerState.difficulty=diff;
-    beginFaDraft();
+    const picks=autoBuildSalaryRoster();
+    if(!picks||picks.length!==12){
+      alert("Couldn't build a valid roster from the salary data. Try resetting.");
+      return;
+    }
+    const names=[],anchors={},sal={};
+    for(const p of picks){
+      names.push(p.name);
+      anchors[p.name]=p.sy;
+      sal[p.name]={sy:p.sy,salary:p.salary,pct:p.pct,team:p.team};
+    }
+    careerState.roster=names;
+    careerState.rosterAnchors=anchors;
+    careerState.rosterSalary=sal;
+    careerState.capBudget=100;
+    careerState.faDraft=null;          // belt-and-suspenders cleanup
+    postRosterSetup();
     saveCareer();
-    setCareerScreen("fa_draft");
+    setCareerScreen("roster");
     renderCareer();
     return;
   }
-  // Switching tier mid-setup. Difficulty change keeps the FA pool (the
-  // user has invested time picking from it) — only the OPPONENT roster
-  // generation cares about difficulty, and that doesn't fire until the
-  // first game. So a pure field swap is safe here.
+  // Switching tier mid-setup — roster already built. Keep it; just
+  // update the difficulty field. Opponents read difficulty at game
+  // time so the switch takes effect on Game #1.
   careerState.difficulty=diff;
   saveCareer();
   renderCareer();
+}
+
+// Auto-build a balanced 12-man roster for the salary variant. Constraints:
+//   - exactly 4 G, 4 F, 2 C (positional minimum)
+//   - 2 flex slots (any of G/F/C)
+//   - sum of cap pcts ≤ 100
+//   - no duplicate player names (one entry per player; random season chosen)
+// Strategy: random-shuffle attempts (with a fixed cap on retries) first;
+// fall back to a cheapest-first construction if no random attempt fits
+// the cap. The fallback is guaranteed to fit since aggregate cheapest is
+// well below 100% across any 12-player slice of the data.
+function autoBuildSalaryRoster(){
+  if(!salaryEntries||!salaryEntries.length)return null;
+  const MAX_ATTEMPTS=200;
+  // Group entries by player so we can pick one random season per name
+  // on each attempt.
+  const byName={};
+  for(const e of salaryEntries){
+    if(!byName[e[0]])byName[e[0]]=[];
+    byName[e[0]].push(e);
+  }
+  const allNames=Object.keys(byName);
+
+  for(let attempt=0;attempt<MAX_ATTEMPTS;attempt++){
+    // Random season per player
+    const tagged=[];
+    for(const n of allNames){
+      const arr=byName[n];
+      const e=arr[Math.floor(Math.random()*arr.length)];
+      const bi=bioByName[n];
+      if(bi==null)continue;
+      const bucket=positionBucket(bioData[bi][3]||"");
+      if(!bucket)continue;
+      tagged.push({name:e[0],sy:e[1],salary:e[2],pct:e[3],team:e[4],bucket});
+    }
+    // Shuffle (Fisher-Yates)
+    for(let i=tagged.length-1;i>0;i--){
+      const j=Math.floor(Math.random()*(i+1));
+      [tagged[i],tagged[j]]=[tagged[j],tagged[i]];
+    }
+    // Greedy fill 4G/4F/2C minimums
+    const need={G:4,F:4,C:2};
+    const picks=[];
+    const used=new Set();
+    for(const p of tagged){
+      if(used.has(p.name))continue;
+      if(need[p.bucket]>0){
+        picks.push(p);used.add(p.name);need[p.bucket]--;
+        if(need.G+need.F+need.C===0)break;
+      }
+    }
+    if(need.G+need.F+need.C>0)continue;     // missing position — retry
+    // 2 flex from any remaining
+    for(const p of tagged){
+      if(picks.length>=12)break;
+      if(used.has(p.name))continue;
+      picks.push(p);used.add(p.name);
+    }
+    if(picks.length!==12)continue;
+    const total=picks.reduce((s,p)=>s+p.pct,0);
+    if(total<=100)return picks;              // valid roster
+  }
+
+  // Fallback: cheapest-first by bucket. Guaranteed to fit since the
+  // cheap floor across the salary table is well under 8% per player.
+  const byBucket={G:[],F:[],C:[]};
+  for(const n of allNames){
+    const arr=byName[n];
+    // Pick this player's CHEAPEST eligible season for the fallback so we
+    // maximize fit under the cap (the random path was the variety path;
+    // fallback is just "make it work").
+    const cheapest=arr.reduce((a,b)=>a[3]<b[3]?a:b);
+    const bi=bioByName[n];
+    if(bi==null)continue;
+    const bucket=positionBucket(bioData[bi][3]||"");
+    if(!bucket)continue;
+    byBucket[bucket].push({name:cheapest[0],sy:cheapest[1],salary:cheapest[2],pct:cheapest[3],team:cheapest[4],bucket});
+  }
+  for(const k in byBucket)byBucket[k].sort((a,b)=>a.pct-b.pct);
+  const picks=[];
+  for(let i=0;i<4&&i<byBucket.G.length;i++)picks.push(byBucket.G[i]);
+  for(let i=0;i<4&&i<byBucket.F.length;i++)picks.push(byBucket.F[i]);
+  for(let i=0;i<2&&i<byBucket.C.length;i++)picks.push(byBucket.C[i]);
+  const rest=[...byBucket.G.slice(4),...byBucket.F.slice(4),...byBucket.C.slice(2)].sort((a,b)=>a.pct-b.pct);
+  for(let i=0;i<2&&i<rest.length;i++)picks.push(rest[i]);
+  return picks.length===12?picks:null;
 }
 
 // =====================================================================
