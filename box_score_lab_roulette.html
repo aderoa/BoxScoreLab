@@ -625,8 +625,12 @@ function gameMatchesFranchise(g,abbr){
    applyDefensiveImpact → reconcile, then PTS comparison.
    ============================================================ */
 
-// --- season-year format flag (matches source: SY is the START year) ---
-const SY_IS_START=true;
+// --- season-year format flag ---
+// The source data stores SY as the season's ENDING year (verified: a player-
+// season at SY=2019 returns the 2018-19 box score, e.g. Luka's 21.2 ppg rookie
+// year). So 2019 → "2018-19". Salary sy uses the same value, so a player's cost
+// and stats always describe the same season.
+const SY_IS_START=false;
 const SY_MIN=1990, SY_MAX=2024;
 
 // --- engine helpers carried over from the source ---
@@ -650,6 +654,16 @@ const CAP_2026   = 165_000_000;   // 2026-27 projected NBA salary cap ($165M, ES
 const BUDGET     = 120_000_000;   // bankroll
 const SLOTS      = 5;             // signings
 const SEASON_GAMES = 82;          // games simulated for the record
+
+// Team winning-% quality factor. Populated from an optional records.json keyed
+// by "abbr|sy" (same season convention as the salary data: sy = END year).
+// A player on a strong team grades up; on a weak team, down. ±WIN_STRENGTH at the
+// extremes, neutral (1.0) at .500 — and neutral everywhere if records.json is absent.
+let RECORDS={};
+const WIN_STRENGTH=0.10;          // ±10% swing
+function winPctFor(abbr,sy){const v=RECORDS[abbr+"|"+sy];return (v==null)?0.5:v}
+function winFactorFromPct(pct){return Math.max(1-WIN_STRENGTH,Math.min(1+WIN_STRENGTH,1+WIN_STRENGTH*(pct-0.5)*2))}
+function winFactor(abbr,sy){return winFactorFromPct(winPctFor(abbr,sy))}
 
 function fmtM(d){return "$"+(d/1e6).toFixed(1)+"M"}
 function statTriple(p){return p.ppg.toFixed(1)+' <span>PPG</span> · '+p.rpg.toFixed(1)+' <span>RPG</span> · '+p.apg.toFixed(1)+' <span>APG</span> · '+p.fgpct.toFixed(1)+' <span>FG%</span>'}
@@ -711,14 +725,15 @@ function buildGroups(){
     if(!byKey[key])byKey[key]={key,abbr,sy,players:[]};
     const prof=seasonProfile(name,sy);
     const pos=positionForSeason(name,sy);
+    const wf=winFactor(abbr,sy);
     byKey[key].players.push({
       name, sy, pct, salary,
       cost: cost2026(pct),
-      rating: prof.rating,
+      rating: prof.rating*wf,           // winning teams' players grade up; losing teams' down
       ppg: prof.ppg, rpg: prof.rpg, apg: prof.apg, fgpct: prof.fgpct,
-      pos
+      pos, winFactor: wf
     });
-    if(pos>=0&&pos<5)entriesByPos[pos].push({name,sy,pos});
+    if(pos>=0&&pos<5)entriesByPos[pos].push({name,sy,pos,winFactor:wf});
   }
   GROUPS=Object.values(byKey).filter(g=>g.players.length>=2); // need a real choice
   GROUP_BY_KEY={};GROUPS.forEach(g=>{GROUP_BY_KEY[g.key]=g});
@@ -817,7 +832,7 @@ function updateHud(){
       cell.className="slot filled";
       cell.innerHTML='<div class="pos">'+POS_NAMES[p.pos]+'</div>'+
         '<div class="nm">'+escapeHtmlS(p.name)+'</div>'+
-        '<div class="tm">'+escapeHtmlS(p.meta.short)+" '"+String(p.sy+1).slice(-2)+'</div>'+
+        '<div class="tm">'+escapeHtmlS(p.meta.short)+" '"+String(p.sy-1).slice(-2)+'</div>'+
         '<div class="cost">'+fmtM(p.cost)+'</div>';
     }else{
       cell.className="slot";
@@ -857,7 +872,7 @@ function spin(){
   track.style.transform="translateX(0)";
   track.innerHTML=filler.map(g=>{
     const m=resolveGroupMeta(g);
-    return '<div class="reel-tile">'+logoMarkup(m,"")+'<small>'+escapeHtmlS(m.short)+" '"+String(g.sy+1).slice(-2)+'</small></div>';
+    return '<div class="reel-tile">'+logoMarkup(m,"")+'<small>'+escapeHtmlS(m.short)+" '"+String(g.sy-1).slice(-2)+'</small></div>';
   }).join("");
 
   // Center the target tile under the marker.
@@ -923,7 +938,7 @@ function pickPlayer(key,name){
   if(pickedNames.has(p.name)||p.cost>remaining+1)return;
 
   remaining-=p.cost;
-  roster.push({name:p.name,sy:p.sy,abbr:group.abbr,pct:p.pct,cost:p.cost,rating:p.rating,ppg:p.ppg,rpg:p.rpg,apg:p.apg,fgpct:p.fgpct,pos:p.pos,key:group.key,meta:resolveGroupMeta(group)});
+  roster.push({name:p.name,sy:p.sy,abbr:group.abbr,pct:p.pct,cost:p.cost,rating:p.rating,ppg:p.ppg,rpg:p.rpg,apg:p.apg,fgpct:p.fgpct,pos:p.pos,winFactor:p.winFactor,key:group.key,meta:resolveGroupMeta(group)});
   rolledGroups.push(group);
   pickedNames.add(p.name);
 
@@ -970,7 +985,7 @@ function buildGauntlet(){
       const bucket=(entriesByPos[pos]&&entriesByPos[pos].length)?entriesByPos[pos]:null;
       const e=bucket?bucket[Math.floor(Math.random()*bucket.length)]
                     :salaryEntries[Math.floor(Math.random()*salaryEntries.length)];
-      picks.push({name:e[0]!==undefined?e[0]:e.name,sy:e[1]!==undefined?e[1]:e.sy,pos});
+      picks.push({name:e[0]!==undefined?e[0]:e.name,sy:e[1]!==undefined?e[1]:e.sy,pos,winFactor:(e.winFactor!=null?e.winFactor:1)});
     }
     g.push(picks);
   }
@@ -979,33 +994,33 @@ function buildGauntlet(){
 function buildSimTeam(lineup){
   return lineup.map(p=>({name:p.name,game:sampleSeasonGame(p.name,p.sy)})).filter(x=>x.game);
 }
-// Positional "smoothness" factor applied to a lineup's scoring. A clean
-// PG-SG-SF-PF-C spread gets a small bonus; lineups that miss a true point guard,
-// any wing, or any big — OR stack redundant bodies at one spot (three centers,
-// four guards) — get penalized hard. This is on top of what the sim already does
-// to lopsided rosters through rebounding & rim protection. Range ~0.70–1.07.
+// Light positional tiebreaker. The simulation engine already handles the big
+// positional effects on its own — its rebounding/rim-protection reconcile makes
+// all-guard lineups lose to teams with size — so this is only a gentle nudge for
+// a clean spread, NOT something that should override a real talent advantage.
+// (An earlier strong version wrongly penalized stacking three star centers, which
+// is talent, not weakness.) Range ~0.95–1.04.
 function lineupBalance(lineup){
   const ct=[0,0,0,0,0];
   lineup.forEach(p=>{const k=p.pos;if(k>=0&&k<5)ct[k]++});
   let f=1.0;
-  // missing whole roles
-  if(ct[0]===0)        f-=0.06;   // no true point guard → no initiator/spacing
-  if(ct[1]+ct[2]===0)  f-=0.06;   // no wings (SG/SF) → no perimeter size/defense
-  if(ct[3]+ct[4]===0)  f-=0.08;   // no big men (PF/C) → no rim/rebounding
-  // redundancy: three-plus bodies at one position can't all play
-  ct.forEach(c=>{ if(c>=3) f-=0.07*(c-2); });   // 3 of a spot −0.07, 4 −0.14, 5 −0.21
-  // bucket clumping (no spacing with too many bigs, no size with too many guards)
-  const guards=ct[0]+ct[1], bigs=ct[3]+ct[4];
-  if(bigs>=3)   f-=0.06;
-  if(guards>=4) f-=0.05;
-  // positional spread
   if(ct[0]===1&&ct[1]===1&&ct[2]===1&&ct[3]===1&&ct[4]===1){
-    f+=0.05;                       // textbook 1-2-3-4-5
+    f+=0.03;                       // textbook PG-SG-SF-PF-C
   }else{
     const distinct=ct.filter(c=>c>0).length;
-    f+=(distinct-4)*0.02;          // 4 distinct →0, 3 →−0.02, 2 →−0.04, 1 →−0.06
+    f+=(distinct-4)*0.01;          // 4 distinct →0, 3 →−0.01, 2 →−0.02, 1 →−0.03
   }
-  return Math.max(0.70,Math.min(1.07,f));
+  if(ct[0]===0)        f-=0.015;   // no true point guard
+  if(ct[1]+ct[2]===0)  f-=0.015;   // no wings at all
+  if(ct[3]+ct[4]===0)  f-=0.02;    // no big men at all
+  return Math.max(0.95,Math.min(1.04,f));
+}
+// Average of the lineup's per-player winning-% factors (1.0 if no records loaded).
+// Lets a roster of players from winning teams score a touch more, and vice versa.
+function lineupWinFactor(lineup){
+  if(!lineup.length)return 1;
+  let s=0;for(const p of lineup)s+=(p.winFactor!=null?p.winFactor:1);
+  return s/lineup.length;
 }
 function simOneGame(myLineup,oppLineup){
   const a=buildSimTeam(myLineup), b=buildSimTeam(oppLineup);
@@ -1015,8 +1030,8 @@ function simOneGame(myLineup,oppLineup){
   let pA=0,pB=0;
   teams[0].forEach((_,i)=>{pA+=av(0,i,"PTS")});
   teams[1].forEach((_,i)=>{pB+=av(1,i,"PTS")});
-  pA*=lineupBalance(myLineup);     // positional-smoothness chemistry, applied to both squads
-  pB*=lineupBalance(oppLineup);
+  pA*=lineupBalance(myLineup)*lineupWinFactor(myLineup);   // positional chemistry + team winning-% quality
+  pB*=lineupBalance(oppLineup)*lineupWinFactor(oppLineup);
   pA=Math.round(pA);pB=Math.round(pB);
   let ot=0;
   while(pA===pB&&ot<6){ot++;pA+=Math.round(8+Math.random()*7);pB+=Math.round(8+Math.random()*7)}
@@ -1088,7 +1103,7 @@ function optimalLineup(){
 const CANDIDATES_WEIGHTED=140, CANDIDATES_RANDOM=40;
 function materializePick(group,p){
   return {name:p.name,sy:p.sy,pos:p.pos,rating:p.rating,cost:p.cost,
-          ppg:p.ppg,rpg:p.rpg,apg:p.apg,fgpct:p.fgpct,abbr:group.abbr,key:group.key,
+          ppg:p.ppg,rpg:p.rpg,apg:p.apg,fgpct:p.fgpct,winFactor:p.winFactor,abbr:group.abbr,key:group.key,
           meta:resolveGroupMeta(group)};
 }
 function weightedPick(opts){
@@ -1280,6 +1295,26 @@ function reSim(){ showResults(); }
       salaryEntries.push(e);
     }
     console.log("[ROULETTE] "+salaryEntries.length+" eligible player-seasons");
+
+    // Optional team-season records → winning-% quality factor. Keyed by "abbr|sy"
+    // (sy = season END year, same as the salary data). Each value may be [W,L],
+    // {w,l}, or a win pct (0–1 or 0–100). Absent file → factor stays neutral.
+    label.textContent="Loading team records...";
+    try{
+      const recResp=await fetch("records.json");
+      if(recResp.ok){
+        const recJson=await recResp.json();
+        for(const k in recJson){
+          const v=recJson[k]; let pct;
+          if(Array.isArray(v)){const w=+v[0]||0,l=+v[1]||0;pct=(w+l)>0?w/(w+l):0.5;}
+          else if(typeof v==="number"){pct=v>1?v/100:v;}
+          else if(v&&typeof v==="object"){const w=+v.w||0,l=+v.l||0;pct=(w+l)>0?w/(w+l):0.5;}
+          else continue;
+          RECORDS[k]=Math.max(0,Math.min(1,pct));
+        }
+        console.log("[ROULETTE] "+Object.keys(RECORDS).length+" team-season records loaded");
+      }else{console.log("[ROULETTE] no records.json — winning% factor neutral");}
+    }catch(e){console.warn("records.json not loaded (winning% stays neutral)",e)}
 
     label.textContent="Building team-seasons...";fill.style.width="99%";
     buildGroups();
