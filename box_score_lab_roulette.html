@@ -676,7 +676,7 @@ let salaryByPlayer={}, salaryEntries=[], CAP_BY_SY={};
 let teams=[[],[]], adjusted=[[],[]], teamNames=["YOUR SQUAD","OPPONENT"];
 
 // --- tunable game constants (easy to tweak / move to a config later) ---
-const BUILD      = "v13 · season accolade badges · 2026-06-08";
+const BUILD      = "v15 · salary season-year fix (start→end) · 2026-06-08";
 const CAP_2026   = 165_000_000;   // 2026-27 projected NBA salary cap ($165M, ESPN/Shams Mar 2026)
 const BUDGET     = 120_000_000;   // bankroll
 const SLOTS      = 5;             // signings
@@ -790,6 +790,13 @@ function seasonProfile(name,sy){
              - 0.4*a.PF - a.TOV;
   return {rating, ppg:a.PTS, rpg:a.REB, apg:a.AST, fgpct:a.FGA>0?(a.FGM/a.FGA*100):0};
 }
+// Total minutes a player logged that season (sum of MN over playable games) — used
+// to keep each team-season's draftable pool to its 15 most-used players.
+function seasonMinutes(name,sy){
+  const gs=seasonGames(name,sy);
+  let m=0; for(const g of gs) m+=(g[G.MN]||0);
+  return m;
+}
 
 /* ---- team-season index (the roulette pool) ---- */
 let GROUPS=[];           // [{key, abbr, sy, players:[{name,sy,pct,salary,cost,rating,pos}], _meta}]
@@ -819,9 +826,19 @@ function buildGroups(){
       cost: cost2026(pct),
       rating: prof.rating*wf,           // winning teams' players grade up; losing teams' down
       ppg: prof.ppg, rpg: prof.rpg, apg: prof.apg, fgpct: prof.fgpct,
-      pos, winFactor: wf
+      pos, winFactor: wf, minutes: seasonMinutes(name,sy)
     });
     if(pos>=0&&pos<5)entriesByPos[pos].push({name,sy,pos,winFactor:wf,rating:prof.rating*wf});
+  }
+  // Keep only each team-season's 15 most-used players (by total minutes), mirroring
+  // a real rotation/active roster — both the draft options and the best-squad search
+  // draw from this same trimmed pool.
+  for(const k in byKey){
+    const ps=byKey[k].players;
+    if(ps.length>15){
+      ps.sort((a,b)=>b.minutes-a.minutes);
+      byKey[k].players=ps.slice(0,15);
+    }
   }
   GROUPS=Object.values(byKey).filter(g=>g.players.length>=2); // need a real choice
   GROUP_BY_KEY={};GROUPS.forEach(g=>{GROUP_BY_KEY[g.key]=g});
@@ -1440,12 +1457,19 @@ function reSim(){ showResults(); }
     if(!salResp.ok)throw new Error("salaries.json HTTP "+salResp.status);
     const salJson=await salResp.json();
     CAP_BY_SY=salJson.cap_by_sy||{};
-    for(const e of (salJson.entries||[])){
-      const [name,sy]=e;
+    for(const e0 of (salJson.entries||[])){
+      const name=e0[0];
+      // Salary data is keyed by season START year; the game/box-score data — and
+      // therefore stats, season labels, and the accolade lookup — all use the season
+      // END year. Convert once here so a roster the team paid for 2010-11 is labeled
+      // 2010-11 with 2010-11 stats, instead of bleeding into 2009-10. (Caught by the
+      // post-LeBron Cavaliers turning up under a 2009-10 tag.)
+      const sy=(e0[1]|0)+1;
+      const e=[name,sy,e0[2],e0[3],e0[4]];
       if(!bioByName.hasOwnProperty(name))continue;     // needs a bio entry (parity w/ salary variant)
       const games=playerIndex[name]||[];
       let gp=0;for(const g of games){if(g[G.SY]===sy&&isPlayableGame(g)){gp++;if(gp>=10)break}}
-      if(gp<10)continue;                                // ≥10 playable games that season
+      if(gp<10)continue;                                // ≥10 playable games that (end-year) season
       if(!salaryByPlayer[name])salaryByPlayer[name]=[];
       salaryByPlayer[name].push({sy:e[1],salary:e[2],pct:e[3],team:e[4]});
       salaryEntries.push(e);
