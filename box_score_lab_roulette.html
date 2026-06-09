@@ -111,6 +111,26 @@ body{background:linear-gradient(160deg,#1a1a3e 0%,#0a0a1a 55%,#050510 100%);back
 .pick-card .pc-stats span{color:#62628a;font-size:9px}
 .pick-card .pc-cost{font-family:'Oswald',sans-serif;font-size:19px;font-weight:700;color:var(--gold)}
 .pick-card .pc-cost span{font-size:11px;color:#8a8ab0;font-weight:400}
+/* Season-accolade badges */
+.acc-row{display:inline-flex;flex-wrap:wrap;gap:4px;vertical-align:middle}
+.acc{font-family:'Oswald',sans-serif;font-weight:700;font-size:8.5px;letter-spacing:.8px;text-transform:uppercase;padding:1px 6px;border-radius:4px;line-height:1.55;border:1px solid;white-space:nowrap}
+.acc-mvp{color:#241600;background:linear-gradient(135deg,#ffe488,#ffd700);border-color:#ffd700;box-shadow:0 0 6px rgba(255,215,0,.35)}
+.acc-fmvp{color:#2a1400;background:linear-gradient(135deg,#ffc46b,#ff9d3c);border-color:#ffae52}
+.acc-champ{color:#2a1c00;background:linear-gradient(135deg,#e8c071,#c79235);border-color:#e0b45c}
+.acc-dpoy{color:#ffe0e0;background:#3a1414;border-color:#ff6b6b}
+.acc-adef{color:#ffdede;background:#34121c;border-color:#e0608a}
+.acc-anba{color:#dcecff;background:#13284a;border-color:#4f8ee0}
+.acc-astar{color:#d6f5e6;background:#0e2a1e;border-color:#34d97a}
+.acc-asgmvp{color:#d9fff2;background:#0c2d2a;border-color:#4fe0c0}
+.acc-roy{color:#e7ffe0;background:#16290f;border-color:#7ed957}
+.acc-aroo{color:#e7ffe0;background:#16240f;border-color:#5fae4a}
+.acc-smoy{color:#dff3ff;background:#10283a;border-color:#5bbce0}
+.acc-mip{color:#fff0d6;background:#2e2410;border-color:#d6a94a}
+.acc-scoring{color:#ffe8d6;background:#2e1a0c;border-color:#ff8c42}
+.acc-more{color:#b8b8d6;background:#1c1c38;border-color:#3a3a62}
+.pc-acc{min-height:16px;margin-bottom:6px}
+.pc-acc .acc-row{margin-left:0}
+.sq-row .nm .acc-row{margin-left:7px}
 .pick-card.tooFar{cursor:not-allowed;opacity:.4;filter:grayscale(.6)}
 .pick-card.tooFar:hover{transform:none;border-color:var(--line);box-shadow:none}
 .pick-card.tooFar .pc-cost{color:var(--red)}
@@ -651,11 +671,12 @@ function formatSeasonYear(sy){
 // --- engine state the pipeline reads/writes ---
 let TEAMS=[], POS=[], playerIndex={}, playerNames=[];
 let bioData=[], bioByName={};
+let ACC_DATA={};   // season accolades: { "Player Name": { "<endYear>": [codes...] } }
 let salaryByPlayer={}, salaryEntries=[], CAP_BY_SY={};
 let teams=[[],[]], adjusted=[[],[]], teamNames=["YOUR SQUAD","OPPONENT"];
 
 // --- tunable game constants (easy to tweak / move to a config later) ---
-const BUILD      = "v10 · win-curve dialed down · 2026-06-08";
+const BUILD      = "v13 · season accolade badges · 2026-06-08";
 const CAP_2026   = 165_000_000;   // 2026-27 projected NBA salary cap ($165M, ESPN/Shams Mar 2026)
 const BUDGET     = 120_000_000;   // bankroll
 const SLOTS      = 5;             // signings
@@ -680,11 +701,51 @@ function winFactor(abbr,sy){return winFactorFromPct(winPctFor(abbr,sy))}
 // matchup texture and variance. This makes talent drive the record (a no-star
 // team is middling; stars win) while the sim still shades it.
 const LEAGUE_PPG=108, REF_RTG=55, TALENT_PTS=0.18, TALENT_ALPHA=0.88;
+const GAME_SD=13;   // per-game point-margin spread (NBA single-game margin SD ~13)
 function teamTalent(lineup){let s=0;for(const p of lineup)s+=(p.rating||0);return s}
 function teamTalentPts(rtgSum){return LEAGUE_PPG + TALENT_PTS*(rtgSum-REF_RTG)}
 
 function fmtM(d){return "$"+(d/1e6).toFixed(1)+"M"}
 function statTriple(p){return p.ppg.toFixed(1)+' <span>PPG</span> · '+p.rpg.toFixed(1)+' <span>RPG</span> · '+p.apg.toFixed(1)+' <span>APG</span> · '+p.fgpct.toFixed(1)+' <span>FG%</span>'}
+// Per-SEASON honors from accolades.json (keyed name → endYear → [codes]). A badge
+// shows only for the season it was actually earned — MVP in 2010-11 won't appear on
+// the 2015-16 card. Each code maps to a label + colour class + display priority.
+const ACC_DEFS={
+  mvp:    {t:"MVP",          c:"mvp",   p:1},
+  fmvp:   {t:"Finals MVP",   c:"fmvp",  p:2},
+  champ:  {t:"Champion",     c:"champ", p:3},
+  dpoy:   {t:"DPOY",         c:"dpoy",  p:4},
+  roy:    {t:"ROY",          c:"roy",   p:5},
+  smoy:   {t:"6th Man",      c:"smoy",  p:6},
+  mip:    {t:"MIP",          c:"mip",   p:7},
+  anba1:  {t:"All-NBA 1st",  c:"anba",  p:8},
+  anba2:  {t:"All-NBA 2nd",  c:"anba",  p:9},
+  anba3:  {t:"All-NBA 3rd",  c:"anba",  p:10},
+  adef1:  {t:"All-Def 1st",  c:"adef",  p:11},
+  adef2:  {t:"All-Def 2nd",  c:"adef",  p:12},
+  scoring:{t:"Scoring Champ",c:"scoring",p:13},
+  asgmvp: {t:"ASG MVP",      c:"asgmvp",p:14},
+  allstar:{t:"All-Star",     c:"astar", p:15},
+  aroo1:  {t:"All-Rookie 1st",c:"aroo", p:16},
+  aroo2:  {t:"All-Rookie 2nd",c:"aroo", p:17}
+};
+const ACC_MAX=4;   // badges shown before collapsing the rest into "+N"
+function accoladeBadges(name,sy){
+  const yrs=ACC_DATA[name]; if(!yrs)return "";
+  let codes=yrs[String(sy)]; if(!codes||!codes.length)return "";
+  codes=codes.slice();
+  // Suppress redundant All-Star when a higher selection already implies it.
+  if(codes.includes("anba1")||codes.includes("anba2")||codes.includes("anba3")||codes.includes("asgmvp")){
+    codes=codes.filter(c=>c!=="allstar");
+  }
+  const defs=codes.map(c=>ACC_DEFS[c]).filter(Boolean).sort((a,b)=>a.p-b.p);
+  if(!defs.length)return "";
+  const shown=defs.slice(0,ACC_MAX), extra=defs.length-shown.length;
+  const allTxt=defs.map(d=>d.t).join(" · ");
+  let html=shown.map(d=>'<span class="acc acc-'+d.c+'">'+d.t+'</span>').join("");
+  if(extra>0) html+='<span class="acc acc-more" title="'+escapeHtmlS(allTxt)+'">+'+extra+'</span>';
+  return '<span class="acc-row" title="'+escapeHtmlS(formatSeasonYear(sy)+': '+allTxt)+'">'+html+'</span>';
+}
 function escapeHtmlS(s){return String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]))}
 function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
 function cost2026(pct){return (pct/100)*CAP_2026}
@@ -779,7 +840,11 @@ function resolveGroupMeta(group){
   // The salary-defined paying-team abbr identifies this team-season. Resolve the
   // franchise straight from it so a mid-season-traded player (whose first game that
   // year was with another team) can't hijack the label.
-  let fr=NBA_FRANCHISES.find(f=>f.abbr===group.abbr)||null;
+  // Era fix: the data tags every season of the franchise as "OKC", but the team was
+  // the Seattle SuperSonics through 2007-08 (sy<=2008) before relocating.
+  let lookupAbbr = group.abbr;
+  if(group.abbr==="OKC" && group.sy<=2008) lookupAbbr="SEA";
+  let fr=NBA_FRANCHISES.find(f=>f.abbr===lookupAbbr)||null;
   if(!fr){
     // Historical / relocated abbr not in the table → majority-vote the franchise
     // across every game the group's players actually played that season.
@@ -948,6 +1013,7 @@ function renderLanded(group){
       return '<div class="'+cls+'"'+onclick+'>'+
         '<div class="pc-top"><span class="pc-pos">'+POS_NAMES[p.pos]+'</span></div>'+
         '<div class="pc-name">'+escapeHtmlS(p.name)+'</div>'+
+        '<div class="pc-acc">'+accoladeBadges(p.name,group.sy)+'</div>'+
         '<div class="pc-stats">'+statTriple(p)+'</div>'+
         '<div class="pc-cost">'+fmtM(p.cost)+' <span>· '+p.pct.toFixed(1)+'% cap</span></div>'+
         '</div>';
@@ -1027,47 +1093,42 @@ function buildGauntlet(){
 function buildSimTeam(lineup){
   return lineup.map(p=>({name:p.name,game:sampleSeasonGame(p.name,p.sy)})).filter(x=>x.game);
 }
-// Light positional tiebreaker. The simulation engine already handles the big
-// positional effects on its own — its rebounding/rim-protection reconcile makes
-// all-guard lineups lose to teams with size — so this is only a gentle nudge for
-// a clean spread, NOT something that should override a real talent advantage.
-// (An earlier strong version wrongly penalized stacking three star centers, which
-// is talent, not weakness.) Range ~0.95–1.04.
+// Positional-fit adjustment, returned in POINTS (not a multiplier). It lives on the
+// same scale as the talent effect (~0.18 pts per RTG point), so a perfectly built five
+// is worth ~+1.5 pts (≈ a 8-RTG talent bump) and a badly clumped one ~−2.5 pts — enough
+// to matter, but never enough to cancel a real talent advantage. (An earlier version
+// multiplied the whole ~110-pt score, which wrongly buried talented-but-clumped teams.)
 function lineupBalance(lineup){
   const ct=[0,0,0,0,0];
   lineup.forEach(p=>{const k=p.pos;if(k>=0&&k<5)ct[k]++});
-  let f=1.0;
+  let adj=0;
   if(ct[0]===1&&ct[1]===1&&ct[2]===1&&ct[3]===1&&ct[4]===1){
-    f+=0.03;                       // textbook PG-SG-SF-PF-C
+    adj+=1.5;                         // textbook PG-SG-SF-PF-C
   }else{
     const distinct=ct.filter(c=>c>0).length;
-    f+=(distinct-4)*0.01;          // 4 distinct →0, 3 →−0.01, 2 →−0.02, 1 →−0.03
+    adj+=(distinct-4)*0.5;            // 4 distinct →0, 3 →−0.5, 2 →−1.0, 1 →−1.5
   }
-  if(ct[0]===0)        f-=0.015;   // no true point guard
-  if(ct[1]+ct[2]===0)  f-=0.015;   // no wings at all
-  if(ct[3]+ct[4]===0)  f-=0.02;    // no big men at all
-  return Math.max(0.95,Math.min(1.04,f));
+  if(ct[0]===0)        adj-=0.7;      // no true point guard
+  if(ct[1]+ct[2]===0)  adj-=0.7;      // no wings at all
+  if(ct[3]+ct[4]===0)  adj-=1.0;      // no big men at all
+  return Math.max(-2.5,Math.min(1.5,adj));
 }
 function simOneGame(myLineup,oppLineup){
-  const a=buildSimTeam(myLineup), b=buildSimTeam(oppLineup);
-  if(a.length<3||b.length<3)return null;
-  teams[0]=a;teams[1]=b;adjusted=[[],[]];
-  processAll();
-  let pA=0,pB=0;
-  teams[0].forEach((_,i)=>{pA+=av(0,i,"PTS")});
-  teams[1].forEach((_,i)=>{pB+=av(1,i,"PTS")});
-  pA*=lineupBalance(myLineup);     // positional chemistry (minor) on the live sim
-  pB*=lineupBalance(oppLineup);
-  // Anchor mostly to roster talent (RTG, which already folds in winning %), and
-  // blend the live box-score sim in as the minority signal. This is what makes
-  // the record track talent — a no-star five is middling, stars win — instead of
-  // letting the engine's rebounding over-reward crown role-player teams.
-  pA = TALENT_ALPHA*teamTalentPts(teamTalent(myLineup)) + (1-TALENT_ALPHA)*pA;
-  pB = TALENT_ALPHA*teamTalentPts(teamTalent(oppLineup)) + (1-TALENT_ALPHA)*pB;
-  pA=Math.round(pA);pB=Math.round(pB);
-  let ot=0;
-  while(pA===pB&&ot<6){ot++;pA+=Math.round(8+Math.random()*7);pB+=Math.round(8+Math.random()*7)}
-  if(pA===pB){Math.random()<0.5?pA++:pB++}
+  if(myLineup.length<3||oppLineup.length<3)return null;
+  // The record is driven by team talent (RTG, which already folds in scoring,
+  // rebounding, efficiency AND winning %) with positional balance as a full-weight
+  // modifier, plus realistic game-to-game variance. We deliberately do NOT use the
+  // box-score engine's per-game margin here: it systematically over-rewards
+  // rebounding, so a "big-heavy" five would beat an equally-talented balanced five
+  // on boards alone — exactly the artifact that made a 0.4-RTG edge swing +11 wins.
+  // Box scores aren't displayed in this game, so talent+balance is the honest model.
+  const tMy = teamTalentPts(teamTalent(myLineup))  + lineupBalance(myLineup);
+  const tOp = teamTalentPts(teamTalent(oppLineup)) + lineupBalance(oppLineup);
+  // ~N(0,1) from six uniforms (sum SD = 0.707), scaled to the per-game margin SD.
+  const z = (Math.random()+Math.random()+Math.random()+Math.random()+Math.random()+Math.random()-3)/0.707;
+  const noise = z*GAME_SD;
+  let pA=Math.round(tMy+noise/2), pB=Math.round(tOp-noise/2);
+  if(pA===pB){Math.random()<0.5?pA++:pB++}      // no ties
   return {pA,pB,win:pA>pB};
 }
 function simRecord(lineup,gauntlet){
@@ -1258,7 +1319,7 @@ function squadRowsHTML(lineup,bestNames){
   return lineup.map(p=>{
     const star=(bestNames&&bestNames.has(p.name))?' <span class="star">★</span>':"";
     return '<div class="sq-row"><span class="pos">'+POS_NAMES[p.pos]+'</span>'+
-      '<span class="nm">'+escapeHtmlS(p.name)+star+'<small>'+escapeHtmlS(p.meta.name)+' · '+formatSeasonYear(p.sy)+' · '+p.ppg.toFixed(1)+'/'+p.rpg.toFixed(1)+'/'+p.apg.toFixed(1)+' · '+p.fgpct.toFixed(1)+'% FG</small></span>'+
+      '<span class="nm">'+escapeHtmlS(p.name)+star+accoladeBadges(p.name,p.sy)+'<small>'+escapeHtmlS(p.meta.name)+' · '+formatSeasonYear(p.sy)+' · '+p.ppg.toFixed(1)+'/'+p.rpg.toFixed(1)+'/'+p.apg.toFixed(1)+' · '+p.fgpct.toFixed(1)+'% FG</small></span>'+
       '<span class="rtg">RTG '+p.rating.toFixed(1)+'</span>'+
       '<span class="cost">'+fmtM(p.cost)+'</span></div>';
   }).join("");
@@ -1280,7 +1341,7 @@ function bestSquadExplanation(yoursLineup,bestLineup,yoursRec,bestRec){
   });
   const recLine=(yoursRec&&bestRec)?('Projects to <b>'+bestRec.w+'–'+bestRec.l+'</b> against your '+yoursRec.w+'–'+yoursRec.l+'. '):'';
   const yb=lineupBalance(yoursLineup), bb=lineupBalance(bestLineup);
-  const tradeoff = (yb>bb+0.004)
+  const tradeoff = (yb>bb+0.4)
     ? 'Your five had the cleaner positional fit, but the talent picked up at those spots more than paid for it.'
     : 'Same idea as yours, just more talent where it counted.';
   return '<div class="opt-note">'+recLine+'It '+moves.join(', and ')+'. '+tradeoff+'</div>';
@@ -1410,6 +1471,18 @@ function reSim(){ showResults(); }
         console.log("[ROULETTE] "+Object.keys(RECORDS).length+" team-season records loaded");
       }else{console.log("[ROULETTE] no records.json — winning% factor neutral");}
     }catch(e){console.warn("records.json not loaded (winning% stays neutral)",e)}
+
+    // Optional season-accolades file → per-season honor badges. Keyed by player
+    // name, then season END year. Absent file → no badges (graceful).
+    label.textContent="Loading accolades...";
+    try{
+      const accResp=await fetch("accolades.json");
+      if(accResp.ok){
+        ACC_DATA=await accResp.json()||{};
+        let n=0;for(const p in ACC_DATA)n+=Object.keys(ACC_DATA[p]).length;
+        console.log("[ROULETTE] accolades for "+Object.keys(ACC_DATA).length+" players ("+n+" player-seasons)");
+      }else{console.log("[ROULETTE] no accolades.json — honor badges off");}
+    }catch(e){console.warn("accolades.json not loaded (badges off)",e)}
 
     label.textContent="Building team-seasons...";fill.style.width="99%";
     buildGroups();
