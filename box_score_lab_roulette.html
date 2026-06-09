@@ -144,6 +144,11 @@ body{background:linear-gradient(160deg,#1a1a3e 0%,#0a0a1a 55%,#050510 100%);back
 .sq-row .cost{font-family:'Oswald',sans-serif;font-size:15px;font-weight:700;color:var(--gold);text-align:right;min-width:62px}
 .sq-row .star{color:var(--gold)}
 .opt-note{font-size:11px;color:#b59a4a;letter-spacing:.5px;margin-top:10px;line-height:1.6}
+.opt-note b{color:#e8d27a}
+.opt-note .rtg-d{font-family:'JetBrains Mono',monospace;font-size:10px;color:#cfa84a;background:#2a230e;border:1px solid #5a4a1e;border-radius:4px;padding:1px 5px;white-space:nowrap}
+.sq-notes{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px;padding-top:11px;border-top:1px solid var(--line)}
+.note-chip{font-family:'JetBrains Mono',monospace;font-size:10.5px;line-height:1.4;color:#d98a6a;background:#2a160f;border:1px solid #4a2418;border-radius:6px;padding:4px 9px;letter-spacing:.2px}
+.sq-notes.ok .note-chip{color:#6fcf97;background:#0e2018;border-color:#1d4030}
 .perfect{text-align:center;color:var(--green);font-family:'Oswald',sans-serif;letter-spacing:2px;font-size:14px;padding:6px;text-transform:uppercase}
 .spinner-mini{display:inline-block;width:14px;height:14px;border:2px solid #ffffff44;border-top-color:var(--gold);border-radius:50%;animation:spin .7s linear infinite;vertical-align:-2px;margin-right:8px}
 @keyframes spin{to{transform:rotate(360deg)}}
@@ -650,6 +655,7 @@ let salaryByPlayer={}, salaryEntries=[], CAP_BY_SY={};
 let teams=[[],[]], adjusted=[[],[]], teamNames=["YOUR SQUAD","OPPONENT"];
 
 // --- tunable game constants (easy to tweak / move to a config later) ---
+const BUILD      = "v9 · talent-anchor + explanations · 2026-06-08";
 const CAP_2026   = 165_000_000;   // 2026-27 projected NBA salary cap ($165M, ESPN/Shams Mar 2026)
 const BUDGET     = 120_000_000;   // bankroll
 const SLOTS      = 5;             // signings
@@ -664,6 +670,18 @@ const WIN_STRENGTH=0.10;          // ±10% swing
 function winPctFor(abbr,sy){const v=RECORDS[abbr+"|"+sy];return (v==null)?0.5:v}
 function winFactorFromPct(pct){return Math.max(1-WIN_STRENGTH,Math.min(1+WIN_STRENGTH,1+WIN_STRENGTH*(pct-0.5)*2))}
 function winFactor(abbr,sy){return winFactorFromPct(winPctFor(abbr,sy))}
+
+// === Talent-anchored scoring ===
+// The box-score sim is possession-equalized, so it rewards efficiency and
+// rebounding but barely rewards star scoring volume — left alone it lets a
+// rebound-heavy role-player five out-win an All-Star lineup. So each team's
+// game score is anchored mostly to its roster talent (sum of RTG = Game Score,
+// already win-adjusted), with the live sim blended in as the minority signal for
+// matchup texture and variance. This makes talent drive the record (a no-star
+// team is middling; stars win) while the sim still shades it.
+const LEAGUE_PPG=108, REF_RTG=55, TALENT_PTS=0.5, TALENT_ALPHA=0.88;
+function teamTalent(lineup){let s=0;for(const p of lineup)s+=(p.rating||0);return s}
+function teamTalentPts(rtgSum){return LEAGUE_PPG + TALENT_PTS*(rtgSum-REF_RTG)}
 
 function fmtM(d){return "$"+(d/1e6).toFixed(1)+"M"}
 function statTriple(p){return p.ppg.toFixed(1)+' <span>PPG</span> · '+p.rpg.toFixed(1)+' <span>RPG</span> · '+p.apg.toFixed(1)+' <span>APG</span> · '+p.fgpct.toFixed(1)+' <span>FG%</span>'}
@@ -716,6 +734,15 @@ function seasonProfile(name,sy){
 let GROUPS=[];           // [{key, abbr, sy, players:[{name,sy,pct,salary,cost,rating,pos}], _meta}]
 let GROUP_BY_KEY={};
 let entriesByPos=[[],[],[],[],[]];  // opponent pool bucketed by position (for coherent gauntlet fives)
+let posCum=[null,null,null,null,null], posTot=[0,0,0,0,0]; // cumulative rating weights for quality-skewed opponent draws
+const OPP_WEIGHT_POW=1.5;           // opponents drawn skewed toward better players → a real starter-level benchmark
+function drawOpp(pos){
+  const arr=entriesByPos[pos]; if(!arr||!arr.length)return null;
+  const cum=posCum[pos], tot=posTot[pos];
+  let r=Math.random()*tot, lo=0, hi=arr.length-1;
+  while(lo<hi){const mid=(lo+hi)>>1; if(cum[mid]<r)lo=mid+1; else hi=mid;}
+  return arr[lo];
+}
 function buildGroups(){
   const byKey={};
   entriesByPos=[[],[],[],[],[]];
@@ -733,12 +760,19 @@ function buildGroups(){
       ppg: prof.ppg, rpg: prof.rpg, apg: prof.apg, fgpct: prof.fgpct,
       pos, winFactor: wf
     });
-    if(pos>=0&&pos<5)entriesByPos[pos].push({name,sy,pos,winFactor:wf});
+    if(pos>=0&&pos<5)entriesByPos[pos].push({name,sy,pos,winFactor:wf,rating:prof.rating*wf});
   }
   GROUPS=Object.values(byKey).filter(g=>g.players.length>=2); // need a real choice
   GROUP_BY_KEY={};GROUPS.forEach(g=>{GROUP_BY_KEY[g.key]=g});
   // precompute cost units for the optimizer
   GROUPS.forEach(g=>g.players.forEach(p=>{p.costUnit=Math.round(p.cost/1e5)}));
+  // precompute cumulative rating weights per position for the quality-skewed gauntlet
+  posCum=[null,null,null,null,null]; posTot=[0,0,0,0,0];
+  for(let pos=0;pos<5;pos++){
+    const arr=entriesByPos[pos], cum=new Float64Array(arr.length); let t=0;
+    for(let i=0;i<arr.length;i++){t+=Math.pow(Math.max(arr[i].rating,0.5),OPP_WEIGHT_POW);cum[i]=t;}
+    posCum[pos]=cum; posTot[pos]=t;
+  }
 }
 function resolveGroupMeta(group){
   if(group._meta)return group._meta;
@@ -974,18 +1008,17 @@ function buildReelIdle(){
    SIMULATION
    ============================================================ */
 function buildGauntlet(){
-  // 82 opponent fives, each a coherent PG-SG-SF-PF-C team drawn from the pool.
-  // Balanced opponents make a real benchmark — a clumped roster (e.g. three
-  // centers) can't pad wins against incoherent scrub lineups. The same gauntlet
-  // is reused for every candidate squad so the comparison stays fair.
+  // 82 opponent fives, each a coherent PG-SG-SF-PF-C team. Draws are skewed
+  // toward better players (drawOpp) so the gauntlet is a genuine starter-level
+  // benchmark, not random scrubs — beating it should require real talent. The
+  // same gauntlet is reused for every candidate squad so the comparison is fair.
   const g=[];
   for(let i=0;i<SEASON_GAMES;i++){
     const picks=[];
     for(let pos=0;pos<5;pos++){
-      const bucket=(entriesByPos[pos]&&entriesByPos[pos].length)?entriesByPos[pos]:null;
-      const e=bucket?bucket[Math.floor(Math.random()*bucket.length)]
-                    :salaryEntries[Math.floor(Math.random()*salaryEntries.length)];
-      picks.push({name:e[0]!==undefined?e[0]:e.name,sy:e[1]!==undefined?e[1]:e.sy,pos,winFactor:(e.winFactor!=null?e.winFactor:1)});
+      const e=drawOpp(pos);
+      if(e) picks.push({name:e.name,sy:e.sy,pos,winFactor:(e.winFactor!=null?e.winFactor:1),rating:(e.rating!=null?e.rating:REF_RTG/5)});
+      else { const f=salaryEntries[Math.floor(Math.random()*salaryEntries.length)]; picks.push({name:f[0],sy:f[1],pos,winFactor:1,rating:REF_RTG/5}); }
     }
     g.push(picks);
   }
@@ -1015,13 +1048,6 @@ function lineupBalance(lineup){
   if(ct[3]+ct[4]===0)  f-=0.02;    // no big men at all
   return Math.max(0.95,Math.min(1.04,f));
 }
-// Average of the lineup's per-player winning-% factors (1.0 if no records loaded).
-// Lets a roster of players from winning teams score a touch more, and vice versa.
-function lineupWinFactor(lineup){
-  if(!lineup.length)return 1;
-  let s=0;for(const p of lineup)s+=(p.winFactor!=null?p.winFactor:1);
-  return s/lineup.length;
-}
 function simOneGame(myLineup,oppLineup){
   const a=buildSimTeam(myLineup), b=buildSimTeam(oppLineup);
   if(a.length<3||b.length<3)return null;
@@ -1030,8 +1056,14 @@ function simOneGame(myLineup,oppLineup){
   let pA=0,pB=0;
   teams[0].forEach((_,i)=>{pA+=av(0,i,"PTS")});
   teams[1].forEach((_,i)=>{pB+=av(1,i,"PTS")});
-  pA*=lineupBalance(myLineup)*lineupWinFactor(myLineup);   // positional chemistry + team winning-% quality
-  pB*=lineupBalance(oppLineup)*lineupWinFactor(oppLineup);
+  pA*=lineupBalance(myLineup);     // positional chemistry (minor) on the live sim
+  pB*=lineupBalance(oppLineup);
+  // Anchor mostly to roster talent (RTG, which already folds in winning %), and
+  // blend the live box-score sim in as the minority signal. This is what makes
+  // the record track talent — a no-star five is middling, stars win — instead of
+  // letting the engine's rebounding over-reward crown role-player teams.
+  pA = TALENT_ALPHA*teamTalentPts(teamTalent(myLineup)) + (1-TALENT_ALPHA)*pA;
+  pB = TALENT_ALPHA*teamTalentPts(teamTalent(oppLineup)) + (1-TALENT_ALPHA)*pB;
   pA=Math.round(pA);pB=Math.round(pB);
   let ot=0;
   while(pA===pB&&ot<6){ot++;pA+=Math.round(8+Math.random()*7);pB+=Math.round(8+Math.random()*7)}
@@ -1183,6 +1215,45 @@ function gradeFor(w){
   if(w>=30)return {t:"Lottery-bound",c:"#ff9b5a",bg:"#241405"};
   return {t:"Tank commander",c:"var(--red)",bg:"#220c0c"};
 }
+// Roster-construction critique (Forge-style). Reads the data we have on each
+// player — position, rebounding, assists (creation proxy), RTG (focal-point
+// proxy) — and emits short, basketball-savvy notes about structural flaws.
+function lineupNotes(lineup){
+  const ct=[0,0,0,0,0];
+  let creators=0, focal=false, sumReb=0;
+  lineup.forEach(p=>{
+    if(p.pos>=0&&p.pos<5)ct[p.pos]++;
+    if((p.apg||0)>=4.5)creators++;
+    if((p.rating||0)>=18)focal=true;
+    sumReb+=(p.rpg||0);
+  });
+  const guards=ct[0]+ct[1], wings=ct[2], bigs=ct[3]+ct[4];
+  const out=[];
+  // size / rim protection
+  if(bigs===0) out.push("No size — an all-perimeter group gets pounded on the glass and at the rim");
+  else if(bigs===1) out.push("Thin frontcourt — just one true big to anchor the paint and rebound");
+  // backcourt shape
+  if(guards===0) out.push("No backcourt — nobody to bring it up or break a defense down off the dribble");
+  else if(ct[0]>=3) out.push("Point-guard heavy — three lead guards sharing one basketball");
+  else if(guards>=4) out.push("Guard-heavy — undersized on the wing and inside");
+  // frontcourt glut
+  if(bigs>=4) out.push("Frontcourt-clogged — four bigs with little spacing or perimeter creation");
+  else if(bigs>=3&&guards<=1) out.push("Big-heavy — short on ball-handling and shooting around the bigs");
+  // creation & ceiling
+  if(creators===0) out.push("No primary creator — no one to reliably generate a good shot");
+  if(!focal) out.push("No focal scorer — a role-player committee with a limited ceiling");
+  // rebounding (only if size wasn't already the headline)
+  if(bigs>=2&&sumReb<28) out.push("Soft on the glass — the bigs aren't crashing the boards");
+  if(!out.length) out.push("Well-rounded — size, creation, and a scoring focal point are all covered");
+  return out;
+}
+function notesHTML(lineup){
+  const notes=lineupNotes(lineup);
+  const clean=notes.length===1&&/^Well-rounded/.test(notes[0]);
+  return '<div class="sq-notes'+(clean?' ok':'')+'">'+
+    notes.map(n=>'<span class="note-chip">'+(clean?'✓ ':'△ ')+escapeHtmlS(n)+'</span>').join("")+
+    '</div>';
+}
 function squadRowsHTML(lineup,bestNames){
   return lineup.map(p=>{
     const star=(bestNames&&bestNames.has(p.name))?' <span class="star">★</span>':"";
@@ -1191,6 +1262,28 @@ function squadRowsHTML(lineup,bestNames){
       '<span class="rtg">RTG '+p.rating.toFixed(1)+'</span>'+
       '<span class="cost">'+fmtM(p.cost)+'</span></div>';
   }).join("");
+}
+
+// Explain WHY the best squad beat the user's — slot-by-slot, since both draw one
+// player from the same five team-seasons. Names the biggest talent swings and
+// flags any positional-fit tradeoff the user's lineup had.
+function bestSquadExplanation(yoursLineup,bestLineup,yoursRec,bestRec){
+  const byKey={}; yoursLineup.forEach(p=>byKey[p.key]=p);
+  const swaps=[];
+  bestLineup.forEach(bp=>{const yp=byKey[bp.key]; if(yp&&yp.name!==bp.name)
+    swaps.push({from:yp,to:bp,delta:(bp.rating||0)-(yp.rating||0),team:(bp.meta?bp.meta.name:bp.abbr),sy:bp.sy});});
+  if(!swaps.length) return null;
+  swaps.sort((a,b)=>b.delta-a.delta);
+  const moves=swaps.slice(0,2).map(s=>{
+    const d=(s.delta>=0?'+':'')+s.delta.toFixed(1);
+    return 'swapped in <b>'+escapeHtmlS(s.to.name)+'</b> (RTG '+s.to.rating.toFixed(1)+') for your <b>'+escapeHtmlS(s.from.name)+'</b> ('+s.from.rating.toFixed(1)+') at '+escapeHtmlS(s.team)+' '+formatSeasonYear(s.sy)+' <span class="rtg-d">'+d+' RTG</span>';
+  });
+  const recLine=(yoursRec&&bestRec)?('Projects to <b>'+bestRec.w+'–'+bestRec.l+'</b> against your '+yoursRec.w+'–'+yoursRec.l+'. '):'';
+  const yb=lineupBalance(yoursLineup), bb=lineupBalance(bestLineup);
+  const tradeoff = (yb>bb+0.004)
+    ? 'Your five had the cleaner positional fit, but the talent picked up at those spots more than paid for it.'
+    : 'Same idea as yours, just more talent where it counted.';
+  return '<div class="opt-note">'+recLine+'It '+moves.join(', and ')+'. '+tradeoff+'</div>';
 }
 
 function showResults(){
@@ -1223,7 +1316,7 @@ function showResults(){
     html+='<div class="sq yours">'+
       '<div class="sq-hdr"><span class="t">Your squad</span>'+
       '<span class="totals">spent <b>'+fmtM(spent)+'</b> · total RTG <b>'+yourRtg.toFixed(1)+'</b></span></div>'+
-      squadRowsHTML(roster,null)+'</div>';
+      squadRowsHTML(roster,null)+notesHTML(roster)+'</div>';
 
     // best-by-simulation squad gift
     if(opt){
@@ -1232,10 +1325,11 @@ function showResults(){
       html+='<div class="sq optimal">'+
         '<div class="sq-hdr"><span class="t">🏆 Best squad you could\'ve signed</span>'+
         '<span class="totals">'+(optRec?'sim record <b>'+optRec.w+'–'+optRec.l+'</b> · ':'')+'spent <b>'+fmtM(optSpent)+'</b> · RTG <b>'+optRtg.toFixed(1)+'</b></span></div>'+
-        squadRowsHTML(opt,null)+
+        squadRowsHTML(opt,null)+notesHTML(opt)+
         (samePicks
           ? '<div class="perfect">★ Nobody from your five team-seasons sims better — flawless drafting ★</div>'
-          : '<div class="opt-note">The best-performing lineup we found from the exact five team-seasons you drew, within '+fmtM(BUDGET)+'. We simulated your picks against many affordable alternatives over the same schedule — this one won the most. Position balance (rebounding, rim protection) often beats raw scoring.</div>')+
+          : (bestSquadExplanation(roster,opt,yours,optRec)
+             || '<div class="opt-note">The best-performing lineup we found from the exact five team-seasons you drew, within '+fmtM(BUDGET)+'. We simulated your picks against many affordable alternatives over the same schedule — this one won the most.</div>'))+
         '</div>';
     }
 
@@ -1252,6 +1346,7 @@ function reSim(){ showResults(); }
    BOOT / DATA LOADING (mirrors the salary variant's loader)
    ============================================================ */
 (async function(){
+  console.log("%c[ROULETTE BUILD] "+BUILD,"color:#ffd700;font-weight:bold");
   const fill=$("progressFill"),text=$("progressText"),label=$("progressLabel");
   try{
     const resp=await fetch("data.bin");
@@ -1324,7 +1419,7 @@ function reSim(){ showResults(); }
     setTimeout(()=>{
       $("loadScreen").style.display="none";
       $("introBudget").textContent=fmtM(BUDGET);
-      $("introFine").textContent="Pricing at the projected "+fmtM(CAP_2026)+" cap · "+GROUPS.length+" team-seasons (1990–2024) on the wheel";
+      $("introFine").textContent="Pricing at the projected "+fmtM(CAP_2026)+" cap · "+GROUPS.length+" team-seasons (1990–2024) on the wheel · "+BUILD;
       $("intro").classList.remove("hidden");
       $("startBtn").onclick=startGame;
     },350);
