@@ -655,7 +655,7 @@ let salaryByPlayer={}, salaryEntries=[], CAP_BY_SY={};
 let teams=[[],[]], adjusted=[[],[]], teamNames=["YOUR SQUAD","OPPONENT"];
 
 // --- tunable game constants (easy to tweak / move to a config later) ---
-const BUILD      = "v9 · talent-anchor + explanations · 2026-06-08";
+const BUILD      = "v10 · win-curve dialed down · 2026-06-08";
 const CAP_2026   = 165_000_000;   // 2026-27 projected NBA salary cap ($165M, ESPN/Shams Mar 2026)
 const BUDGET     = 120_000_000;   // bankroll
 const SLOTS      = 5;             // signings
@@ -679,7 +679,7 @@ function winFactor(abbr,sy){return winFactorFromPct(winPctFor(abbr,sy))}
 // already win-adjusted), with the live sim blended in as the minority signal for
 // matchup texture and variance. This makes talent drive the record (a no-star
 // team is middling; stars win) while the sim still shades it.
-const LEAGUE_PPG=108, REF_RTG=55, TALENT_PTS=0.5, TALENT_ALPHA=0.88;
+const LEAGUE_PPG=108, REF_RTG=55, TALENT_PTS=0.18, TALENT_ALPHA=0.88;
 function teamTalent(lineup){let s=0;for(const p of lineup)s+=(p.rating||0);return s}
 function teamTalentPts(rtgSum){return LEAGUE_PPG + TALENT_PTS*(rtgSum-REF_RTG)}
 
