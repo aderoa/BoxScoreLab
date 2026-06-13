@@ -676,7 +676,7 @@ let salaryByPlayer={}, salaryEntries=[], CAP_BY_SY={};
 let teams=[[],[]], adjusted=[[],[]], teamNames=["YOUR SQUAD","OPPONENT"];
 
 // --- tunable game constants (easy to tweak / move to a config later) ---
-const BUILD      = "v15 · salary season-year fix (start→end) · 2026-06-08";
+const BUILD      = "v16 · deterministic expected-value best-squad (no luck) · 2026-06-12";
 const CAP_2026   = 165_000_000;   // 2026-27 projected NBA salary cap ($165M, ESPN/Shams Mar 2026)
 const BUDGET     = 120_000_000;   // bankroll
 const SLOTS      = 5;             // signings
@@ -1241,6 +1241,45 @@ function genLineup(weighted){
 }
 // Average a lineup's record over several gauntlets, scaled back to one season.
 // Sampling over multiple schedules removes most of the single-run variance.
+// ---- Deterministic expected-performance model (no RNG) ----
+// A lineup's strength is its talent points + balance modifier. Against an
+// opponent, the expected scoring margin is (myStrength - oppStrength); the
+// win PROBABILITY is P(margin + noise > 0) with noise ~ N(0, GAME_SD), i.e.
+// the normal CDF of (margin / GAME_SD). Expected wins over a gauntlet is the
+// sum of these probabilities — a stable, luck-free measure.
+function lineupStrength(lineup){
+  return teamTalentPts(teamTalent(lineup)) + lineupBalance(lineup);
+}
+function normCdf(x){ // Abramowitz-Stegun approximation of the standard normal CDF
+  const t=1/(1+0.2316419*Math.abs(x));
+  const d=0.3989422804014327*Math.exp(-x*x/2);
+  let p=d*t*(0.31938153+t*(-0.356563782+t*(1.781477937+t*(-1.821255978+t*1.330274429))));
+  return x>0 ? 1-p : p;
+}
+function winProb(myStrength,oppStrength){
+  return normCdf((myStrength-oppStrength)/GAME_SD);
+}
+// Deterministic expected record vs one or more gauntlets (averaged).
+function expectedRecord(lineup,gauntlets){
+  const my=lineupStrength(lineup);
+  let pSum=0,marginSum=0,played=0;
+  for(const G of gauntlets){
+    for(const opp of G){
+      if(opp.length<3)continue;
+      const os=lineupStrength(opp);
+      const p=winProb(my,os);
+      pSum+=p; marginSum+=(my-os); played++;
+    }
+  }
+  if(!played)return {w:0,l:SEASON_GAMES,played:0,ppg:0,oppg:0,strength:my};
+  const winPct=pSum/played;
+  const w82=Math.round(winPct*SEASON_GAMES);
+  const avgMargin=marginSum/played;
+  // express PPG around league average so the "X – Y PPG" line stays meaningful
+  const ppg=LEAGUE_PPG+avgMargin/2, oppg=LEAGUE_PPG-avgMargin/2;
+  return {w:w82,l:SEASON_GAMES-w82,played,ppg,oppg,strength:my,winPct};
+}
+
 function avgRecord(lineup,gauntlets){
   let w=0,pf=0,pa=0,played=0;
   for(const G of gauntlets){
@@ -1264,22 +1303,20 @@ function findBestSquad(gauntlet){
   for(let i=0;i<CANDIDATES_RANDOM;i++)add(genLineup(false));
 
   const rosterKey=keyOf(roster);
-  // pass 1 — quick single-gauntlet rank to shortlist
-  const scored=cands.map(c=>({c,w:simRecord(c,gauntlet).w})).sort((a,b)=>b.w-a.w);
-  const finalists=scored.slice(0,FINALISTS).map(s=>s.c);
-  if(!finalists.some(c=>keyOf(c)===rosterKey))finalists.push(roster);
-
-  // pass 2 — average the shortlist over several fresh gauntlets for a fair record
+  // DETERMINISTIC selection: a lineup's strength (talent points + balance) is
+  // luck-free, so the best squad is simply the highest-strength candidate. No
+  // simulation variance — the same picks always yield the same verdict, and a
+  // higher-rated balanced lineup can never be beaten by a lower-rated one.
   const pool=[gauntlet];
   for(let i=0;i<EXTRA_GAUNTLETS;i++)pool.push(buildGauntlet());
-  let best=null,bestRec=null,yoursRec=null;
-  const diff=r=>r.ppg-r.oppg;
-  for(const c of finalists){
-    const rec=avgRecord(c,pool);
+  let best=null,bestStr=-Infinity,bestRec=null,yoursRec=null;
+  for(const c of cands){
+    const str=lineupStrength(c);
+    const rec=expectedRecord(c,pool);
     if(keyOf(c)===rosterKey)yoursRec=rec;
-    if(!best||rec.w>bestRec.w||(rec.w===bestRec.w&&diff(rec)>diff(bestRec))){best=c;bestRec=rec}
+    if(str>bestStr){bestStr=str;best=c;bestRec=rec}
   }
-  if(!yoursRec)yoursRec=avgRecord(roster,pool);
+  if(!yoursRec)yoursRec=expectedRecord(roster,pool);
   return {best,bestRec,yoursRec,sameAsYours:best&&keyOf(best)===rosterKey};
 }
 
@@ -1356,12 +1393,26 @@ function bestSquadExplanation(yoursLineup,bestLineup,yoursRec,bestRec){
     const d=(s.delta>=0?'+':'')+s.delta.toFixed(1);
     return 'swapped in <b>'+escapeHtmlS(s.to.name)+'</b> (RTG '+s.to.rating.toFixed(1)+') for your <b>'+escapeHtmlS(s.from.name)+'</b> ('+s.from.rating.toFixed(1)+') at '+escapeHtmlS(s.team)+' '+formatSeasonYear(s.sy)+' <span class="rtg-d">'+d+' RTG</span>';
   });
-  const recLine=(yoursRec&&bestRec)?('Projects to <b>'+bestRec.w+'–'+bestRec.l+'</b> against your '+yoursRec.w+'–'+yoursRec.l+'. '):'';
-  const yb=lineupBalance(yoursLineup), bb=lineupBalance(bestLineup);
-  const tradeoff = (yb>bb+0.4)
-    ? 'Your five had the cleaner positional fit, but the talent picked up at those spots more than paid for it.'
-    : 'Same idea as yours, just more talent where it counted.';
-  return '<div class="opt-note">'+recLine+'It '+moves.join(', and ')+'. '+tradeoff+'</div>';
+  // Decompose the edge into its two honest sources: talent points and balance.
+  const yStr=lineupStrength(yoursLineup), bStr=lineupStrength(bestLineup);
+  const yTal=teamTalentPts(teamTalent(yoursLineup)), bTal=teamTalentPts(teamTalent(bestLineup));
+  const talEdge=bTal-yTal;           // points/game from raw talent
+  const balEdge=lineupBalance(bestLineup)-lineupBalance(yoursLineup); // points/game from fit
+  const recLine=(yoursRec&&bestRec)
+    ? ('Projects to <b>'+bestRec.w+'–'+bestRec.l+'</b> versus your <b>'+yoursRec.w+'–'+yoursRec.l+'</b> \u2014 an expected edge of about <b>'+(bStr-yStr).toFixed(1)+' pts/game</b>. ')
+    : '';
+  let why;
+  if(talEdge>0.05 && balEdge>0.05)
+    why='It gains on both fronts: <b>+'+talEdge.toFixed(1)+' pts</b> from more talent and <b>+'+balEdge.toFixed(1)+' pts</b> from cleaner positional fit.';
+  else if(talEdge>0.05 && balEdge<=-0.05)
+    why='It trades a little positional fit ('+balEdge.toFixed(1)+' pts) for more talent (<b>+'+talEdge.toFixed(1)+' pts</b>), and the talent wins out.';
+  else if(talEdge>0.05)
+    why='Same positional shape, just <b>+'+talEdge.toFixed(1)+' pts</b> of added talent where it counted.';
+  else if(balEdge>0.05)
+    why='Nearly identical talent, but a cleaner positional fit is worth <b>+'+balEdge.toFixed(1)+' pts/game</b>.';
+  else
+    why='A marginal edge \u2014 the two squads are very close in expected value.';
+  return '<div class="opt-note">'+recLine+'It '+moves.join(', and ')+'. '+why+'</div>';
 }
 
 function showResults(){
@@ -1376,7 +1427,7 @@ function showResults(){
   setTimeout(()=>{
     const gauntlet=buildGauntlet();
     const {best:opt,bestRec:optRec,yoursRec,sameAsYours}=findBestSquad(gauntlet);
-    const yours=yoursRec||simRecord(roster,gauntlet);
+    const yours=yoursRec||expectedRecord(roster,[gauntlet]);
 
     const spent=roster.reduce((s,p)=>s+p.cost,0);
     const yourRtg=roster.reduce((s,p)=>s+p.rating,0);
@@ -1526,6 +1577,7 @@ function reSim(){ showResults(); }
     console.error(err);
   }
 })();
+
 </script>
 </body>
 </html>
