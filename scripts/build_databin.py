@@ -125,6 +125,20 @@ def sheet_positions(path):
         if nm and pv is not None: out[nm] = pv
     return out
 
+CITY_ABBR = {
+ "Atlanta":"ATL","Boston":"BOS","Brooklyn":"BKN","Charlotte":"CHA","Chicago":"CHI",
+ "Cleveland":"CLE","Dallas":"DAL","Denver":"DEN","Detroit":"DET","Golden State":"GSW",
+ "Houston":"HOU","Indiana":"IND","LA Clippers":"LAC","Los Angeles Clippers":"LAC",
+ "LA Lakers":"LAL","Los Angeles Lakers":"LAL","Memphis":"MEM","Miami":"MIA","Milwaukee":"MIL",
+ "Minnesota":"MIN","New Orleans":"NOP","New York":"NYK","Oklahoma City":"OKC","Orlando":"ORL",
+ "Philadelphia":"PHI","Phoenix":"PHX","Portland":"POR","Sacramento":"SAC","San Antonio":"SAS",
+ "Toronto":"TOR","Utah":"UTA","Washington":"WAS"}
+
+def _money(s):
+    s = (s or "").replace("$", "").replace(",", "").strip()
+    try: return int(float(s))
+    except: return None
+
 # ---------------------------- main pipeline ----------------------------
 def main():
     ap = argparse.ArgumentParser()
@@ -133,6 +147,15 @@ def main():
     ap.add_argument("--out", default="data.bin")
     ap.add_argument("--recent-from", type=int, default=HISTORY_THROUGH + 1)
     ap.add_argument("--repo", default="aderoa/nba-boxscores")
+    ap.add_argument("--salaries-sheet", default=None,
+                    help="CSV export of Sheet1 (PLAYER, TEAM, and a season-salary column). If given, regenerate salaries.json.")
+    ap.add_argument("--salaries-out", default="salaries.json")
+    ap.add_argument("--salary-season", type=int, default=2025,
+                    help="START year of the season the salary column represents (2025 = 2025-26).")
+    ap.add_argument("--salary-col-header", default="2026",
+                    help="Header of the salary column to read (Sheet1 col D = '2026' = the 2025-26 salary).")
+    ap.add_argument("--season-cap", type=int, default=154647000,
+                    help="Salary cap for --salary-season (used for cap%% + cap_by_sy).")
     ap.add_argument("--freeze-history", default=None,
                     help="Build data_history.bin (seasons <= HISTORY_THROUGH) from this full data.bin, then exit.")
     args = ap.parse_args()
@@ -234,6 +257,42 @@ def main():
             ps = infer_pos(rows); src["inferred"] += 1
         for r in rows: r[G["PS"]] = ps
     log(f"position sources: {dict(src)}")
+
+    # --- salaries (optional): regenerate from Sheet1 so the wheel's eligibility stays current ---
+    if args.salaries_sheet:
+        sal_url = RAW.format(repo="aderoa/BoxScoreLab") + "salaries.json"  # current file to merge into
+        # but the salaries file lives in THIS repo, not nba-boxscores; fetch from the run's checkout if present
+        local_sal = args.salaries_out
+        if os.path.exists(local_sal):
+            with open(local_sal, encoding="utf-8") as f:
+                import json as _j; existing = _j.load(f)
+        else:
+            try: existing = fetch_json(sal_url)
+            except Exception: existing = {"cap_by_sy": {}, "entries": []}
+        # build using the in-memory existing
+        import csv
+        with open(args.salaries_sheet, encoding="utf-8-sig") as f:
+            rows = list(csv.reader(f))
+        hdr = [h.strip() for h in rows[0]]; up=[h.upper() for h in hdr]
+        ci = up.index("PLAYER") if "PLAYER" in up else 0
+        ct = up.index("TEAM") if "TEAM" in up else 2
+        cs = hdr.index(args.salary_col_header) if args.salary_col_header in hdr else 3
+        blob_names=set(D.keys()); new=[]; skip_t=set(); nos=0; nib=0
+        for r in rows[1:]:
+            if len(r)<=max(ci,ct,cs): continue
+            nm=r[ci].strip(); tm=r[ct].strip(); sl=_money(r[cs])
+            if not nm: continue
+            if sl is None or sl<=0: nos+=1; continue
+            ab=CITY_ABBR.get(tm)
+            if not ab: skip_t.add(tm); continue
+            if nm not in blob_names: nib+=1; continue
+            new.append([nm, args.salary_season, sl, round(sl/args.season_cap*100,2), ab])
+        existing["entries"]=[e for e in existing.get("entries",[]) if not (len(e)>1 and e[1]==args.salary_season)]
+        existing["entries"].extend(new)
+        existing.setdefault("cap_by_sy",{})[str(args.salary_season)]=args.season_cap
+        with open(args.salaries_out,"w") as f:
+            import json as _j; _j.dump(existing,f,separators=(",",":"))
+        log(f"salaries: wrote {args.salaries_out} (+{len(new)} for {args.salary_season}, skipped {nos} no-salary / {nib} not-in-boxscores, unmapped teams: {sorted(skip_t) or 'none'})")
 
     # --- pack ---
     n = save_blob({"t": T, "p": P, "d": D}, args.out)
