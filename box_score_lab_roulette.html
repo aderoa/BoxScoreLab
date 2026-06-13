@@ -686,7 +686,7 @@ let salaryByPlayer={}, salaryEntries=[], CAP_BY_SY={};
 let teams=[[],[]], adjusted=[[],[]], teamNames=["YOUR SQUAD","OPPONENT"];
 
 // --- tunable game constants (easy to tweak / move to a config later) ---
-const BUILD      = "v17 · position slots + drag-drop + deeper user notes + tuned records · 2026-06-12";
+const BUILD      = "v18 · removed Champion badge · 2026-06-12";
 const CAP_2026   = 165_000_000;   // 2026-27 projected NBA salary cap ($165M, ESPN/Shams Mar 2026)
 const BUDGET     = 120_000_000;   // bankroll
 const SLOTS      = 5;             // signings
@@ -743,7 +743,8 @@ const ACC_MAX=4;   // badges shown before collapsing the rest into "+N"
 function accoladeBadges(name,sy){
   const yrs=ACC_DATA[name]; if(!yrs)return "";
   let codes=yrs[String(sy)]; if(!codes||!codes.length)return "";
-  codes=codes.slice();
+  codes=codes.slice().filter(c=>c!=="champ");   // Champion tag removed per design
+  if(!codes.length)return "";
   // Suppress redundant All-Star when a higher selection already implies it.
   if(codes.includes("anba1")||codes.includes("anba2")||codes.includes("anba3")||codes.includes("asgmvp")){
     codes=codes.filter(c=>c!=="allstar");
