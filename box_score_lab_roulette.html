@@ -686,7 +686,7 @@ let salaryByPlayer={}, salaryEntries=[], CAP_BY_SY={};
 let teams=[[],[]], adjusted=[[],[]], teamNames=["YOUR SQUAD","OPPONENT"];
 
 // --- tunable game constants (easy to tweak / move to a config later) ---
-const BUILD      = "v22 · removed intro fine-print line · 2026-06-13";
+const BUILD      = "v23 · confetti on flawless draft · 2026-06-13";
 const CAP_2026   = 165_000_000;   // 2026-27 projected NBA salary cap ($165M, ESPN/Shams Mar 2026)
 const BUDGET     = 120_000_000;   // bankroll
 const SLOTS      = 5;             // signings
@@ -1527,6 +1527,59 @@ function squadRowsHTML(lineup,bestNames){
 // Explain WHY the best squad beat the user's — slot-by-slot, since both draw one
 // player from the same five team-seasons. Names the biggest talent swings and
 // flags any positional-fit tradeoff the user's lineup had.
+// Confetti celebration for a flawless draft (user's picks == the best squad).
+// Self-contained canvas animation; no libraries. Auto-removes after ~4s.
+function fireConfetti(){
+  if(document.getElementById("confettiCanvas"))return;   // don't stack
+  const cv=document.createElement("canvas");
+  cv.id="confettiCanvas";
+  cv.style.cssText="position:fixed;inset:0;width:100vw;height:100vh;pointer-events:none;z-index:9999";
+  document.body.appendChild(cv);
+  const ctx=cv.getContext("2d");
+  const dpr=window.devicePixelRatio||1;
+  function size(){cv.width=innerWidth*dpr;cv.height=innerHeight*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);}
+  size();
+  const COLORS=["#ffd700","#ff5252","#4fc3f7","#69f0ae","#ff80ab","#b388ff","#ffab40"];
+  const N=160;
+  const parts=[];
+  for(let i=0;i<N;i++){
+    parts.push({
+      x:Math.random()*innerWidth,
+      y:-20-Math.random()*innerHeight*0.5,
+      w:6+Math.random()*6, h:8+Math.random()*8,
+      c:COLORS[(Math.random()*COLORS.length)|0],
+      vx:(Math.random()-0.5)*2.2,
+      vy:2+Math.random()*3.5,
+      rot:Math.random()*Math.PI, vr:(Math.random()-0.5)*0.3,
+      sway:Math.random()*Math.PI*2
+    });
+  }
+  const t0=performance.now(); const DURATION=4200;
+  function frame(now){
+    const elapsed=now-t0;
+    ctx.clearRect(0,0,innerWidth,innerHeight);
+    let alive=0;
+    for(const p of parts){
+      p.sway+=0.05;
+      p.x+=p.vx+Math.sin(p.sway)*0.8;
+      p.y+=p.vy; p.rot+=p.vr;
+      // fade out near the end
+      const fade=elapsed>DURATION-900?Math.max(0,(DURATION-elapsed)/900):1;
+      if(p.y<innerHeight+20 && fade>0)alive++;
+      ctx.save();
+      ctx.globalAlpha=fade;
+      ctx.translate(p.x,p.y); ctx.rotate(p.rot);
+      ctx.fillStyle=p.c;
+      ctx.fillRect(-p.w/2,-p.h/2,p.w,p.h);
+      ctx.restore();
+    }
+    if(elapsed<DURATION && alive>0){requestAnimationFrame(frame);}
+    else{cv.remove();window.removeEventListener("resize",size);}
+  }
+  window.addEventListener("resize",size);
+  requestAnimationFrame(frame);
+}
+
 function bestSquadExplanation(yoursLineup,bestLineup,yoursRec,bestRec){
   const byKey={}; yoursLineup.forEach(p=>byKey[p.key]=p);
   const swaps=[];
@@ -1609,6 +1662,7 @@ function showResults(){
 
     html+='<div class="center"><button class="btn" onclick="startGame()">Play again</button></div>';
     el.innerHTML=html;
+    if(samePicks){ try{ fireConfetti(); }catch(e){} }
   },40);
 }
 
