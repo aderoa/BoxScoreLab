@@ -182,6 +182,16 @@ body{background:linear-gradient(160deg,#1a1a3e 0%,#0a0a1a 55%,#050510 100%);back
   .reel-tile{flex:0 0 96px}
   .reel-tile img{width:50px;height:50px}
 }
+
+/* --- position slots: drag-drop + misfit (v17) --- */
+.slot.filled{cursor:grab}
+.slot.filled:active{cursor:grabbing}
+.slot.dragging{opacity:.45;transform:scale(.96)}
+.slot.drop-hover{border-color:var(--gold)!important;box-shadow:0 0 0 2px rgba(255,215,0,.35) inset}
+.slot.misfit{border-color:#c0563a;background:linear-gradient(160deg,#2a1410,#1a0e0c)}
+.slot .misfit-tag{display:inline-block;margin-left:3px;color:#ff7a52;font-size:8px;font-weight:700;letter-spacing:.5px;vertical-align:top}
+.slot.filled::after{content:"⠿";position:absolute;top:4px;right:6px;color:#3a3a62;font-size:9px;line-height:1}
+.slot{position:relative}
 </style>
 </head>
 <body>
@@ -676,7 +686,7 @@ let salaryByPlayer={}, salaryEntries=[], CAP_BY_SY={};
 let teams=[[],[]], adjusted=[[],[]], teamNames=["YOUR SQUAD","OPPONENT"];
 
 // --- tunable game constants (easy to tweak / move to a config later) ---
-const BUILD      = "v16 · deterministic expected-value best-squad (no luck) · 2026-06-12";
+const BUILD      = "v17 · position slots + drag-drop + deeper user notes + tuned records · 2026-06-12";
 const CAP_2026   = 165_000_000;   // 2026-27 projected NBA salary cap ($165M, ESPN/Shams Mar 2026)
 const BUDGET     = 120_000_000;   // bankroll
 const SLOTS      = 5;             // signings
@@ -700,9 +710,9 @@ function winFactor(abbr,sy){return winFactorFromPct(winPctFor(abbr,sy))}
 // already win-adjusted), with the live sim blended in as the minority signal for
 // matchup texture and variance. This makes talent drive the record (a no-star
 // team is middling; stars win) while the sim still shades it.
-const LEAGUE_PPG=108, REF_RTG=55, TALENT_PTS=0.18, TALENT_ALPHA=0.88;
+const LEAGUE_PPG=108, REF_RTG=55, TALENT_PTS=0.34, TALENT_ALPHA=0.88;
 const GAME_SD=13;   // per-game point-margin spread (NBA single-game margin SD ~13)
-function teamTalent(lineup){let s=0;for(const p of lineup)s+=(p.rating||0);return s}
+function teamTalent(lineup){let s=0;for(const p of lineup){if(p)s+=(p.rating||0)}return s}
 function teamTalentPts(rtgSum){return LEAGUE_PPG + TALENT_PTS*(rtgSum-REF_RTG)}
 
 function fmtM(d){return "$"+(d/1e6).toFixed(1)+"M"}
@@ -909,8 +919,9 @@ let spinning=false;
 
 function $(id){return document.getElementById(id)}
 
+function rosterCount(){return roster.filter(Boolean).length;}
 function startGame(){
-  remaining=BUDGET; roster=[]; rolledGroups=[]; pickedNames=new Set(); usedKeys=new Set();
+  remaining=BUDGET; roster=[null,null,null,null,null]; rolledGroups=[]; pickedNames=new Set(); usedKeys=new Set();
   currentGroup=null; spinning=false;
   $("intro").classList.add("hidden");
   $("results").classList.add("hidden");
@@ -931,31 +942,66 @@ function updateHud(){
   const frac=remaining/BUDGET;
   if(frac<0.15)pill.classList.add("low");
   else if(frac<0.40)pill.classList.add("warn");
-  // dots
+  // dots: one per filled slot
+  const filled=rosterCount();
   const dots=$("slotDots");dots.innerHTML="";
   for(let i=0;i<SLOTS;i++){
     const d=document.createElement("i");
-    if(i<roster.length)d.className="done";
-    else if(i===roster.length)d.className="active";
+    if(i<filled)d.className="done";
+    else if(i===filled)d.className="active";
     dots.appendChild(d);
   }
-  // strip
+  // strip: fixed PG-SG-SF-PF-C slots; players are draggable between them
   const strip=$("strip");strip.innerHTML="";
   for(let i=0;i<SLOTS;i++){
     const cell=document.createElement("div");
     const p=roster[i];
+    const slotPos=POS_NAMES[i];
+    cell.dataset.slot=i;
     if(p){
-      cell.className="slot filled";
-      cell.innerHTML='<div class="pos">'+POS_NAMES[p.pos]+'</div>'+
+      const mis = (p.pos!==i);
+      cell.className="slot filled"+(mis?" misfit":"");
+      cell.draggable=true;
+      cell.innerHTML='<div class="pos">'+slotPos+(mis?' <span class="misfit-tag" title="Natural '+POS_NAMES[p.pos]+' — out of position">'+POS_NAMES[p.pos]+'!</span>':'')+'</div>'+
         '<div class="nm">'+escapeHtmlS(p.name)+'</div>'+
         '<div class="tm">'+escapeHtmlS(p.meta.short)+" '"+String(p.sy-1).slice(-2)+'</div>'+
         '<div class="cost">'+fmtM(p.cost)+'</div>';
     }else{
       cell.className="slot";
-      cell.innerHTML='<div class="empty-lab">SLOT '+(i+1)+'</div>';
+      cell.innerHTML='<div class="empty-lab">'+slotPos+'</div>';
     }
     strip.appendChild(cell);
   }
+  wireDragDrop();
+}
+
+// Drag a player from one slot to another; swap if the target is filled. Updates
+// each moved player's `slot` so the slot-aware balance reflects the new layout.
+function wireDragDrop(){
+  const strip=$("strip");
+  let dragFrom=null;
+  strip.querySelectorAll(".slot").forEach(cell=>{
+    cell.addEventListener("dragstart",e=>{
+      dragFrom=+cell.dataset.slot;
+      if(!roster[dragFrom]){e.preventDefault();return;}
+      e.dataTransfer.effectAllowed="move";
+      cell.classList.add("dragging");
+    });
+    cell.addEventListener("dragend",()=>cell.classList.remove("dragging"));
+    cell.addEventListener("dragover",e=>{e.preventDefault();e.dataTransfer.dropEffect="move";cell.classList.add("drop-hover");});
+    cell.addEventListener("dragleave",()=>cell.classList.remove("drop-hover"));
+    cell.addEventListener("drop",e=>{
+      e.preventDefault();cell.classList.remove("drop-hover");
+      const to=+cell.dataset.slot;
+      if(dragFrom===null||dragFrom===to)return;
+      const a=roster[dragFrom], b=roster[to];
+      roster[to]=a; roster[dragFrom]=b;
+      if(roster[to])  roster[to].slot=to;
+      if(roster[dragFrom]) roster[dragFrom].slot=dragFrom;
+      dragFrom=null;
+      updateHud();
+    });
+  });
 }
 
 /* ---- pickable pools ---- */
@@ -965,7 +1011,7 @@ function groupHasUnpicked(g){return unpickedPlayers(g).length>0}
 
 function spin(){
   if(spinning)return;
-  if(roster.length>=SLOTS){showResults();return}
+  if(rosterCount()>=SLOTS){showResults();return}
   spinning=true;
   $("spinBtn").disabled=true;
   $("landed").classList.add("hidden");
@@ -1040,7 +1086,7 @@ function renderLanded(group){
   el.innerHTML=
     '<div class="landed-hdr">'+logoMarkup(m,"")+
       '<div class="meta"><div class="yr">'+seasonStr+'</div><div class="tn">'+escapeHtmlS(m.name)+'</div></div></div>'+
-    '<div class="landed-sub">Slot '+(roster.length+1)+' of '+SLOTS+' — sign one player</div>'+
+    '<div class="landed-sub">Slot '+(rosterCount()+1)+' of '+SLOTS+' — sign one player</div>'+
     cards+
     (anyAffordable?'':'<div class="center"><button class="btn" onclick="spin()">Spin again</button></div>');
   el.classList.remove("hidden");
@@ -1055,7 +1101,10 @@ function pickPlayer(key,name){
   if(pickedNames.has(p.name)||p.cost>remaining+1)return;
 
   remaining-=p.cost;
-  roster.push({name:p.name,sy:p.sy,abbr:group.abbr,pct:p.pct,cost:p.cost,rating:p.rating,ppg:p.ppg,rpg:p.rpg,apg:p.apg,fgpct:p.fgpct,pos:p.pos,winFactor:p.winFactor,key:group.key,meta:resolveGroupMeta(group)});
+  const occupied = roster.map(x=>!!x);
+  const slot = chooseSlot(p.pos, occupied);
+  const entry={name:p.name,sy:p.sy,abbr:group.abbr,pct:p.pct,cost:p.cost,rating:p.rating,ppg:p.ppg,rpg:p.rpg,apg:p.apg,fgpct:p.fgpct,pos:p.pos,slot:slot,winFactor:p.winFactor,key:group.key,meta:resolveGroupMeta(group)};
+  roster[slot]=entry;
   rolledGroups.push(group);
   pickedNames.add(p.name);
 
@@ -1063,14 +1112,14 @@ function pickPlayer(key,name){
   currentGroup=null;
   updateHud();
 
-  if(roster.length>=SLOTS){
+  if(rosterCount()>=SLOTS){
     $("reelHint").textContent="Roster complete — simulate your season";
     $("spinBtn").textContent="Simulate season";
     $("spinBtn").disabled=false;
     $("spinBtn").onclick=showResults;
     buildReelIdle();
   }else{
-    $("reelHint").textContent="Spin for slot "+(roster.length+1);
+    $("reelHint").textContent="Spin for slot "+(rosterCount()+1);
     $("spinBtn").disabled=false;
     buildReelIdle();
   }
@@ -1115,20 +1164,80 @@ function buildSimTeam(lineup){
 // is worth ~+1.5 pts (≈ a 8-RTG talent bump) and a badly clumped one ~−2.5 pts — enough
 // to matter, but never enough to cancel a real talent advantage. (An earlier version
 // multiplied the whole ~110-pt score, which wrongly buried talented-but-clumped teams.)
-function lineupBalance(lineup){
-  const ct=[0,0,0,0,0];
-  lineup.forEach(p=>{const k=p.pos;if(k>=0&&k<5)ct[k]++});
-  let adj=0;
-  if(ct[0]===1&&ct[1]===1&&ct[2]===1&&ct[3]===1&&ct[4]===1){
-    adj+=1.5;                         // textbook PG-SG-SF-PF-C
-  }else{
-    const distinct=ct.filter(c=>c>0).length;
-    adj+=(distinct-4)*0.5;            // 4 distinct →0, 3 →−0.5, 2 →−1.0, 1 →−1.5
+// Slot-aware balance. The lineup is five fixed slots (0=PG..4=C). A player in
+// their NATURAL slot is ideal; sitting them away from it costs points scaled by
+// positional distance (a center at point guard is a disaster; a SG at SF is
+// minor). This both rewards a textbook five and PUNISHES misplacement, so the
+// drag-and-drop placement actually matters to the result.
+//   slotIndex === naturalPos      -> perfect (full +1.5 when all five align)
+//   |slotIndex - naturalPos| = 1  -> small penalty (-0.4 each)
+//   = 2                            -> -0.9 each
+//   >=3                            -> -1.5 each (e.g. C forced to PG)
+const SLOT_MISFIT = [0, 0.4, 0.9, 1.5, 1.5];
+// Assign players to PG-SG-SF-PF-C slots minimizing total positional misfit.
+// Brute force over permutations (<=120) — trivial for 5 slots. Used to give AI
+// candidate lineups their BEST possible placement, so only the user's own
+// drag-drop choices can incur a misplacement penalty.
+function assignBestSlots(players){
+  const ps=players.filter(Boolean);
+  const n=ps.length;
+  const idx=[...Array(n).keys()];
+  let bestPerm=idx, bestCost=Infinity;
+  const permute=(arr,k)=>{
+    if(k===arr.length){
+      let c=0;
+      for(let slot=0;slot<arr.length;slot++){const nat=ps[arr[slot]].pos; c+=SLOT_MISFIT[Math.min(4,Math.abs(slot-nat))];}
+      if(c<bestCost){bestCost=c;bestPerm=arr.slice();}
+      return;
+    }
+    for(let i=k;i<arr.length;i++){[arr[k],arr[i]]=[arr[i],arr[k]];permute(arr,k+1);[arr[k],arr[i]]=[arr[i],arr[k]];}
+  };
+  if(n<=5) permute(idx,0);
+  const out=new Array(5).fill(null);
+  for(let slot=0;slot<bestPerm.length;slot++){
+    const p=ps[bestPerm[slot]];
+    out[slot]={...p,slot:slot};
   }
+  return out;
+}
+
+function lineupBalance(lineup){
+  // lineup may be slot-indexed (length 5, slot i) OR a plain list (legacy /
+  // opponent lineups with no explicit slots). If players carry a `slot` field
+  // use it; otherwise fall back to natural position as the slot.
+  let adj = 0, placed = 0, perfect = 0;
+  const present = [];
+  for (let i = 0; i < lineup.length; i++){
+    const p = lineup[i];
+    if (!p) continue;
+    placed++;
+    const slot = (typeof p.slot === 'number') ? p.slot : (Array.isArray(lineup) && lineup.length<=5 ? i : p.pos);
+    const nat = (p.pos>=0&&p.pos<5) ? p.pos : slot;
+    const dist = Math.min(4, Math.abs(slot - nat));
+    if (dist === 0) perfect++;
+    adj -= SLOT_MISFIT[dist];
+    present.push(nat);
+  }
+  // textbook bonus only when all five are present AND each in their natural slot
+  if (placed === 5 && perfect === 5) adj += 1.5;
+  // coverage guards (based on natural positions actually on the floor)
+  const ct=[0,0,0,0,0]; present.forEach(k=>{if(k>=0&&k<5)ct[k]++});
   if(ct[0]===0)        adj-=0.7;      // no true point guard
   if(ct[1]+ct[2]===0)  adj-=0.7;      // no wings at all
   if(ct[3]+ct[4]===0)  adj-=1.0;      // no big men at all
-  return Math.max(-2.5,Math.min(1.5,adj));
+  return Math.max(-3.0, Math.min(1.5, adj));
+}
+
+// Pick the slot a newly-signed player should occupy: their natural slot if free,
+// else the nearest free slot by positional distance.
+function chooseSlot(naturalPos, occupied){
+  if(!occupied[naturalPos]) return naturalPos;
+  for(let d=1; d<5; d++){
+    const lo=naturalPos-d, hi=naturalPos+d;
+    if(lo>=0 && !occupied[lo]) return lo;
+    if(hi<5  && !occupied[hi]) return hi;
+  }
+  return occupied.findIndex(o=>!o);   // fallback: any free slot
 }
 function simOneGame(myLineup,oppLineup){
   if(myLineup.length<3||oppLineup.length<3)return null;
@@ -1197,7 +1306,7 @@ function optimalLineup(){
     chosen[gi]=groups[gi].players[pi];
     b=prevLayers[gi][b];
   }
-  return chosen.map((p,gi)=>({...p,abbr:groups[gi].abbr,meta:resolveGroupMeta(groups[gi])}));
+  return assignBestSlots(chosen.map((p,gi)=>({...p,abbr:groups[gi].abbr,meta:resolveGroupMeta(groups[gi])})));
 }
 
 /* ============================================================
@@ -1237,7 +1346,7 @@ function genLineup(weighted){
     const p=weighted?weightedPick(pool):pool[Math.floor(Math.random()*pool.length)];
     chosen[g.key]=p;rem-=p.cost;
   }
-  return rolledGroups.map(g=>materializePick(g,chosen[g.key]));
+  return assignBestSlots(rolledGroups.map(g=>materializePick(g,chosen[g.key])));
 }
 // Average a lineup's record over several gauntlets, scaled back to one season.
 // Sampling over multiple schedules removes most of the single-run variance.
@@ -1295,8 +1404,8 @@ function avgRecord(lineup,gauntlets){
 const FINALISTS=6, EXTRA_GAUNTLETS=2;
 function findBestSquad(gauntlet){
   const seen=new Set(),cands=[];
-  const keyOf=l=>l.map(p=>p.name).slice().sort().join("|");
-  const add=l=>{if(!l||l.length<rolledGroups.length)return;const k=keyOf(l);if(seen.has(k))return;seen.add(k);cands.push(l)};
+  const keyOf=l=>l.filter(Boolean).map(p=>p.name).slice().sort().join("|");
+  const add=l=>{if(!l||l.filter(Boolean).length<rolledGroups.length)return;const k=keyOf(l);if(seen.has(k))return;seen.add(k);cands.push(l)};
   add(roster);
   add(optimalLineup());
   for(let i=0;i<CANDIDATES_WEIGHTED;i++)add(genLineup(true));
@@ -1334,32 +1443,67 @@ function gradeFor(w){
 // player — position, rebounding, assists (creation proxy), RTG (focal-point
 // proxy) — and emits short, basketball-savvy notes about structural flaws.
 function lineupNotes(lineup){
+  const L=lineup.filter(Boolean);
   const ct=[0,0,0,0,0];
-  let creators=0, focal=false, sumReb=0;
-  lineup.forEach(p=>{
+  let creators=0, focal=false, sumReb=0, sumPpg=0, scorers=0, shooters=0, sumAst=0;
+  const misfits=[];
+  L.forEach(p=>{
     if(p.pos>=0&&p.pos<5)ct[p.pos]++;
     if((p.apg||0)>=4.5)creators++;
+    if((p.apg||0)>=6)sumAst+=1;
     if((p.rating||0)>=18)focal=true;
-    sumReb+=(p.rpg||0);
+    if((p.ppg||0)>=20)scorers++;
+    if((p.fgpct||0)>=47)shooters++;
+    sumReb+=(p.rpg||0); sumPpg+=(p.ppg||0);
+    // misplacement: a player whose assigned slot differs from natural position
+    if(typeof p.slot==='number' && p.slot!==p.pos){
+      const dist=Math.abs(p.slot-p.pos);
+      misfits.push({name:p.name, from:POS_NAMES[p.pos], to:POS_NAMES[p.slot], dist});
+    }
   });
   const guards=ct[0]+ct[1], wings=ct[2], bigs=ct[3]+ct[4];
   const out=[];
-  // size / rim protection
+
+  // --- MISPLACEMENT FIRST (the user controls this via drag-drop) ---
+  if(misfits.length){
+    misfits.sort((a,b)=>b.dist-a.dist);
+    const big=misfits.filter(m=>m.dist>=3);     // e.g. C at PG
+    const mid=misfits.filter(m=>m.dist===2);
+    if(big.length){
+      const m=big[0];
+      out.push("Badly out of position — "+m.name+" is a natural "+m.from+" stuck at "+m.to+", a mismatch on both ends");
+    }
+    if(mid.length){
+      const m=mid[0];
+      out.push("Out of position — "+m.name+" ("+m.from+") is playing "+m.to+", giving up size or quickness");
+    }
+    const minor=misfits.filter(m=>m.dist===1);
+    if(minor.length && !big.length && !mid.length){
+      out.push("Slightly off-position — "+minor.map(m=>m.name+" at "+m.to).slice(0,2).join(" and ")+", a manageable stretch");
+    }
+  }
+
+  // --- size / rim protection ---
   if(bigs===0) out.push("No size — an all-perimeter group gets pounded on the glass and at the rim");
   else if(bigs===1) out.push("Thin frontcourt — just one true big to anchor the paint and rebound");
-  // backcourt shape
+  // --- backcourt shape ---
   if(guards===0) out.push("No backcourt — nobody to bring it up or break a defense down off the dribble");
   else if(ct[0]>=3) out.push("Point-guard heavy — three lead guards sharing one basketball");
   else if(guards>=4) out.push("Guard-heavy — undersized on the wing and inside");
-  // frontcourt glut
+  // --- frontcourt glut ---
   if(bigs>=4) out.push("Frontcourt-clogged — four bigs with little spacing or perimeter creation");
   else if(bigs>=3&&guards<=1) out.push("Big-heavy — short on ball-handling and shooting around the bigs");
-  // creation & ceiling
+  // --- creation & ceiling ---
   if(creators===0) out.push("No primary creator — no one to reliably generate a good shot");
+  else if(creators>=3) out.push("Pass-first everywhere — lots of playmaking but watch for who finishes");
   if(!focal) out.push("No focal scorer — a role-player committee with a limited ceiling");
-  // rebounding (only if size wasn't already the headline)
+  else if(scorers>=3) out.push("Loaded with scorers — shot distribution and touches could get crowded");
+  // --- shooting efficiency ---
+  if(shooters===0) out.push("Poor shooting efficiency — no high-percentage finisher to lean on");
+  // --- rebounding ---
   if(bigs>=2&&sumReb<28) out.push("Soft on the glass — the bigs aren't crashing the boards");
-  if(!out.length) out.push("Well-rounded — size, creation, and a scoring focal point are all covered");
+  // --- positive summary when nothing's wrong ---
+  if(!out.length) out.push("Well-rounded — every man in his natural spot, with size, creation, and a scoring focal point all covered");
   return out;
 }
 function notesHTML(lineup){
@@ -1417,7 +1561,7 @@ function bestSquadExplanation(yoursLineup,bestLineup,yoursRec,bestRec){
 
 function showResults(){
   if(spinning)return;
-  if(roster.length<3){alert("Sign at least 3 players before simulating.");return}
+  if(rosterCount()<3){alert("Sign at least 3 players before simulating.");return}
   $("game").classList.add("hidden");
   const el=$("results");el.classList.remove("hidden");
   el.innerHTML='<div class="res-record"><div class="rl">Simulating your season &amp; the alternatives…</div>'+
@@ -1429,8 +1573,8 @@ function showResults(){
     const {best:opt,bestRec:optRec,yoursRec,sameAsYours}=findBestSquad(gauntlet);
     const yours=yoursRec||expectedRecord(roster,[gauntlet]);
 
-    const spent=roster.reduce((s,p)=>s+p.cost,0);
-    const yourRtg=roster.reduce((s,p)=>s+p.rating,0);
+    const spent=roster.reduce((s,p)=>s+(p?p.cost:0),0);
+    const yourRtg=roster.reduce((s,p)=>s+(p?p.rating:0),0);
     const g=gradeFor(yours.w);
     const samePicks=sameAsYours;
 
@@ -1445,7 +1589,7 @@ function showResults(){
     html+='<div class="sq yours">'+
       '<div class="sq-hdr"><span class="t">Your squad</span>'+
       '<span class="totals">spent <b>'+fmtM(spent)+'</b> · total RTG <b>'+yourRtg.toFixed(1)+'</b></span></div>'+
-      squadRowsHTML(roster,null)+notesHTML(roster)+'</div>';
+      squadRowsHTML(roster.filter(Boolean),null)+notesHTML(roster.filter(Boolean))+'</div>';
 
     // best-by-simulation squad gift
     if(opt){
@@ -1454,7 +1598,7 @@ function showResults(){
       html+='<div class="sq optimal">'+
         '<div class="sq-hdr"><span class="t">🏆 Best squad you could\'ve signed</span>'+
         '<span class="totals">'+(optRec?'sim record <b>'+optRec.w+'–'+optRec.l+'</b> · ':'')+'spent <b>'+fmtM(optSpent)+'</b> · RTG <b>'+optRtg.toFixed(1)+'</b></span></div>'+
-        squadRowsHTML(opt,null)+notesHTML(opt)+
+        squadRowsHTML(opt,null)+
         (samePicks
           ? '<div class="perfect">★ Nobody from your five team-seasons sims better — flawless drafting ★</div>'
           : (bestSquadExplanation(roster,opt,yours,optRec)
