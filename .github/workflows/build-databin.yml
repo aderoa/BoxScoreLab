@@ -7,6 +7,10 @@ on:
   schedule:
     - cron: "30 13 * * *"      # daily 13:30 UTC (after the nba-boxscores daily updater)
 
+# Allow the workflow's bot to push the rebuilt data.bin back to the repo.
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
