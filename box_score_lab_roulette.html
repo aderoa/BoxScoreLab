@@ -212,7 +212,7 @@ body{background:linear-gradient(160deg,#1a1a3e 0%,#0a0a1a 55%,#050510 100%);back
     <div class="subtitle">Spin · Pick · Build · Simulate</div>
     <div class="budget-hero">Your bankroll<span class="big" id="introBudget">$120.0M</span></div>
     <div class="rules">
-      <div><span class="num">1</span>The wheel spins to a random <b>team-season</b> (1990–2024).</div>
+      <div><span class="num">1</span>The wheel spins to a random <b>team-season</b> (1990 to today).</div>
       <div><span class="num">2</span>Sign <b>one player</b> from it. Each costs what their deal would be worth at the <b>2026 cap</b>.</div>
       <div><span class="num">3</span>Five spins, five signings. You can only sign players you can <b>still afford</b>.</div>
       <div><span class="num">4</span>Blow it early and you'll be scraping minimum-salary scrubs by the fifth slot.</div>
@@ -666,7 +666,7 @@ function gameMatchesFranchise(g,abbr){
 // year). So 2019 → "2018-19". Salary sy uses the same value, so a player's cost
 // and stats always describe the same season.
 const SY_IS_START=false;
-const SY_MIN=1990, SY_MAX=2024;
+const SY_MIN=1990, SY_MAX=2026;
 
 // --- engine helpers carried over from the source ---
 const PLAYABLE_GAME_TYPES=new Set([0,1,2]);   // RS / Playoffs / Finals
@@ -686,7 +686,7 @@ let salaryByPlayer={}, salaryEntries=[], CAP_BY_SY={};
 let teams=[[],[]], adjusted=[[],[]], teamNames=["YOUR SQUAD","OPPONENT"];
 
 // --- tunable game constants (easy to tweak / move to a config later) ---
-const BUILD      = "v19 · removed Re-simulate button · 2026-06-13";
+const BUILD      = "v22 · removed intro fine-print line · 2026-06-13";
 const CAP_2026   = 165_000_000;   // 2026-27 projected NBA salary cap ($165M, ESPN/Shams Mar 2026)
 const BUDGET     = 120_000_000;   // bankroll
 const SLOTS      = 5;             // signings
@@ -965,7 +965,7 @@ function updateHud(){
       cell.draggable=true;
       cell.innerHTML='<div class="pos">'+slotPos+(mis?' <span class="misfit-tag" title="Natural '+POS_NAMES[p.pos]+' — out of position">'+POS_NAMES[p.pos]+'!</span>':'')+'</div>'+
         '<div class="nm">'+escapeHtmlS(p.name)+'</div>'+
-        '<div class="tm">'+escapeHtmlS(p.meta.short)+" '"+String(p.sy-1).slice(-2)+'</div>'+
+        '<div class="tm">'+escapeHtmlS(p.meta.short)+" '"+String(p.sy).slice(-2)+'</div>'+
         '<div class="cost">'+fmtM(p.cost)+'</div>';
     }else{
       cell.className="slot";
@@ -1035,7 +1035,7 @@ function spin(){
   track.style.transform="translateX(0)";
   track.innerHTML=filler.map(g=>{
     const m=resolveGroupMeta(g);
-    return '<div class="reel-tile">'+logoMarkup(m,"")+'<small>'+escapeHtmlS(m.short)+" '"+String(g.sy-1).slice(-2)+'</small></div>';
+    return '<div class="reel-tile">'+logoMarkup(m,"")+'<small>'+escapeHtmlS(m.short)+" '"+String(g.sy).slice(-2)+'</small></div>';
   }).join("");
 
   // Center the target tile under the marker.
@@ -1710,7 +1710,6 @@ function showResults(){
     setTimeout(()=>{
       $("loadScreen").style.display="none";
       $("introBudget").textContent=fmtM(BUDGET);
-      $("introFine").textContent="Pricing at the projected "+fmtM(CAP_2026)+" cap · "+GROUPS.length+" team-seasons (1990–2024) on the wheel · "+BUILD;
       $("intro").classList.remove("hidden");
       $("startBtn").onclick=startGame;
     },350);
