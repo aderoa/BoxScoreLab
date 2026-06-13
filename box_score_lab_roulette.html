@@ -686,7 +686,7 @@ let salaryByPlayer={}, salaryEntries=[], CAP_BY_SY={};
 let teams=[[],[]], adjusted=[[],[]], teamNames=["YOUR SQUAD","OPPONENT"];
 
 // --- tunable game constants (easy to tweak / move to a config later) ---
-const BUILD      = "v18 · removed Champion badge · 2026-06-12";
+const BUILD      = "v19 · removed Re-simulate button · 2026-06-13";
 const CAP_2026   = 165_000_000;   // 2026-27 projected NBA salary cap ($165M, ESPN/Shams Mar 2026)
 const BUDGET     = 120_000_000;   // bankroll
 const SLOTS      = 5;             // signings
@@ -1607,14 +1607,12 @@ function showResults(){
         '</div>';
     }
 
-    html+='<div class="center"><button class="btn" onclick="startGame()">Play again</button> '+
-      '<button class="btn ghost" onclick="reSim()">Re-simulate</button></div>';
+    html+='<div class="center"><button class="btn" onclick="startGame()">Play again</button></div>';
     el.innerHTML=html;
   },40);
 }
 
 // re-roll the 82-game gauntlet against the same two squads (variance flavor)
-function reSim(){ showResults(); }
 
 /* ============================================================
    BOOT / DATA LOADING (mirrors the salary variant's loader)
