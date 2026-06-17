@@ -1675,24 +1675,61 @@ function showResults(){
   console.log("%c[ROULETTE BUILD] "+BUILD,"color:#ffd700;font-weight:bold");
   const fill=$("progressFill"),text=$("progressText"),label=$("progressLabel");
   try{
+    // --- Prefetch the auxiliary JSONs in PARALLEL with the big data.bin download.
+    // None of them depend on data.bin, so kicking them off now means their bytes
+    // arrive alongside the ~11MB blob instead of strictly after it. Each consumer
+    // below awaits its pre-started promise; every .ok check, try/catch and
+    // "file absent" fallback is unchanged. (A rejected fetch is handled at the
+    // point each promise is awaited, exactly as the inline fetch was.)
+    const bioPromise=fetch("bio.json");
+    const salPromise=fetch("salaries.json");
+    const recPromise=fetch("records.json");
+    const accPromise=fetch("accolades.json");
+
     const resp=await fetch("data.bin");
     if(!resp.ok)throw new Error("HTTP "+resp.status+" — make sure data.bin is in the same folder");
     const reader=resp.body.getReader();
     const total=parseInt(resp.headers.get("content-length"))||11000000;
+
+    // --- Streaming decompression: inflate each chunk AS IT ARRIVES so the work
+    // overlaps the download instead of stalling after it. chunks[] is collected
+    // unconditionally, so if the streaming path errors for any reason we can fall
+    // back to the original concatenate-then-pako.inflate one-shot path with the
+    // complete bytes. pako's streaming string mode buffers partial multi-byte
+    // UTF-8 sequences across pushes, so the result matches the one-shot output.
     let received=0;const chunks=[];
-    while(true){const{done,value}=await reader.read();if(done)break;chunks.push(value);received+=value.length;
+    let streaming=true, inflator=null;
+    try{ inflator=new pako.Inflate({to:'string'}); }catch(e){ streaming=false; }
+    while(true){
+      const{done,value}=await reader.read();
+      if(done)break;
+      chunks.push(value);received+=value.length;
+      if(streaming){
+        try{ inflator.push(value,false); if(inflator.err){streaming=false;} }
+        catch(e){ streaming=false; }
+      }
       fill.style.width=Math.min(80,Math.round(received/total*80))+"%";
       text.textContent=(received/1048576).toFixed(1)+" / ~"+(total/1048576).toFixed(0)+" MB"}
     label.textContent="Decompressing...";fill.style.width="85%";
-    const compressed=new Uint8Array(received);let off=0;for(const c of chunks){compressed.set(c,off);off+=c.length}
-    const decompressed=pako.inflate(compressed,{to:'string'});
+    let decompressed;
+    if(streaming){
+      try{
+        inflator.push(new Uint8Array(0),true);   // flush / signal end-of-stream
+        if(inflator.err)streaming=false; else decompressed=inflator.result;
+      }catch(e){ streaming=false; }
+    }
+    if(!streaming){
+      // Fallback (original path): concatenate all chunks, inflate in one shot.
+      const compressed=new Uint8Array(received);let off=0;for(const c of chunks){compressed.set(c,off);off+=c.length}
+      decompressed=pako.inflate(compressed,{to:'string'});
+    }
     label.textContent="Parsing...";fill.style.width="92%";
     const raw=JSON.parse(decompressed);
     TEAMS=raw.t;POS=raw.p;playerIndex=raw.d;playerNames=Object.keys(playerIndex).sort();
 
     label.textContent="Loading bio data...";fill.style.width="95%";
     try{
-      const bioResp=await fetch("bio.json");
+      const bioResp=await bioPromise;
       if(bioResp.ok){
         const bioRaw=await bioResp.json();
         bioData=bioRaw.filter(r=>playerIndex[r[0]]&&playerIndex[r[0]].length>=20);
@@ -1701,7 +1738,7 @@ function showResults(){
     }catch(e){console.warn("bio.json load failed",e)}
 
     label.textContent="Loading salary data...";fill.style.width="98%";
-    const salResp=await fetch("salaries.json");
+    const salResp=await salPromise;
     if(!salResp.ok)throw new Error("salaries.json HTTP "+salResp.status);
     const salJson=await salResp.json();
     CAP_BY_SY=salJson.cap_by_sy||{};
@@ -1729,7 +1766,7 @@ function showResults(){
     // {w,l}, or a win pct (0–1 or 0–100). Absent file → factor stays neutral.
     label.textContent="Loading team records...";
     try{
-      const recResp=await fetch("records.json");
+      const recResp=await recPromise;
       if(recResp.ok){
         const recJson=await recResp.json();
         for(const k in recJson){
@@ -1748,7 +1785,7 @@ function showResults(){
     // name, then season END year. Absent file → no badges (graceful).
     label.textContent="Loading accolades...";
     try{
-      const accResp=await fetch("accolades.json");
+      const accResp=await accPromise;
       if(accResp.ok){
         ACC_DATA=await accResp.json()||{};
         let n=0;for(const p in ACC_DATA)n+=Object.keys(ACC_DATA[p]).length;
