@@ -1093,6 +1093,10 @@ function renderLanded(group){
   el.classList.remove("hidden");
   $("reelHint").textContent="Landed: "+m.name+" "+seasonStr;
   $("spinBtn").disabled=true;
+  // Dead-end team (nobody affordable here): auto-spin again instead of stalling.
+  // The inline "Spin again" button is kept as a manual fallback. Guarded so it
+  // won't fire after the roster is full or while a spin is mid-flight.
+  if(!anyAffordable){ setTimeout(()=>{ if(!spinning && rosterCount()<SLOTS) spin(); },900); }
 }
 
 function pickPlayer(key,name){
@@ -1120,9 +1124,14 @@ function pickPlayer(key,name){
     $("spinBtn").onclick=showResults;
     buildReelIdle();
   }else{
-    $("reelHint").textContent="Spin for slot "+(rosterCount()+1);
-    $("spinBtn").disabled=false;
+    // Auto-spin for the next slot: the player only clicks Spin once (first spin).
+    // The 700ms delay lets the just-signed player visibly land in the strip
+    // before the reel takes off. Guarded so it can't fire after the 5th pick or
+    // stack on an in-flight spin. The Spin button stays a manual fallback.
+    $("reelHint").textContent="Next team-season incoming…";
+    $("spinBtn").disabled=true;
     buildReelIdle();
+    setTimeout(()=>{ if(!spinning && rosterCount()<SLOTS) spin(); },700);
   }
 }
 
