@@ -147,6 +147,9 @@ body{background:linear-gradient(160deg,#1a1a3e 0%,#0a0a1a 55%,#050510 100%);back
 .pick-card.posfilled:hover{transform:none;border-color:var(--line);box-shadow:none}
 .pick-card.posfilled::after{content:"FILLED";position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:'Oswald',sans-serif;letter-spacing:2px;font-size:12px;color:#8a8ab0;background:rgba(8,8,20,.6);border-radius:10px}
 @media(max-width:560px){.pm-col{min-width:128px}.pick-card .pc-name{font-size:13px;min-height:30px}.pick-card{padding:9px 10px}.pick-card .pc-cost{font-size:16px}}
+.pick-card .pc-flex{font-family:'Oswald',sans-serif;font-size:9px;font-weight:700;letter-spacing:1px;color:#8ab4ff;background:#13203a;border:1px solid #28406e;padding:2px 6px;border-radius:5px}
+.pick-card.flexed{border-style:dashed}
+.sq-row .pos .pos-flex{font-size:8px;color:#8ab4ff;margin-left:2px;font-weight:700;vertical-align:super}
 .none-affordable{text-align:center;padding:22px;color:var(--amber);font-family:'Oswald',sans-serif;letter-spacing:1px;font-size:14px}
 .center{text-align:center;margin-top:18px}
 
@@ -936,6 +939,12 @@ let spinning=false;
 function $(id){return document.getElementById(id)}
 
 function rosterCount(){return roster.filter(Boolean).length;}
+function playAgain(){
+  // Replay should jump straight back into the action: reset, then auto-spin the
+  // first wheel (the very first game of a session still starts on a manual Spin).
+  startGame();
+  setTimeout(()=>{ if(!spinning && rosterCount()===0) spin(); },350);
+}
 function startGame(){
   remaining=BUDGET; roster=[null,null,null,null,null]; rolledGroups=[]; pickedNames=new Set(); pickedPositions=new Set(); usedKeys=new Set();
   currentGroup=null; spinning=false;
@@ -1022,11 +1031,39 @@ function wireDragDrop(){
 
 /* ---- pickable pools ---- */
 function unpickedPlayers(g){return g.players.filter(p=>!pickedNames.has(p.name))}
+function posNeighbors(pos){const r=[pos];if(pos-1>=0)r.push(pos-1);if(pos+1<=4)r.push(pos+1);return r;}
+// Which slot positions each unpicked player of a team-season may be SIGNED into.
+// The most-used player at each natural position (the "anchor") is locked to that
+// position; everyone else can flex to an adjacent position (+/-1). A coverage pass
+// then guarantees every position has >=2 eligible options where the roster allows,
+// so a one-position-per-player tag can never leave a column empty (the SG hole bug).
+// Returns a Map keyed by the player OBJECT -> array of eligible position indices.
+function positionEligibility(players){
+  const elig=new Map(), anchor=[null,null,null,null,null];
+  for(const p of players){ if(p.pos>=0&&p.pos<5){ const a=anchor[p.pos]; if(!a||p.mpg>a.mpg)anchor[p.pos]=p; } }
+  for(const p of players){
+    if(p.pos<0||p.pos>4){elig.set(p,[]);continue;}
+    elig.set(p, anchor[p.pos]===p ? [p.pos] : posNeighbors(p.pos));
+  }
+  const MIN=2;
+  for(let pos=0;pos<5;pos++){
+    const has=p=>elig.get(p).indexOf(pos)>=0;
+    let count=players.reduce((n,p)=>n+(has(p)?1:0),0);
+    if(count>=MIN)continue;
+    // fill the gap with the nearest players (prefer non-anchors, then closest, then lowest minutes)
+    const ranked=players.filter(p=>!has(p)&&p.pos>=0&&p.pos<5).sort((a,b)=>{
+      const aa=anchor[a.pos]===a?1:0, ba=anchor[b.pos]===b?1:0;
+      return aa-ba || (Math.abs(a.pos-pos)-Math.abs(b.pos-pos)) || (a.mpg-b.mpg);
+    });
+    for(const p of ranked){ if(count>=MIN)break; elig.get(p).push(pos); count++; }
+  }
+  return elig;
+}
 function groupHasAffordable(g){return unpickedPlayers(g).some(p=>p.cost<=remaining+1)}
 function groupHasUnpicked(g){return unpickedPlayers(g).length>0}
 // one-per-position aware: a player only counts if its natural position is still open
-function groupHasAffordableOpenPos(g){return unpickedPlayers(g).some(p=>p.cost<=remaining+1&&!pickedPositions.has(p.pos))}
-function groupHasUnpickedOpenPos(g){return unpickedPlayers(g).some(p=>!pickedPositions.has(p.pos))}
+function groupHasAffordableOpenPos(g){const av=unpickedPlayers(g),el=positionEligibility(av);return av.some(p=>p.cost<=remaining+1&&el.get(p).some(pos=>!pickedPositions.has(pos)))}
+function groupHasUnpickedOpenPos(g){const av=unpickedPlayers(g),el=positionEligibility(av);return av.some(p=>el.get(p).some(pos=>!pickedPositions.has(pos)))}
 
 function spin(){
   if(spinning)return;
@@ -1082,15 +1119,11 @@ function renderLanded(group){
   const el=$("landed");
   const seasonStr=formatSeasonYear(group.sy);
   const avail=unpickedPlayers(group);
+  const elig=positionEligibility(avail);
+  const openFor=p=>elig.get(p).filter(pos=>!pickedPositions.has(pos));
 
-  // Bucket by natural position; sort each column by minutes-per-game (desc) so the
-  // top card in every position column is that team-season's most-used player there.
-  const cols=[[],[],[],[],[]];
-  for(const p of avail){ if(p.pos>=0&&p.pos<5) cols[p.pos].push(p); }
-  cols.forEach(c=>c.sort((a,b)=>b.mpg-a.mpg));
-
-  // Selectable = affordable AND its natural position is still open.
-  const anySelectable=avail.some(p=>p.cost<=remaining+1&&!pickedPositions.has(p.pos));
+  // Selectable = affordable AND eligible for at least one still-open position.
+  const anySelectable=avail.some(p=>p.cost<=remaining+1 && openFor(p).length>0);
 
   let cards;
   if(!anySelectable){
@@ -1099,25 +1132,29 @@ function renderLanded(group){
     let colHtml='';
     for(let pos=0;pos<5;pos++){
       const filled=pickedPositions.has(pos);
+      // players eligible at THIS position: natural (primary) first, then flexed-in, each by MPG desc
+      const here=avail.filter(p=>elig.get(p).indexOf(pos)>=0)
+        .sort((a,b)=>{const ap=a.pos===pos?0:1, bp=b.pos===pos?0:1; return ap-bp || b.mpg-a.mpg;});
       let cells='';
-      for(const p of cols[pos]){
+      for(const p of here){
         const taken=pickedNames.has(p.name);
         const tooFar=p.cost>remaining+1;
-        const locked=filled;                       // position already signed -> not selectable
-        const cls="pick-card"+(locked?" posfilled":(taken?" taken":(tooFar?" tooFar":"")));
-        const onclick=(!locked&&!taken&&!tooFar)?(' onclick="pickPlayer(\''+group.key+'\',\''+escapeHtmlS(p.name).replace(/'/g,"\\'")+'\')"'):"";
+        const locked=filled;                       // this position already signed
+        const flexed=p.pos!==pos;                  // playing out of natural position
+        const cls="pick-card"+(locked?" posfilled":(taken?" taken":(tooFar?" tooFar":"")))+(flexed?" flexed":"");
+        const onclick=(!locked&&!taken&&!tooFar)?(' onclick="pickPlayer(\''+group.key+'\',\''+escapeHtmlS(p.name).replace(/'/g,"\\'")+'\','+pos+')"'):"";
         cells+='<div class="'+cls+'"'+onclick+'>'+
-          '<div class="pc-top"><span class="pc-mpg">'+p.mpg.toFixed(1)+' MPG</span></div>'+
+          '<div class="pc-top"><span class="pc-mpg">'+p.mpg.toFixed(1)+' MPG</span>'+
+            (flexed?'<span class="pc-flex" title="Natural '+POS_NAMES[p.pos]+' \u2014 playing out of position">'+POS_NAMES[p.pos]+'</span>':'')+'</div>'+
           '<div class="pc-name">'+escapeHtmlS(p.name)+'</div>'+
           '<div class="pc-acc">'+accoladeBadges(p.name,group.sy)+'</div>'+
           '<div class="pc-stats">'+statTriple(p)+'</div>'+
           '<div class="pc-cost">'+fmtM(p.cost)+' <span>\u00b7 '+p.pct.toFixed(1)+'% cap</span></div>'+
           '</div>';
       }
-      if(!cols[pos].length) cells='<div class="pm-empty">\u2014</div>';
+      if(!here.length) cells='<div class="pm-empty">\u2014</div>';
       colHtml+='<div class="pm-col'+(filled?' filled':'')+'">'+
-        '<div class="pm-head">'+POS_NAMES[pos]+(filled?' <span class="chk">\u2713</span>':'')+'</div>'+
-        cells+'</div>';
+        '<div class="pm-head">'+POS_NAMES[pos]+(filled?' <span class="chk">\u2713</span>':'')+'</div>'+cells+'</div>';
     }
     cards='<div class="pick-matrix">'+colHtml+'</div>';
   }
@@ -1132,24 +1169,25 @@ function renderLanded(group){
   $("reelHint").textContent="Landed: "+m.name+" "+seasonStr;
   $("spinBtn").disabled=true;
   // Dead-end team (nothing selectable here): auto-spin again instead of stalling.
-  // The inline "Spin again" button stays as a manual fallback. Guarded against
-  // firing after the roster is full or while a spin is mid-flight.
   if(!anySelectable){ setTimeout(()=>{ if(!spinning && rosterCount()<SLOTS) spin(); },900); }
 }
-function pickPlayer(key,name){
+function pickPlayer(key,name,slot){
   if(spinning)return;
   const group=GROUP_BY_KEY[key]; if(!group)return;
   const p=group.players.find(x=>x.name===name); if(!p)return;
   if(pickedNames.has(p.name)||p.cost>remaining+1)return;
-  if(pickedPositions.has(p.pos))return;           // one player per position — that slot is taken
+  slot=(slot==null)?p.pos:(slot|0);
+  if(pickedPositions.has(slot))return;             // that position is already filled
+  // validate the chosen slot is a legal (natural or flexed) position for this player
+  const elig=positionEligibility(unpickedPlayers(group)).get(p)||[p.pos];
+  if(elig.indexOf(slot)<0)return;
 
   remaining-=p.cost;
-  const slot = p.pos;                              // always lands in its own natural position now
   const entry={name:p.name,sy:p.sy,abbr:group.abbr,pct:p.pct,cost:p.cost,rating:p.rating,ppg:p.ppg,rpg:p.rpg,apg:p.apg,fgpct:p.fgpct,pos:p.pos,slot:slot,winFactor:p.winFactor,key:group.key,meta:resolveGroupMeta(group)};
   roster[slot]=entry;
   rolledGroups.push(group);
   pickedNames.add(p.name);
-  pickedPositions.add(p.pos);
+  pickedPositions.add(slot);
 
   $("landed").classList.add("hidden");
   currentGroup=null;
@@ -1453,8 +1491,13 @@ const FINALISTS=6, EXTRA_GAUNTLETS=2;
 function findBestSquad(gauntlet){
   const seen=new Set(),cands=[];
   const keyOf=l=>l.filter(Boolean).map(p=>p.name).slice().sort().join("|");
-  const add=l=>{if(!l||l.filter(Boolean).length<rolledGroups.length)return;const k=keyOf(l);if(seen.has(k))return;seen.add(k);cands.push(l)};
-  add(roster);
+  // The best squad must be one the player could actually have built: one per position,
+  // each at most a flex away (same +/-1 rule, with +/-2 tolerated like the coverage pass).
+  // The user's own roster is force-included so "best" is never worse than what they signed.
+  const FLEX_MAX=2;
+  const maxMisfit=l=>{let m=0;for(const p of l){if(!p)continue;const s=(typeof p.slot==='number')?p.slot:p.pos;const nat=(p.pos>=0&&p.pos<5)?p.pos:s;m=Math.max(m,Math.min(4,Math.abs(s-nat)));}return m;};
+  const add=(l,force)=>{if(!l||l.filter(Boolean).length<rolledGroups.length)return;if(!force&&maxMisfit(l)>FLEX_MAX)return;const k=keyOf(l);if(seen.has(k))return;seen.add(k);cands.push(l)};
+  add(roster,true);
   add(optimalLineup());
   for(let i=0;i<CANDIDATES_WEIGHTED;i++)add(genLineup(true));
   for(let i=0;i<CANDIDATES_RANDOM;i++)add(genLineup(false));
@@ -1562,9 +1605,11 @@ function notesHTML(lineup){
     '</div>';
 }
 function squadRowsHTML(lineup,bestNames){
-  return lineup.map(p=>{
+  return lineup.filter(Boolean).map(p=>{
     const star=(bestNames&&bestNames.has(p.name))?' <span class="star">★</span>':"";
-    return '<div class="sq-row"><span class="pos">'+POS_NAMES[p.pos]+'</span>'+
+    const slotPos=(typeof p.slot==='number')?p.slot:p.pos;     // show the position they were assigned to
+    const flexed=(typeof p.slot==='number')&&p.slot!==p.pos;   // flag out-of-position fits
+    return '<div class="sq-row"><span class="pos">'+POS_NAMES[slotPos]+(flexed?'<sup class="pos-flex" title="natural '+POS_NAMES[p.pos]+'">'+POS_NAMES[p.pos]+'</sup>':'')+'</span>'+
       '<span class="nm">'+escapeHtmlS(p.name)+star+accoladeBadges(p.name,p.sy)+'<small>'+escapeHtmlS(p.meta.name)+' · '+formatSeasonYear(p.sy)+' · '+p.ppg.toFixed(1)+'/'+p.rpg.toFixed(1)+'/'+p.apg.toFixed(1)+' · '+p.fgpct.toFixed(1)+'% FG</small></span>'+
       '<span class="rtg">RTG '+p.rating.toFixed(1)+'</span>'+
       '<span class="cost">'+fmtM(p.cost)+'</span></div>';
@@ -1707,7 +1752,7 @@ function showResults(){
         '</div>';
     }
 
-    html+='<div class="center"><button class="btn" onclick="startGame()">Play again</button></div>';
+    html+='<div class="center"><button class="btn" onclick="playAgain()">Play again</button></div>';
     el.innerHTML=html;
     if(samePicks){ try{ fireConfetti(); }catch(e){} }
   },40);
