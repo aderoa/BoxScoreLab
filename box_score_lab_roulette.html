@@ -1031,39 +1031,61 @@ function wireDragDrop(){
 
 /* ---- pickable pools ---- */
 function unpickedPlayers(g){return g.players.filter(p=>!pickedNames.has(p.name))}
-function posNeighbors(pos){const r=[pos];if(pos-1>=0)r.push(pos-1);if(pos+1<=4)r.push(pos+1);return r;}
-// Which slot positions each unpicked player of a team-season may be SIGNED into.
-// The most-used player at each natural position (the "anchor") is locked to that
-// position; everyone else can flex to an adjacent position (+/-1). A coverage pass
-// then guarantees every position has >=2 eligible options where the roster allows,
-// so a one-position-per-player tag can never leave a column empty (the SG hole bug).
-// Returns a Map keyed by the player OBJECT -> array of eligible position indices.
-function positionEligibility(players){
-  const elig=new Map(), anchor=[null,null,null,null,null];
-  for(const p of players){ if(p.pos>=0&&p.pos<5){ const a=anchor[p.pos]; if(!a||p.mpg>a.mpg)anchor[p.pos]=p; } }
-  for(const p of players){
-    if(p.pos<0||p.pos>4){elig.set(p,[]);continue;}
-    elig.set(p, anchor[p.pos]===p ? [p.pos] : posNeighbors(p.pos));
+// Build a DEPTH CHART for a team-season: assign every available player to exactly
+// ONE position column (so no player is ever listed twice). The most-used player at
+// each natural position anchors there; everyone else settles into the nearest column
+// that needs depth (+/-1 first), and a coverage pass fills any column a hard
+// one-position tag would have left empty (the SG-hole bug). Returns col[5] arrays,
+// each sorted natural-first then by minutes. A player whose column != natural position
+// is a deliberate out-of-position fit (flagged + lightly penalized in the sim).
+function depthChart(players){
+  const valid=players.filter(p=>p.pos>=0&&p.pos<5);
+  const col=[[],[],[],[],[]];
+  const anchor=[null,null,null,null,null];
+  for(const p of valid){const a=anchor[p.pos];if(!a||p.mpg>a.mpg)anchor[p.pos]=p;}
+  const placed=new Set();
+  for(let pos=0;pos<5;pos++)if(anchor[pos]){col[pos].push(anchor[pos]);placed.add(anchor[pos]);}
+  const rest=valid.filter(p=>!placed.has(p)).sort((a,b)=>b.mpg-a.mpg);
+  const assign=(p,flex)=>{                          // nearest reachable column that needs depth
+    let best=-1,bc=Infinity,bd=Infinity;
+    for(let pos=Math.max(0,p.pos-flex);pos<=Math.min(4,p.pos+flex);pos++){
+      const c=col[pos].length,d=Math.abs(pos-p.pos);
+      if(c<bc||(c===bc&&d<bd)){best=pos;bc=c;bd=d;}
+    }
+    if(best>=0){col[best].push(p);placed.add(p);return true;}
+    return false;
+  };
+  for(const p of rest)assign(p,1);
+  // coverage: fill any EMPTY column from a neighbour with surplus (move its lowest-mpg non-anchor)
+  for(let d=1;d<=2;d++){
+    for(let pos=0;pos<5;pos++){
+      if(col[pos].length)continue;
+      let donor=-1;
+      for(const q of [pos-d,pos+d])if(q>=0&&q<=4&&col[q].length>1){donor=q;break;}
+      if(donor<0)continue;
+      const mv=col[donor].filter(p=>p!==anchor[p.pos]).sort((a,b)=>a.mpg-b.mpg)[0];
+      if(mv){col[donor]=col[donor].filter(p=>p!==mv);col[pos].push(mv);}
+    }
   }
-  const MIN=2;
+  // best-effort: top thin columns (<2) up to two from an immediate neighbour holding >=3
   for(let pos=0;pos<5;pos++){
-    const has=p=>elig.get(p).indexOf(pos)>=0;
-    let count=players.reduce((n,p)=>n+(has(p)?1:0),0);
-    if(count>=MIN)continue;
-    // fill the gap with the nearest players (prefer non-anchors, then closest, then lowest minutes)
-    const ranked=players.filter(p=>!has(p)&&p.pos>=0&&p.pos<5).sort((a,b)=>{
-      const aa=anchor[a.pos]===a?1:0, ba=anchor[b.pos]===b?1:0;
-      return aa-ba || (Math.abs(a.pos-pos)-Math.abs(b.pos-pos)) || (a.mpg-b.mpg);
-    });
-    for(const p of ranked){ if(count>=MIN)break; elig.get(p).push(pos); count++; }
+    if(col[pos].length>=2)continue;
+    for(const q of [pos-1,pos+1]){
+      if(q<0||q>4||col[q].length<3)continue;
+      const mv=col[q].filter(p=>p!==anchor[p.pos]).sort((a,b)=>a.mpg-b.mpg)[0];
+      if(mv){col[q]=col[q].filter(p=>p!==mv);col[pos].push(mv);break;}
+    }
   }
-  return elig;
+  for(let pos=0;pos<5;pos++)col[pos].sort((a,b)=>{const ap=a.pos===pos?0:1,bp=b.pos===pos?0:1;return ap-bp||b.mpg-a.mpg;});
+  return col;
 }
+// Which column (0-4) a player object was assigned to in a chart, or -1.
+function playerColumn(chart,p){for(let pos=0;pos<5;pos++)if(chart[pos].indexOf(p)>=0)return pos;return -1;}
 function groupHasAffordable(g){return unpickedPlayers(g).some(p=>p.cost<=remaining+1)}
 function groupHasUnpicked(g){return unpickedPlayers(g).length>0}
 // one-per-position aware: a player only counts if its natural position is still open
-function groupHasAffordableOpenPos(g){const av=unpickedPlayers(g),el=positionEligibility(av);return av.some(p=>p.cost<=remaining+1&&el.get(p).some(pos=>!pickedPositions.has(pos)))}
-function groupHasUnpickedOpenPos(g){const av=unpickedPlayers(g),el=positionEligibility(av);return av.some(p=>el.get(p).some(pos=>!pickedPositions.has(pos)))}
+function groupHasAffordableOpenPos(g){const av=unpickedPlayers(g),ch=depthChart(av);return av.some(p=>{const c=playerColumn(ch,p);return c>=0&&!pickedPositions.has(c)&&p.cost<=remaining+1;})}
+function groupHasUnpickedOpenPos(g){const av=unpickedPlayers(g),ch=depthChart(av);return av.some(p=>{const c=playerColumn(ch,p);return c>=0&&!pickedPositions.has(c);})}
 
 function spin(){
   if(spinning)return;
@@ -1119,11 +1141,10 @@ function renderLanded(group){
   const el=$("landed");
   const seasonStr=formatSeasonYear(group.sy);
   const avail=unpickedPlayers(group);
-  const elig=positionEligibility(avail);
-  const openFor=p=>elig.get(p).filter(pos=>!pickedPositions.has(pos));
+  const chart=depthChart(avail);
 
-  // Selectable = affordable AND eligible for at least one still-open position.
-  const anySelectable=avail.some(p=>p.cost<=remaining+1 && openFor(p).length>0);
+  // Selectable = the column the chart placed this player in is still open AND affordable.
+  const anySelectable=avail.some(p=>{const c=playerColumn(chart,p);return c>=0&&!pickedPositions.has(c)&&p.cost<=remaining+1;});
 
   let cards;
   if(!anySelectable){
@@ -1132,9 +1153,7 @@ function renderLanded(group){
     let colHtml='';
     for(let pos=0;pos<5;pos++){
       const filled=pickedPositions.has(pos);
-      // players eligible at THIS position: natural (primary) first, then flexed-in, each by MPG desc
-      const here=avail.filter(p=>elig.get(p).indexOf(pos)>=0)
-        .sort((a,b)=>{const ap=a.pos===pos?0:1, bp=b.pos===pos?0:1; return ap-bp || b.mpg-a.mpg;});
+      const here=chart[pos];     // each player appears in exactly one column
       let cells='';
       for(const p of here){
         const taken=pickedNames.has(p.name);
@@ -1178,9 +1197,9 @@ function pickPlayer(key,name,slot){
   if(pickedNames.has(p.name)||p.cost>remaining+1)return;
   slot=(slot==null)?p.pos:(slot|0);
   if(pickedPositions.has(slot))return;             // that position is already filled
-  // validate the chosen slot is a legal (natural or flexed) position for this player
-  const elig=positionEligibility(unpickedPlayers(group)).get(p)||[p.pos];
-  if(elig.indexOf(slot)<0)return;
+  // validate the player was actually placed in this column by the depth chart
+  const col=playerColumn(depthChart(unpickedPlayers(group)),p);
+  if(col<0||col!==slot)return;
 
   remaining-=p.cost;
   const entry={name:p.name,sy:p.sy,abbr:group.abbr,pct:p.pct,cost:p.cost,rating:p.rating,ppg:p.ppg,rpg:p.rpg,apg:p.apg,fgpct:p.fgpct,pos:p.pos,slot:slot,winFactor:p.winFactor,key:group.key,meta:resolveGroupMeta(group)};
