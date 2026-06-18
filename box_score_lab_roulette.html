@@ -136,6 +136,17 @@ body{background:linear-gradient(160deg,#1a1a3e 0%,#0a0a1a 55%,#050510 100%);back
 .pick-card.tooFar .pc-cost{color:var(--red)}
 .pick-card.taken{cursor:not-allowed;opacity:.3}
 .pick-card.taken::after{content:"PICKED";position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:'Oswald',sans-serif;letter-spacing:2px;font-size:13px;color:#9a9ac0;background:rgba(8,8,20,.55);border-radius:10px}
+.pick-matrix{display:flex;gap:10px;overflow-x:auto;padding-bottom:8px;-webkit-overflow-scrolling:touch}
+.pm-col{flex:1 1 0;min-width:138px;display:flex;flex-direction:column;gap:8px}
+.pm-head{font-family:'Oswald',sans-serif;font-weight:700;letter-spacing:2px;font-size:13px;color:var(--orange);text-align:center;padding:5px 0 7px;border-bottom:2px solid #3a2412;margin-bottom:2px;position:sticky;top:0;background:linear-gradient(180deg,#0e0e22,rgba(14,14,34,.55));z-index:1}
+.pm-col.filled .pm-head{color:#6a6a8e;border-bottom-color:var(--line)}
+.pm-head .chk{color:var(--gold)}
+.pm-empty{color:#3a3a55;text-align:center;font-family:'JetBrains Mono',monospace;font-size:12px;padding:14px 0}
+.pick-card .pc-mpg{font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:600;color:var(--orange);background:#2a1a10;border:1px solid #4a2e18;padding:2px 7px;border-radius:5px;letter-spacing:.3px}
+.pick-card.posfilled{cursor:not-allowed;opacity:.3}
+.pick-card.posfilled:hover{transform:none;border-color:var(--line);box-shadow:none}
+.pick-card.posfilled::after{content:"FILLED";position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:'Oswald',sans-serif;letter-spacing:2px;font-size:12px;color:#8a8ab0;background:rgba(8,8,20,.6);border-radius:10px}
+@media(max-width:560px){.pm-col{min-width:128px}.pick-card .pc-name{font-size:13px;min-height:30px}.pick-card{padding:9px 10px}.pick-card .pc-cost{font-size:16px}}
 .none-affordable{text-align:center;padding:22px;color:var(--amber);font-family:'Oswald',sans-serif;letter-spacing:1px;font-size:14px}
 .center{text-align:center;margin-top:18px}
 
@@ -832,12 +843,15 @@ function buildGroups(){
     const prof=seasonProfile(name,sy);
     const pos=positionForSeason(name,sy);
     const wf=winFactor(abbr,sy);
+    const _mins=seasonMinutes(name,sy);
+    const _gp=seasonGames(name,sy).length;          // games played that season (cached)
     byKey[key].players.push({
       name, sy, pct, salary,
       cost: cost2026(pct),
       rating: prof.rating*wf,           // winning teams' players grade up; losing teams' down
       ppg: prof.ppg, rpg: prof.rpg, apg: prof.apg, fgpct: prof.fgpct,
-      pos, winFactor: wf, minutes: seasonMinutes(name,sy)
+      pos, winFactor: wf, minutes: _mins,
+      mpg: _gp>0 ? _mins/_gp : 0        // minutes per game -> column sort key in the pick grid
     });
     if(pos>=0&&pos<5)entriesByPos[pos].push({name,sy,pos,winFactor:wf,rating:prof.rating*wf});
   }
@@ -914,6 +928,7 @@ let remaining=BUDGET;
 let roster=[];          // [{name,sy,abbr,pct,cost,rating,pos,key,meta}]
 let rolledGroups=[];    // the group object the user actually drew for each slot
 let pickedNames=new Set();
+let pickedPositions=new Set();   // natural-position indices already signed (one player per position)
 let usedKeys=new Set();
 let currentGroup=null;  // landed group awaiting a pick
 let spinning=false;
@@ -922,7 +937,7 @@ function $(id){return document.getElementById(id)}
 
 function rosterCount(){return roster.filter(Boolean).length;}
 function startGame(){
-  remaining=BUDGET; roster=[null,null,null,null,null]; rolledGroups=[]; pickedNames=new Set(); usedKeys=new Set();
+  remaining=BUDGET; roster=[null,null,null,null,null]; rolledGroups=[]; pickedNames=new Set(); pickedPositions=new Set(); usedKeys=new Set();
   currentGroup=null; spinning=false;
   $("intro").classList.add("hidden");
   $("results").classList.add("hidden");
@@ -1009,6 +1024,9 @@ function wireDragDrop(){
 function unpickedPlayers(g){return g.players.filter(p=>!pickedNames.has(p.name))}
 function groupHasAffordable(g){return unpickedPlayers(g).some(p=>p.cost<=remaining+1)}
 function groupHasUnpicked(g){return unpickedPlayers(g).length>0}
+// one-per-position aware: a player only counts if its natural position is still open
+function groupHasAffordableOpenPos(g){return unpickedPlayers(g).some(p=>p.cost<=remaining+1&&!pickedPositions.has(p.pos))}
+function groupHasUnpickedOpenPos(g){return unpickedPlayers(g).some(p=>!pickedPositions.has(p.pos))}
 
 function spin(){
   if(spinning)return;
@@ -1018,10 +1036,11 @@ function spin(){
   $("landed").classList.add("hidden");
   $("reelHint").textContent="Drawing a team-season…";
 
-  // Prefer team-seasons where you can still sign someone; only fall back to
-  // "can't afford anyone here" groups if literally nothing is affordable.
-  let pool=GROUPS.filter(g=>!usedKeys.has(g.key)&&groupHasAffordable(g));
-  if(!pool.length)pool=GROUPS.filter(g=>!usedKeys.has(g.key)&&groupHasUnpicked(g));
+  // Prefer team-seasons with an affordable player at a STILL-OPEN position; then any
+  // open-position player (renderLanded shows the can't-afford note + auto-respins);
+  // only then give up and simulate.
+  let pool=GROUPS.filter(g=>!usedKeys.has(g.key)&&groupHasAffordableOpenPos(g));
+  if(!pool.length)pool=GROUPS.filter(g=>!usedKeys.has(g.key)&&groupHasUnpickedOpenPos(g));
   if(!pool.length){spinning=false;showResults();return}
   const target=pool[Math.floor(Math.random()*pool.length)];
 
@@ -1062,56 +1081,75 @@ function renderLanded(group){
   const m=resolveGroupMeta(group);
   const el=$("landed");
   const seasonStr=formatSeasonYear(group.sy);
-  const players=unpickedPlayers(group).slice().sort((a,b)=>b.cost-a.cost);
-  const anyAffordable=players.some(p=>p.cost<=remaining+1);
+  const avail=unpickedPlayers(group);
+
+  // Bucket by natural position; sort each column by minutes-per-game (desc) so the
+  // top card in every position column is that team-season's most-used player there.
+  const cols=[[],[],[],[],[]];
+  for(const p of avail){ if(p.pos>=0&&p.pos<5) cols[p.pos].push(p); }
+  cols.forEach(c=>c.sort((a,b)=>b.mpg-a.mpg));
+
+  // Selectable = affordable AND its natural position is still open.
+  const anySelectable=avail.some(p=>p.cost<=remaining+1&&!pickedPositions.has(p.pos));
 
   let cards;
-  if(!anyAffordable){
-    cards='<div class="none-affordable">⚠ Nobody here fits your '+fmtM(remaining)+' — spin again.</div>';
+  if(!anySelectable){
+    cards='<div class="none-affordable">\u26a0 Nothing here fills an open position within your '+fmtM(remaining)+' \u2014 spinning again\u2026</div>';
   }else{
-    cards='<div class="pick-grid">'+players.map(p=>{
-      const taken=pickedNames.has(p.name);
-      const tooFar=p.cost>remaining+1;
-      const cls="pick-card"+(taken?" taken":(tooFar?" tooFar":""));
-      const onclick=(!taken&&!tooFar)?(' onclick="pickPlayer(\''+group.key+'\',\''+escapeHtmlS(p.name).replace(/'/g,"\\'")+'\')"'):"";
-      return '<div class="'+cls+'"'+onclick+'>'+
-        '<div class="pc-top"><span class="pc-pos">'+POS_NAMES[p.pos]+'</span></div>'+
-        '<div class="pc-name">'+escapeHtmlS(p.name)+'</div>'+
-        '<div class="pc-acc">'+accoladeBadges(p.name,group.sy)+'</div>'+
-        '<div class="pc-stats">'+statTriple(p)+'</div>'+
-        '<div class="pc-cost">'+fmtM(p.cost)+' <span>· '+p.pct.toFixed(1)+'% cap</span></div>'+
-        '</div>';
-    }).join("")+'</div>';
+    let colHtml='';
+    for(let pos=0;pos<5;pos++){
+      const filled=pickedPositions.has(pos);
+      let cells='';
+      for(const p of cols[pos]){
+        const taken=pickedNames.has(p.name);
+        const tooFar=p.cost>remaining+1;
+        const locked=filled;                       // position already signed -> not selectable
+        const cls="pick-card"+(locked?" posfilled":(taken?" taken":(tooFar?" tooFar":"")));
+        const onclick=(!locked&&!taken&&!tooFar)?(' onclick="pickPlayer(\''+group.key+'\',\''+escapeHtmlS(p.name).replace(/'/g,"\\'")+'\')"'):"";
+        cells+='<div class="'+cls+'"'+onclick+'>'+
+          '<div class="pc-top"><span class="pc-mpg">'+p.mpg.toFixed(1)+' MPG</span></div>'+
+          '<div class="pc-name">'+escapeHtmlS(p.name)+'</div>'+
+          '<div class="pc-acc">'+accoladeBadges(p.name,group.sy)+'</div>'+
+          '<div class="pc-stats">'+statTriple(p)+'</div>'+
+          '<div class="pc-cost">'+fmtM(p.cost)+' <span>\u00b7 '+p.pct.toFixed(1)+'% cap</span></div>'+
+          '</div>';
+      }
+      if(!cols[pos].length) cells='<div class="pm-empty">\u2014</div>';
+      colHtml+='<div class="pm-col'+(filled?' filled':'')+'">'+
+        '<div class="pm-head">'+POS_NAMES[pos]+(filled?' <span class="chk">\u2713</span>':'')+'</div>'+
+        cells+'</div>';
+    }
+    cards='<div class="pick-matrix">'+colHtml+'</div>';
   }
 
   el.innerHTML=
     '<div class="landed-hdr">'+logoMarkup(m,"")+
       '<div class="meta"><div class="yr">'+seasonStr+'</div><div class="tn">'+escapeHtmlS(m.name)+'</div></div></div>'+
-    '<div class="landed-sub">Slot '+(rosterCount()+1)+' of '+SLOTS+' — sign one player</div>'+
+    '<div class="landed-sub">Slot '+(rosterCount()+1)+' of '+SLOTS+' \u2014 sign one player (one per position)</div>'+
     cards+
-    (anyAffordable?'':'<div class="center"><button class="btn" onclick="spin()">Spin again</button></div>');
+    (anySelectable?'':'<div class="center"><button class="btn" onclick="spin()">Spin again</button></div>');
   el.classList.remove("hidden");
   $("reelHint").textContent="Landed: "+m.name+" "+seasonStr;
   $("spinBtn").disabled=true;
-  // Dead-end team (nobody affordable here): auto-spin again instead of stalling.
-  // The inline "Spin again" button is kept as a manual fallback. Guarded so it
-  // won't fire after the roster is full or while a spin is mid-flight.
-  if(!anyAffordable){ setTimeout(()=>{ if(!spinning && rosterCount()<SLOTS) spin(); },900); }
+  // Dead-end team (nothing selectable here): auto-spin again instead of stalling.
+  // The inline "Spin again" button stays as a manual fallback. Guarded against
+  // firing after the roster is full or while a spin is mid-flight.
+  if(!anySelectable){ setTimeout(()=>{ if(!spinning && rosterCount()<SLOTS) spin(); },900); }
 }
-
 function pickPlayer(key,name){
   if(spinning)return;
   const group=GROUP_BY_KEY[key]; if(!group)return;
   const p=group.players.find(x=>x.name===name); if(!p)return;
   if(pickedNames.has(p.name)||p.cost>remaining+1)return;
+  if(pickedPositions.has(p.pos))return;           // one player per position — that slot is taken
 
   remaining-=p.cost;
-  const occupied = roster.map(x=>!!x);
-  const slot = chooseSlot(p.pos, occupied);
+  const slot = p.pos;                              // always lands in its own natural position now
   const entry={name:p.name,sy:p.sy,abbr:group.abbr,pct:p.pct,cost:p.cost,rating:p.rating,ppg:p.ppg,rpg:p.rpg,apg:p.apg,fgpct:p.fgpct,pos:p.pos,slot:slot,winFactor:p.winFactor,key:group.key,meta:resolveGroupMeta(group)};
   roster[slot]=entry;
   rolledGroups.push(group);
   pickedNames.add(p.name);
+  pickedPositions.add(p.pos);
 
   $("landed").classList.add("hidden");
   currentGroup=null;
