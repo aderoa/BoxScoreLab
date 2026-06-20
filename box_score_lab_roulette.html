@@ -696,6 +696,7 @@ function formatSeasonYear(sy){
 let TEAMS=[], POS=[], playerIndex={}, playerNames=[];
 let bioData=[], bioByName={};
 let ACC_DATA={};   // season accolades: { "Player Name": { "<endYear>": [codes...] } }
+let POS_PROFILE={}; // per-player minutes-share position fingerprints (slotting only)
 let salaryByPlayer={}, salaryEntries=[], CAP_BY_SY={};
 let teams=[[],[]], adjusted=[[],[]], teamNames=["YOUR SQUAD","OPPONENT"];
 
@@ -1031,61 +1032,9 @@ function wireDragDrop(){
 
 /* ---- pickable pools ---- */
 function unpickedPlayers(g){return g.players.filter(p=>!pickedNames.has(p.name))}
-// Build a DEPTH CHART for a team-season: assign every available player to exactly
-// ONE position column (so no player is ever listed twice). The most-used player at
-// each natural position anchors there; everyone else settles into the nearest column
-// that needs depth (+/-1 first), and a coverage pass fills any column a hard
-// one-position tag would have left empty (the SG-hole bug). Returns col[5] arrays,
-// each sorted natural-first then by minutes. A player whose column != natural position
-// is a deliberate out-of-position fit (flagged + lightly penalized in the sim).
-function depthChart(players){
-  const valid=players.filter(p=>p.pos>=0&&p.pos<5);
-  const col=[[],[],[],[],[]];
-  const anchor=[null,null,null,null,null];
-  for(const p of valid){const a=anchor[p.pos];if(!a||p.mpg>a.mpg)anchor[p.pos]=p;}
-  const placed=new Set();
-  for(let pos=0;pos<5;pos++)if(anchor[pos]){col[pos].push(anchor[pos]);placed.add(anchor[pos]);}
-  const rest=valid.filter(p=>!placed.has(p)).sort((a,b)=>b.mpg-a.mpg);
-  const assign=(p,flex)=>{                          // nearest reachable column that needs depth
-    let best=-1,bc=Infinity,bd=Infinity;
-    for(let pos=Math.max(0,p.pos-flex);pos<=Math.min(4,p.pos+flex);pos++){
-      const c=col[pos].length,d=Math.abs(pos-p.pos);
-      if(c<bc||(c===bc&&d<bd)){best=pos;bc=c;bd=d;}
-    }
-    if(best>=0){col[best].push(p);placed.add(p);return true;}
-    return false;
-  };
-  for(const p of rest)assign(p,1);
-  // coverage: fill any EMPTY column from a neighbour with surplus (move its lowest-mpg non-anchor)
-  for(let d=1;d<=2;d++){
-    for(let pos=0;pos<5;pos++){
-      if(col[pos].length)continue;
-      let donor=-1;
-      for(const q of [pos-d,pos+d])if(q>=0&&q<=4&&col[q].length>1){donor=q;break;}
-      if(donor<0)continue;
-      const mv=col[donor].filter(p=>p!==anchor[p.pos]).sort((a,b)=>a.mpg-b.mpg)[0];
-      if(mv){col[donor]=col[donor].filter(p=>p!==mv);col[pos].push(mv);}
-    }
-  }
-  // best-effort: top thin columns (<2) up to two from an immediate neighbour holding >=3
-  for(let pos=0;pos<5;pos++){
-    if(col[pos].length>=2)continue;
-    for(const q of [pos-1,pos+1]){
-      if(q<0||q>4||col[q].length<3)continue;
-      const mv=col[q].filter(p=>p!==anchor[p.pos]).sort((a,b)=>a.mpg-b.mpg)[0];
-      if(mv){col[q]=col[q].filter(p=>p!==mv);col[pos].push(mv);break;}
-    }
-  }
-  for(let pos=0;pos<5;pos++)col[pos].sort((a,b)=>{const ap=a.pos===pos?0:1,bp=b.pos===pos?0:1;return ap-bp||b.mpg-a.mpg;});
-  return col;
-}
-// Which column (0-4) a player object was assigned to in a chart, or -1.
-function playerColumn(chart,p){for(let pos=0;pos<5;pos++)if(chart[pos].indexOf(p)>=0)return pos;return -1;}
 function groupHasAffordable(g){return unpickedPlayers(g).some(p=>p.cost<=remaining+1)}
 function groupHasUnpicked(g){return unpickedPlayers(g).length>0}
 // one-per-position aware: a player only counts if its natural position is still open
-function groupHasAffordableOpenPos(g){const av=unpickedPlayers(g),ch=depthChart(av);return av.some(p=>{const c=playerColumn(ch,p);return c>=0&&!pickedPositions.has(c)&&p.cost<=remaining+1;})}
-function groupHasUnpickedOpenPos(g){const av=unpickedPlayers(g),ch=depthChart(av);return av.some(p=>{const c=playerColumn(ch,p);return c>=0&&!pickedPositions.has(c);})}
 
 function spin(){
   if(spinning)return;
@@ -1095,11 +1044,10 @@ function spin(){
   $("landed").classList.add("hidden");
   $("reelHint").textContent="Drawing a team-season…";
 
-  // Prefer team-seasons with an affordable player at a STILL-OPEN position; then any
-  // open-position player (renderLanded shows the can't-afford note + auto-respins);
-  // only then give up and simulate.
-  let pool=GROUPS.filter(g=>!usedKeys.has(g.key)&&groupHasAffordableOpenPos(g));
-  if(!pool.length)pool=GROUPS.filter(g=>!usedKeys.has(g.key)&&groupHasUnpickedOpenPos(g));
+  // Prefer team-seasons where you can still sign someone affordable; fall back to any
+  // unpicked group, then simulate if truly stuck.
+  let pool=GROUPS.filter(g=>!usedKeys.has(g.key)&&groupHasAffordable(g));
+  if(!pool.length)pool=GROUPS.filter(g=>!usedKeys.has(g.key)&&groupHasUnpicked(g));
   if(!pool.length){spinning=false;showResults();return}
   const target=pool[Math.floor(Math.random()*pool.length)];
 
@@ -1141,39 +1089,34 @@ function renderLanded(group){
   const el=$("landed");
   const seasonStr=formatSeasonYear(group.sy);
   const avail=unpickedPlayers(group);
-  const chart=depthChart(avail);
-
-  // Selectable = the column the chart placed this player in is still open AND affordable.
-  const anySelectable=avail.some(p=>{const c=playerColumn(chart,p);return c>=0&&!pickedPositions.has(c)&&p.cost<=remaining+1;});
+  const anySelectable=avail.some(p=>p.cost<=remaining+1);
 
   let cards;
   if(!anySelectable){
-    cards='<div class="none-affordable">\u26a0 Nothing here fills an open position within your '+fmtM(remaining)+' \u2014 spinning again\u2026</div>';
+    cards='<div class="none-affordable">\u26a0 Nobody here fits your '+fmtM(remaining)+' \u2014 spinning again\u2026</div>';
   }else{
+    // Grouped by NATURAL position for readability (most-used first), but you can sign
+    // anyone affordable from any column \u2014 the depth chart sorts itself out afterward.
+    const cols=[[],[],[],[],[]];
+    for(const p of avail){ if(p.pos>=0&&p.pos<5) cols[p.pos].push(p); }
+    cols.forEach(c=>c.sort((a,b)=>b.mpg-a.mpg));
     let colHtml='';
     for(let pos=0;pos<5;pos++){
-      const filled=pickedPositions.has(pos);
-      const here=chart[pos];     // each player appears in exactly one column
       let cells='';
-      for(const p of here){
-        const taken=pickedNames.has(p.name);
+      for(const p of cols[pos]){
         const tooFar=p.cost>remaining+1;
-        const locked=filled;                       // this position already signed
-        const flexed=p.pos!==pos;                  // playing out of natural position
-        const cls="pick-card"+(locked?" posfilled":(taken?" taken":(tooFar?" tooFar":"")))+(flexed?" flexed":"");
-        const onclick=(!locked&&!taken&&!tooFar)?(' onclick="pickPlayer(\''+group.key+'\',\''+escapeHtmlS(p.name).replace(/'/g,"\\'")+'\','+pos+')"'):"";
+        const cls="pick-card"+(tooFar?" tooFar":"");
+        const onclick=tooFar?"":(' onclick="pickPlayer(\''+group.key+'\',\''+escapeHtmlS(p.name).replace(/'/g,"\\'")+'\')"');
         cells+='<div class="'+cls+'"'+onclick+'>'+
-          '<div class="pc-top"><span class="pc-mpg">'+p.mpg.toFixed(1)+' MPG</span>'+
-            (flexed?'<span class="pc-flex" title="Natural '+POS_NAMES[p.pos]+' \u2014 playing out of position">'+POS_NAMES[p.pos]+'</span>':'')+'</div>'+
+          '<div class="pc-top"><span class="pc-mpg">'+p.mpg.toFixed(1)+' MPG</span></div>'+
           '<div class="pc-name">'+escapeHtmlS(p.name)+'</div>'+
           '<div class="pc-acc">'+accoladeBadges(p.name,group.sy)+'</div>'+
           '<div class="pc-stats">'+statTriple(p)+'</div>'+
           '<div class="pc-cost">'+fmtM(p.cost)+' <span>\u00b7 '+p.pct.toFixed(1)+'% cap</span></div>'+
           '</div>';
       }
-      if(!here.length) cells='<div class="pm-empty">\u2014</div>';
-      colHtml+='<div class="pm-col'+(filled?' filled':'')+'">'+
-        '<div class="pm-head">'+POS_NAMES[pos]+(filled?' <span class="chk">\u2713</span>':'')+'</div>'+cells+'</div>';
+      if(!cols[pos].length) cells='<div class="pm-empty">\u2014</div>';
+      colHtml+='<div class="pm-col"><div class="pm-head">'+POS_NAMES[pos]+'</div>'+cells+'</div>';
     }
     cards='<div class="pick-matrix">'+colHtml+'</div>';
   }
@@ -1181,49 +1124,44 @@ function renderLanded(group){
   el.innerHTML=
     '<div class="landed-hdr">'+logoMarkup(m,"")+
       '<div class="meta"><div class="yr">'+seasonStr+'</div><div class="tn">'+escapeHtmlS(m.name)+'</div></div></div>'+
-    '<div class="landed-sub">Slot '+(rosterCount()+1)+' of '+SLOTS+' \u2014 sign one player (one per position)</div>'+
+    '<div class="landed-sub">Slot '+(rosterCount()+1)+' of '+SLOTS+' \u2014 sign any player</div>'+
     cards+
     (anySelectable?'':'<div class="center"><button class="btn" onclick="spin()">Spin again</button></div>');
   el.classList.remove("hidden");
   $("reelHint").textContent="Landed: "+m.name+" "+seasonStr;
   $("spinBtn").disabled=true;
-  // Dead-end team (nothing selectable here): auto-spin again instead of stalling.
   if(!anySelectable){ setTimeout(()=>{ if(!spinning && rosterCount()<SLOTS) spin(); },900); }
 }
-function pickPlayer(key,name,slot){
+function pickPlayer(key,name){
   if(spinning)return;
   const group=GROUP_BY_KEY[key]; if(!group)return;
   const p=group.players.find(x=>x.name===name); if(!p)return;
-  if(pickedNames.has(p.name)||p.cost>remaining+1)return;
-  slot=(slot==null)?p.pos:(slot|0);
-  if(pickedPositions.has(slot))return;             // that position is already filled
-  // validate the player was actually placed in this column by the depth chart
-  const col=playerColumn(depthChart(unpickedPlayers(group)),p);
-  if(col<0||col!==slot)return;
+  if(pickedNames.has(p.name)||p.cost>remaining+1)return;   // total flexibility: any affordable player
 
   remaining-=p.cost;
-  const entry={name:p.name,sy:p.sy,abbr:group.abbr,pct:p.pct,cost:p.cost,rating:p.rating,ppg:p.ppg,rpg:p.rpg,apg:p.apg,fgpct:p.fgpct,pos:p.pos,slot:slot,winFactor:p.winFactor,key:group.key,meta:resolveGroupMeta(group)};
-  roster[slot]=entry;
+  const entry={name:p.name,sy:p.sy,abbr:group.abbr,pct:p.pct,cost:p.cost,rating:p.rating,
+    ppg:p.ppg,rpg:p.rpg,apg:p.apg,fgpct:p.fgpct,mpg:p.mpg,pos:p.pos,winFactor:p.winFactor,
+    key:group.key,meta:resolveGroupMeta(group)};
+  // Re-arrange the whole squad into the best PG-C alignment after every pick (reb/min
+  // breaks ties), so the depth chart settles itself as you go.
+  roster=allocateSlots(roster.filter(Boolean).concat([entry]));
   rolledGroups.push(group);
   pickedNames.add(p.name);
-  pickedPositions.add(slot);
 
   $("landed").classList.add("hidden");
   currentGroup=null;
   updateHud();
 
   if(rosterCount()>=SLOTS){
-    $("reelHint").textContent="Roster complete — simulate your season";
+    $("reelHint").textContent="Roster complete \u2014 simulate your season";
     $("spinBtn").textContent="Simulate season";
     $("spinBtn").disabled=false;
     $("spinBtn").onclick=showResults;
     buildReelIdle();
   }else{
-    // Auto-spin for the next slot: the player only clicks Spin once (first spin).
-    // The 700ms delay lets the just-signed player visibly land in the strip
-    // before the reel takes off. Guarded so it can't fire after the 5th pick or
-    // stack on an in-flight spin. The Spin button stays a manual fallback.
-    $("reelHint").textContent="Next team-season incoming…";
+    // Auto-spin for the next slot (first spin of a session is manual). The short delay
+    // lets the pick land in the strip before the reel takes off.
+    $("reelHint").textContent="Next team-season incoming\u2026";
     $("spinBtn").disabled=true;
     buildReelIdle();
     setTimeout(()=>{ if(!spinning && rosterCount()<SLOTS) spin(); },700);
@@ -1303,6 +1241,51 @@ function assignBestSlots(players){
     const p=ps[bestPerm[slot]];
     out[slot]={...p,slot:slot};
   }
+  return out;
+}
+// Allocate up to 5 players to PG-SG-SF-PF-C, choosing the best slots out of all five
+// (so a lone big lands at C, not slot 0). When we have a player's real position
+// fingerprint (share of minutes at each spot), the slot cost is "how little he played
+// there" and the tie-break "bigness" is his minutes-weighted average position. Without
+// a fingerprint (pre-1997 or unmatched name) it falls back to natural-position distance
+// with rebounds-per-minute as the tie-break. Slotting only — the sim engine is untouched.
+function normName(s){return (s||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/[^a-z0-9 ]/g," ").replace(/\s+/g," ").trim();}
+function posFingerprint(p){
+  const e=POS_PROFILE[normName(p.name)]; if(!e)return null;
+  const fp=(e.s&&e.s[p.sy])||e.c||null;
+  return (fp&&fp.length===5)?fp:null;
+}
+function allocateSlots(players){
+  const ps=players.filter(Boolean);
+  const n=Math.min(5,ps.length);
+  const cost=[], big=[];
+  for(const p of ps){
+    const fp=posFingerprint(p);
+    if(fp){
+      const tot=fp.reduce((a,b)=>a+b,0)||1;
+      cost.push(fp.map(v=>(1-v/tot)*1.5));               // soft misfit from real position share
+      big.push(fp.reduce((s,v,i)=>s+i*v,0)/tot);         // minutes-weighted avg position (0..4)
+    }else{
+      const nat=(p.pos>=0&&p.pos<5)?p.pos:2;
+      cost.push([0,1,2,3,4].map(s=>SLOT_MISFIT[Math.min(4,Math.abs(s-nat))]));
+      const rpm=(p.mpg>0?((p.rpg||0)/p.mpg):0);
+      big.push(nat+Math.min(0.95,rpm*3));
+    }
+  }
+  let bestCost=Infinity,bestBig=-Infinity,bestAssign=null;
+  const used=new Array(5).fill(false), cur=new Array(n).fill(-1);
+  const rec=pi=>{
+    if(pi===n){
+      let c=0,bsc=0;
+      for(let k=0;k<n;k++){c+=cost[k][cur[k]];bsc+=cur[k]*big[k];}
+      if(c<bestCost||(c===bestCost&&bsc>bestBig)){bestCost=c;bestBig=bsc;bestAssign=cur.slice();}
+      return;
+    }
+    for(let s=0;s<5;s++){if(used[s])continue;used[s]=true;cur[pi]=s;rec(pi+1);used[s]=false;}
+  };
+  if(n>0)rec(0);
+  const out=new Array(5).fill(null);
+  if(bestAssign)for(let k=0;k<n;k++)out[bestAssign[k]]={...ps[k],slot:bestAssign[k]};
   return out;
 }
 
@@ -1411,7 +1394,7 @@ function optimalLineup(){
     chosen[gi]=groups[gi].players[pi];
     b=prevLayers[gi][b];
   }
-  return assignBestSlots(chosen.map((p,gi)=>({...p,abbr:groups[gi].abbr,meta:resolveGroupMeta(groups[gi])})));
+  return allocateSlots(chosen.map((p,gi)=>({...p,abbr:groups[gi].abbr,meta:resolveGroupMeta(groups[gi])})));
 }
 
 /* ============================================================
@@ -1427,7 +1410,7 @@ function optimalLineup(){
 const CANDIDATES_WEIGHTED=140, CANDIDATES_RANDOM=40;
 function materializePick(group,p){
   return {name:p.name,sy:p.sy,pos:p.pos,rating:p.rating,cost:p.cost,
-          ppg:p.ppg,rpg:p.rpg,apg:p.apg,fgpct:p.fgpct,winFactor:p.winFactor,abbr:group.abbr,key:group.key,
+          ppg:p.ppg,rpg:p.rpg,apg:p.apg,fgpct:p.fgpct,mpg:p.mpg,winFactor:p.winFactor,abbr:group.abbr,key:group.key,
           meta:resolveGroupMeta(group)};
 }
 function weightedPick(opts){
@@ -1451,7 +1434,7 @@ function genLineup(weighted){
     const p=weighted?weightedPick(pool):pool[Math.floor(Math.random()*pool.length)];
     chosen[g.key]=p;rem-=p.cost;
   }
-  return assignBestSlots(rolledGroups.map(g=>materializePick(g,chosen[g.key])));
+  return allocateSlots(rolledGroups.map(g=>materializePick(g,chosen[g.key])));
 }
 // Average a lineup's record over several gauntlets, scaled back to one season.
 // Sampling over multiple schedules removes most of the single-run variance.
@@ -1510,13 +1493,8 @@ const FINALISTS=6, EXTRA_GAUNTLETS=2;
 function findBestSquad(gauntlet){
   const seen=new Set(),cands=[];
   const keyOf=l=>l.filter(Boolean).map(p=>p.name).slice().sort().join("|");
-  // The best squad must be one the player could actually have built: one per position,
-  // each at most a flex away (same +/-1 rule, with +/-2 tolerated like the coverage pass).
-  // The user's own roster is force-included so "best" is never worse than what they signed.
-  const FLEX_MAX=2;
-  const maxMisfit=l=>{let m=0;for(const p of l){if(!p)continue;const s=(typeof p.slot==='number')?p.slot:p.pos;const nat=(p.pos>=0&&p.pos<5)?p.pos:s;m=Math.max(m,Math.min(4,Math.abs(s-nat)));}return m;};
-  const add=(l,force)=>{if(!l||l.filter(Boolean).length<rolledGroups.length)return;if(!force&&maxMisfit(l)>FLEX_MAX)return;const k=keyOf(l);if(seen.has(k))return;seen.add(k);cands.push(l)};
-  add(roster,true);
+  const add=l=>{if(!l||l.filter(Boolean).length<rolledGroups.length)return;const k=keyOf(l);if(seen.has(k))return;seen.add(k);cands.push(l)};
+  add(roster);
   add(optimalLineup());
   for(let i=0;i<CANDIDATES_WEIGHTED;i++)add(genLineup(true));
   for(let i=0;i<CANDIDATES_RANDOM;i++)add(genLineup(false));
@@ -1796,6 +1774,7 @@ function showResults(){
     const salPromise=fetch("salaries.json");
     const recPromise=fetch("records.json");
     const accPromise=fetch("accolades.json");
+    const posPromise=fetch("positions.json");
 
     const resp=await fetch("data.bin");
     if(!resp.ok)throw new Error("HTTP "+resp.status+" — make sure data.bin is in the same folder");
@@ -1903,6 +1882,13 @@ function showResults(){
         console.log("[ROULETTE] accolades for "+Object.keys(ACC_DATA).length+" players ("+n+" player-seasons)");
       }else{console.log("[ROULETTE] no accolades.json — honor badges off");}
     }catch(e){console.warn("accolades.json not loaded (badges off)",e)}
+
+    label.textContent="Loading positions...";
+    try{
+      const posResp=await posPromise;
+      if(posResp.ok){const pj=await posResp.json();POS_PROFILE=(pj&&pj.players)||{};console.log("[ROULETTE] position profiles: "+Object.keys(POS_PROFILE).length);}
+      else{console.log("[ROULETTE] no positions.json — slotting falls back to game logs");}
+    }catch(e){console.warn("positions.json not loaded (slotting falls back)",e)}
 
     label.textContent="Building team-seasons...";fill.style.width="99%";
     buildGroups();
