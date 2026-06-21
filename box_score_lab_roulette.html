@@ -1101,11 +1101,11 @@ function renderLanded(group){
       let cells='';
       for(const p of cols[pos]){
         const tooFar=p.cost>remaining+1;
-        const flexed=primaryPos(p)!==pos;
+        const flexed=naturalPos(p)!==pos;
         const cls="pick-card"+(tooFar?" tooFar":"")+(flexed?" flexed":"");
         const onclick=tooFar?"":(' onclick="pickPlayer(\''+group.key+'\',\''+escapeHtmlS(p.name).replace(/'/g,"\\'")+'\')"');
         cells+='<div class="'+cls+'"'+onclick+'>'+
-          '<div class="pc-top"><span class="pc-mpg">'+p.mpg.toFixed(1)+' MPG</span>'+(flexed?'<span class="pc-flex" title="Natural '+POS_NAMES[primaryPos(p)]+'">'+POS_NAMES[primaryPos(p)]+'</span>':'')+'</div>'+
+          '<div class="pc-top"><span class="pc-mpg">'+p.mpg.toFixed(1)+' MPG</span>'+(flexed?'<span class="pc-flex" title="Natural '+POS_NAMES[naturalPos(p)]+'">'+POS_NAMES[naturalPos(p)]+'</span>':'')+'</div>'+
           '<div class="pc-name">'+escapeHtmlS(p.name)+'</div>'+
           '<div class="pc-acc">'+accoladeBadges(p.name,group.sy)+'</div>'+
           '<div class="pc-stats">'+statTriple(p)+'</div>'+
@@ -1254,9 +1254,31 @@ function posFingerprint(p){
 }
 function rebRate(p){return p.mpg>0?((p.rpg||0)/p.mpg):0;}   // rebounds per minute
 function astRate(p){return p.mpg>0?((p.apg||0)/p.mpg):0;}   // assists per minute
+function heightOf(p){const e=POS_PROFILE[normName(p.name)];return (e&&typeof e.h==="number")?e.h:null;}   // height in inches, or null
 // Where a player sits on the PG(0)->C(4) floor by production: rebounding pulls bigger,
 // passing pulls smaller. This is the signal used to resolve lopsided rotations.
 function sizeScore(p){return rebRate(p)-astRate(p);}
+function primaryOfFp(fp){let mi=0,mv=-1;for(let i=0;i<5;i++)if(fp[i]>mv){mv=fp[i];mi=i;}return mi;}
+// A player's CAREER position (most time over their career), used as the hard +/-1 bound.
+function careerPos(p){
+  const e=POS_PROFILE[normName(p.name)];
+  if(e&&e.c)return primaryOfFp(e.c);
+  if(e&&e.s&&e.s[p.sy])return primaryOfFp(e.s[p.sy]);
+  return (p.pos>=0&&p.pos<5)?p.pos:2;
+}
+// Natural position for THIS team-season: the spot they actually played that year, but never
+// more than one position off their CAREER spot. So a career SF who played small-ball center
+// (LeBron 2021-22) tops out at PF, while a career C listed at PF that season (Bosh 2004-05) stays PF.
+function naturalPos(p){
+  const e=POS_PROFILE[normName(p.name)];
+  const season=(e&&e.s&&e.s[p.sy])?primaryOfFp(e.s[p.sy]):null;
+  const career=(e&&e.c)?primaryOfFp(e.c):null;
+  if(season==null&&career==null)return (p.pos>=0&&p.pos<5)?p.pos:2;
+  if(season==null)return career;
+  if(career==null)return season;
+  return Math.max(career-1,Math.min(career+1,season));
+}
+function allowedCols(p){const c=careerPos(p),lo=Math.max(0,c-1),hi=Math.min(4,c+1),a=[];for(let i=lo;i<=hi;i++)a.push(i);return a;}
 function primaryPos(p){
   const fp=posFingerprint(p);
   if(fp){let mi=0,mv=-1;for(let i=0;i<5;i++)if(fp[i]>mv){mv=fp[i];mi=i;}return mi;}
@@ -1268,64 +1290,98 @@ function primaryPos(p){
 // would overflow the 35% cap the extras flex to neighbours (rebounders up, passers down,
 // via sizeScore ordering), and thin columns pull the nearest tweeners in.
 function depthChartColumns(players){
-  const N=players.length;
-  if(N===0)return [[],[],[],[],[]];
-  const sorted=players.slice().sort((a,b)=>{
-    const pa=primaryPos(a),pb=primaryPos(b);
-    if(pa!==pb)return pa-pb;           // naturals grouped PG->C
-    return sizeScore(a)-sizeScore(b);  // within/at borders: pass-heavy first, rebound-heavy last
-  });
-  const cap=Math.max(2,Math.floor(0.35*N));        // no column over ~35% of the team
-  const minPer=(N>=10)?2:Math.max(0,Math.floor(N/5));
-  const q=[minPer,minPer,minPer,minPer,minPer];
-  let rem=N-minPer*5;
-  const nat=[0,0,0,0,0];
-  for(const p of players)nat[primaryPos(p)]++;
-  let capLevel=cap;
-  while(rem>0){                                    // grow columns toward their natural share, under cap
-    let best=-1,bestDef=-Infinity;
+  const N=players.length; if(!N)return [[],[],[],[],[]];
+  const cols=[[],[],[],[],[]];
+  const allowed=new Map();
+  for(const p of players){ allowed.set(p,allowedCols(p)); cols[naturalPos(p)].push(p); }
+  for(const c of cols)c.sort((a,b)=>b.mpg-a.mpg);     // most-used on top
+  const anchor=[null,null,null,null,null];            // highest-mpg player at each spot, never moves
+  for(let pos=0;pos<5;pos++)if(cols[pos].length)anchor[pos]=cols[pos][0];
+  const cap=Math.max(2,Math.floor(0.35*N));
+  const canGo=(p,pos)=>pos>=0&&pos<=4&&allowed.get(p).indexOf(pos)>=0;
+  // PASS A: relieve columns over the ~35% cap. Move the lowest-minutes NON-anchor to an
+  // allowed neighbour (within +/-1 of career): rebound-leaning players prefer moving up,
+  // pass-leaning prefer moving down; otherwise to the emptier neighbour.
+  for(let iter=0;iter<40;iter++){
+    let moved=false;
     for(let pos=0;pos<5;pos++){
-      if(q[pos]>=capLevel)continue;
-      const def=nat[pos]-q[pos];
-      if(def>bestDef){bestDef=def;best=pos;}
+      while(cols[pos].length>cap){
+        let mi=-1;
+        for(let i=cols[pos].length-1;i>=0;i--){const q=cols[pos][i];if(q!==anchor[pos]&&(canGo(q,pos-1)||canGo(q,pos+1))){mi=i;break;}}
+        if(mi<0)break;
+        const mover=cols[pos][mi];
+        const lean=rebRate(mover)>=astRate(mover)?1:-1;
+        const opts=[];
+        if(canGo(mover,pos+1))opts.push(pos+1);
+        if(canGo(mover,pos-1))opts.push(pos-1);
+        if(!opts.length)break;
+        opts.sort((a,b)=>{
+          const ra=(cols[a].length<cap)?0:1, rb=(cols[b].length<cap)?0:1;
+          if(ra!==rb)return ra-rb;
+          const la=((a-pos)===lean)?0:1, lb=((b-pos)===lean)?0:1;
+          if(la!==lb)return la-lb;
+          return cols[a].length-cols[b].length;
+        });
+        const t=opts[0];
+        cols[pos].splice(mi,1); cols[t].push(mover); cols[t].sort((a,b)=>b.mpg-a.mpg);
+        moved=true;
+      }
     }
-    if(best<0){capLevel++;continue;}               // cap too tight to seat everyone; relax it
-    q[best]++;rem--;
+    if(!moved)break;
   }
-  const cols=[[],[],[],[],[]];let idx=0;
-  for(let pos=0;pos<5;pos++){for(let k=0;k<q[pos]&&idx<N;k++)cols[pos].push(sorted[idx++]);}
-  while(idx<N)cols[4].push(sorted[idx++]);
-  for(let pos=0;pos<5;pos++)cols[pos].sort((a,b)=>b.mpg-a.mpg);   // most-used on top
+  // PASS B: fill thin columns (<2) best-effort by pulling a non-anchor from a surplus neighbour
+  // that is allowed to play here (still within +/-1 of its career).
+  for(let pos=0;pos<5;pos++){
+    let guard=0;
+    while(cols[pos].length<2&&guard++<10){
+      let pick=null,donor=-1,pmpg=Infinity;
+      for(const d of [pos-1,pos+1]){
+        if(d<0||d>4||cols[d].length<=2)continue;
+        for(let i=cols[d].length-1;i>=0;i--){
+          const q=cols[d][i];
+          if(q===anchor[d]||!canGo(q,pos))continue;
+          if(q.mpg<pmpg){pmpg=q.mpg;pick=q;donor=d;}
+          break;
+        }
+      }
+      if(!pick)break;
+      cols[donor].splice(cols[donor].indexOf(pick),1);
+      cols[pos].push(pick); cols[pos].sort((a,b)=>b.mpg-a.mpg);
+    }
+  }
   return cols;
 }
 function allocateSlots(players){
   const ps=players.filter(Boolean);
   if(!ps.length)return new Array(5).fill(null);
-  // Seat every player whose primary position is UNIQUE at that position (naturals home).
-  const prim=ps.map(primaryPos);
-  const count={}; prim.forEach(x=>{count[x]=(count[x]||0)+1;});
+  const meta=ps.map(p=>({p,nat:naturalPos(p),car:careerPos(p)}));
   const out=new Array(5).fill(null);
-  const leftover=[];
-  ps.forEach((p,i)=>{
-    if(count[prim[i]]===1 && out[prim[i]]===null) out[prim[i]]={...p,slot:prim[i]};
-    else leftover.push(p);
-  });
-  // Displaced players (a lopsided rotation: doubled-up or clashing positions) fill the
-  // open slots by production — lowest sizeScore (pass-first) into the smallest open slot,
-  // highest (rebound-first) into the biggest. So five centers send the best passer to PG;
-  // five guards send the best rebounder to C; the rest fan out in between.
-  const open=[0,1,2,3,4].filter(s=>out[s]===null);
-  // Fill open slots from the extremes: the BIGGEST open slot gets the top rebounder per
-  // minute, the SMALLEST gets the top passer per minute, working inward. (Five guards put
-  // the best rebounder at C; five centers put the best passer at PG.)
-  let pool=leftover.slice(), lo=0, hi=open.length-1;
-  while(lo<=hi && pool.length){
-    if(lo===hi){ out[open[lo]]={...pool[0],slot:open[lo]}; break; }
-    let bi=0; for(let i=1;i<pool.length;i++) if(rebRate(pool[i])>rebRate(pool[bi])) bi=i;
-    out[open[hi]]={...pool[bi],slot:open[hi]}; pool.splice(bi,1); hi--;
-    if(!pool.length) break;
-    let si=0; for(let i=1;i<pool.length;i++) if(astRate(pool[i])>astRate(pool[si])) si=i;
-    out[open[lo]]={...pool[si],slot:open[lo]}; pool.splice(si,1); lo++;
+  // 1) Anchor by minutes: the highest-MPG players claim their natural (career-clamped) slot
+  //    first, so the busiest player at a position is never bumped off it.
+  meta.slice().sort((a,b)=>b.p.mpg-a.p.mpg).forEach(m=>{ if(out[m.nat]===null){out[m.nat]={...m.p,slot:m.nat};m.done=true;} });
+  // 2) Remaining players fill the open slots from the extremes: the BIGGEST open slot gets the
+  //    top rebounder per minute, the SMALLEST gets the top passer per minute, working inward.
+  //    Stay within +/-1 of career; relax only when no in-range slot is open (e.g. five centers
+  //    still need a point guard). [Once heights are loaded, height becomes the primary key here
+  //    and rebounds/assists become the tiebreak.]
+  let pool=meta.filter(m=>!m.done);
+  let open=[0,1,2,3,4].filter(s=>out[s]===null);
+  const inRange=(m,s)=>Math.abs(s-m.car)<=1;
+  // HEIGHT decides who moves up or down: the biggest open slot takes the TALLEST player,
+  // the smallest open slot the SHORTEST. Rebounds/min (big) and assists/min (small) break
+  // ties or fill in when a height is missing.
+  const betterBig=(a,b)=>{const ha=heightOf(a.p),hb=heightOf(b.p);if(ha!=null&&hb!=null&&ha!==hb)return ha>hb;return rebRate(a.p)>rebRate(b.p);};
+  const betterSmall=(a,b)=>{const ha=heightOf(a.p),hb=heightOf(b.p);if(ha!=null&&hb!=null&&ha!==hb)return ha<hb;return astRate(a.p)>astRate(b.p);};
+  while(pool.length&&open.length){
+    const bigSlot=open[open.length-1];
+    let cand=pool.filter(m=>inRange(m,bigSlot)); if(!cand.length)cand=pool;
+    let bm=cand[0]; for(const m of cand) if(betterBig(m,bm)) bm=m;
+    out[bigSlot]={...bm.p,slot:bigSlot}; pool=pool.filter(x=>x!==bm); open=open.filter(s=>s!==bigSlot);
+    if(!pool.length||!open.length)break;
+    const smallSlot=open[0];
+    let cand2=pool.filter(m=>inRange(m,smallSlot)); if(!cand2.length)cand2=pool;
+    let sm=cand2[0]; for(const m of cand2) if(betterSmall(m,sm)) sm=m;
+    out[smallSlot]={...sm.p,slot:smallSlot}; pool=pool.filter(x=>x!==sm); open=open.filter(s=>s!==smallSlot);
   }
   return out;
 }
