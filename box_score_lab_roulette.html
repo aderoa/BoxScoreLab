@@ -1329,49 +1329,55 @@ function depthChartColumns(players){
     }
     if(!moved)break;
   }
-  // PASS B: fill thin columns (<2) best-effort by pulling a non-anchor from a surplus neighbour
-  // that is allowed to play here (still within +/-1 of its career).
-  for(let pos=0;pos<5;pos++){
-    let guard=0;
-    while(cols[pos].length<2&&guard++<10){
-      let pick=null,donor=-1,pmpg=Infinity;
-      for(const d of [pos-1,pos+1]){
-        if(d<0||d>4||cols[d].length<=2)continue;
-        for(let i=cols[d].length-1;i>=0;i--){
-          const q=cols[d][i];
-          if(q===anchor[d]||!canGo(q,pos))continue;
-          if(q.mpg<pmpg){pmpg=q.mpg;pick=q;donor=d;}
-          break;
+  // PASS B: guarantee >=2 per column where the roster allows. Pull surplus toward thin columns
+  // along an AUGMENTING PATH so a column whose only legal donors sit at exactly two can still be
+  // filled by cascading: e.g. move a PF into SF (freeing it), then slide that SF into a 1-deep SG.
+  // Every hop respects each player's +/-1 career range and never moves a column's minutes anchor.
+  const augment=(target)=>{
+    const prev=new Array(5).fill(null), seen=new Array(5).fill(false), q=[];
+    for(let c=0;c<5;c++) if(cols[c].length>2){seen[c]=true;q.push(c);}   // sources: any surplus column
+    let hit=false;
+    while(q.length&&!hit){
+      const u=q.shift();
+      for(const pl of cols[u]){
+        if(pl===anchor[u])continue;
+        for(const v of allowed.get(pl)){
+          if(v===u||seen[v])continue;
+          seen[v]=true; prev[v]={from:u,pl};
+          if(v===target){hit=true;break;}
+          q.push(v);
         }
+        if(hit)break;
       }
-      if(!pick)break;
-      cols[donor].splice(cols[donor].indexOf(pick),1);
-      cols[pos].push(pick); cols[pos].sort((a,b)=>b.mpg-a.mpg);
     }
-  }
+    if(!prev[target])return false;
+    let cur=target;
+    while(prev[cur]){const{from,pl}=prev[cur];cols[from].splice(cols[from].indexOf(pl),1);cols[cur].push(pl);cols[cur].sort((a,b)=>b.mpg-a.mpg);cur=from;}
+    return true;
+  };
+  for(let pos=0;pos<5;pos++){ let g=0; while(cols[pos].length<2&&g++<6){ if(!augment(pos))break; } }
   return cols;
 }
 function allocateSlots(players){
   const ps=players.filter(Boolean);
   if(!ps.length)return new Array(5).fill(null);
-  const meta=ps.map(p=>({p,nat:naturalPos(p),car:careerPos(p)}));
+  const meta=ps.map(p=>({p,car:careerPos(p)}));
   const out=new Array(5).fill(null);
-  // 1) Anchor by minutes: the highest-MPG players claim their natural (career-clamped) slot
-  //    first, so the busiest player at a position is never bumped off it.
-  meta.slice().sort((a,b)=>b.p.mpg-a.p.mpg).forEach(m=>{ if(out[m.nat]===null){out[m.nat]={...m.p,slot:m.nat};m.done=true;} });
-  // 2) Remaining players fill the open slots from the extremes: the BIGGEST open slot gets the
-  //    top rebounder per minute, the SMALLEST gets the top passer per minute, working inward.
-  //    Stay within +/-1 of career; relax only when no in-range slot is open (e.g. five centers
-  //    still need a point guard). [Once heights are loaded, height becomes the primary key here
-  //    and rebounds/assists become the tiebreak.]
-  let pool=meta.filter(m=>!m.done);
-  let open=[0,1,2,3,4].filter(s=>out[s]===null);
+  let pool=meta.slice();
+  let open=[0,1,2,3,4];
   const inRange=(m,s)=>Math.abs(s-m.car)<=1;
-  // HEIGHT decides who moves up or down: the biggest open slot takes the TALLEST player,
-  // the smallest open slot the SHORTEST. Rebounds/min (big) and assists/min (small) break
-  // ties or fill in when a height is missing.
-  const betterBig=(a,b)=>{const ha=heightOf(a.p),hb=heightOf(b.p);if(ha!=null&&hb!=null&&ha!==hb)return ha>hb;return rebRate(a.p)>rebRate(b.p);};
-  const betterSmall=(a,b)=>{const ha=heightOf(a.p),hb=heightOf(b.p);if(ha!=null&&hb!=null&&ha!==hb)return ha<hb;return astRate(a.p)>astRate(b.p);};
+  // HEIGHT sets the selected lineup (no minutes anchor here — that lives on the pick screen).
+  // Working in from the extremes: the biggest open slot takes the TALLEST eligible player, the
+  // smallest the SHORTEST. Rebounds/min (big) and assists/min (small) break ties or stand in
+  // when a height is missing. The +/-1 career clamp holds unless no eligible player remains for
+  // a slot, then it relaxes so a five can always be fielded (e.g. a guard-only squad still gets
+  // its tallest man at center).
+  // Within a 2-inch band (or when a height is missing) production decides, so a true point
+  // guard who is an inch taller than a wing still takes the point on assists, and the better
+  // rebounder centers among similar-sized bigs. Beyond 2 inches, height wins outright.
+  const BAND=2;
+  const betterBig=(a,b)=>{const ha=heightOf(a.p),hb=heightOf(b.p);if(ha!=null&&hb!=null&&Math.abs(ha-hb)>BAND)return ha>hb;return rebRate(a.p)>rebRate(b.p);};
+  const betterSmall=(a,b)=>{const ha=heightOf(a.p),hb=heightOf(b.p);if(ha!=null&&hb!=null&&Math.abs(ha-hb)>BAND)return ha<hb;return astRate(a.p)>astRate(b.p);};
   while(pool.length&&open.length){
     const bigSlot=open[open.length-1];
     let cand=pool.filter(m=>inRange(m,bigSlot)); if(!cand.length)cand=pool;
@@ -1939,8 +1945,8 @@ function showResults(){
       const e=[name,sy,e0[2],e0[3],e0[4]];
       if(!bioByName.hasOwnProperty(name))continue;     // needs a bio entry (parity w/ salary variant)
       const games=playerIndex[name]||[];
-      let gp=0;for(const g of games){if(g[G.SY]===sy&&isPlayableGame(g)){gp++;if(gp>=10)break}}
-      if(gp<10)continue;                                // ≥10 playable games that (end-year) season
+      let gp=0;for(const g of games){if(g[G.SY]===sy&&isPlayableGame(g)){gp++;if(gp>=1)break}}
+      if(gp<1)continue;                                 // ≥1 playable game that (end-year) season
       if(!salaryByPlayer[name])salaryByPlayer[name]=[];
       salaryByPlayer[name].push({sy:e[1],salary:e[2],pct:e[3],team:e[4]});
       salaryEntries.push(e);
