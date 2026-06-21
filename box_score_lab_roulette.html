@@ -1360,35 +1360,41 @@ function depthChartColumns(players){
 }
 function allocateSlots(players){
   const ps=players.filter(Boolean);
-  if(!ps.length)return new Array(5).fill(null);
-  const meta=ps.map(p=>({p,car:careerPos(p)}));
+  const n=ps.length;
+  if(!n)return new Array(5).fill(null);
+  // Precompute per player: career slot (clamp anchor), natural slot (season clamped to career +/-1),
+  // height, and a single "bigness" value (rebounds minus assists per minute) used inside the height band.
+  const car=ps.map(careerPos);
+  const nat=ps.map(naturalPos);
+  const ht=ps.map(heightOf);
+  const rma=ps.map(p=>rebRate(p)-astRate(p));
+  // Does a belong in a BIGGER slot than b? Height leads; inside a 2-inch band (or when a height is
+  // missing) the rebound/assist tilt decides, so a true point guard an inch taller than a wing still
+  // slides down to the point and the better rebounder rises among same-size bigs.
+  const big=(a,b)=>{const ha=ht[a],hb=ht[b];if(ha!=null&&hb!=null&&Math.abs(ha-hb)>2)return ha>hb;return rma[a]>rma[b];};
+  // Score a full arrangement (lower is better). Priority, in order:
+  //   1. Minimize total STRETCH past career +/-1. Stretch is how many slots beyond the band a seat is,
+  //      summed across players, so a forced fill goes to whoever stretches LEAST and never sends a
+  //      point guard to power forward when a wing can take it. Relaxes only as far as truly required.
+  //   2. Order by height/bigness: taller in bigger slots, so a forced move sends the bigger man up.
+  //   3. Natural position as the tiebreak (keeps a no-conflict or partial roster at its natural spots).
+  let bestCost=Infinity,best=null;
+  const cur=new Array(n).fill(-1), used=[false,false,false,false,false];
+  const rec=(i)=>{
+    if(i===n){
+      let stretch=0,natB=0;
+      for(let k=0;k<n;k++){ const d=Math.abs(cur[k]-car[k])-1; if(d>0)stretch+=d; if(cur[k]===nat[k])natB++; }
+      let ord=0;
+      for(let a=0;a<n;a++)for(let b=a+1;b<n;b++){ if((cur[a]>cur[b])===big(a,b))ord++; }
+      const cost=1000*stretch - 5*ord - natB;
+      if(cost<bestCost){bestCost=cost;best=cur.slice();}
+      return;
+    }
+    for(let s=0;s<5;s++){ if(used[s])continue; used[s]=true;cur[i]=s;rec(i+1);used[s]=false; }
+  };
+  rec(0);
   const out=new Array(5).fill(null);
-  let pool=meta.slice();
-  let open=[0,1,2,3,4];
-  const inRange=(m,s)=>Math.abs(s-m.car)<=1;
-  // HEIGHT sets the selected lineup (no minutes anchor here — that lives on the pick screen).
-  // Working in from the extremes: the biggest open slot takes the TALLEST eligible player, the
-  // smallest the SHORTEST. Rebounds/min (big) and assists/min (small) break ties or stand in
-  // when a height is missing. The +/-1 career clamp holds unless no eligible player remains for
-  // a slot, then it relaxes so a five can always be fielded (e.g. a guard-only squad still gets
-  // its tallest man at center).
-  // Within a 2-inch band (or when a height is missing) production decides, so a true point
-  // guard who is an inch taller than a wing still takes the point on assists, and the better
-  // rebounder centers among similar-sized bigs. Beyond 2 inches, height wins outright.
-  const BAND=2;
-  const betterBig=(a,b)=>{const ha=heightOf(a.p),hb=heightOf(b.p);if(ha!=null&&hb!=null&&Math.abs(ha-hb)>BAND)return ha>hb;return rebRate(a.p)>rebRate(b.p);};
-  const betterSmall=(a,b)=>{const ha=heightOf(a.p),hb=heightOf(b.p);if(ha!=null&&hb!=null&&Math.abs(ha-hb)>BAND)return ha<hb;return astRate(a.p)>astRate(b.p);};
-  while(pool.length&&open.length){
-    const bigSlot=open[open.length-1];
-    let cand=pool.filter(m=>inRange(m,bigSlot)); if(!cand.length)cand=pool;
-    let bm=cand[0]; for(const m of cand) if(betterBig(m,bm)) bm=m;
-    out[bigSlot]={...bm.p,slot:bigSlot}; pool=pool.filter(x=>x!==bm); open=open.filter(s=>s!==bigSlot);
-    if(!pool.length||!open.length)break;
-    const smallSlot=open[0];
-    let cand2=pool.filter(m=>inRange(m,smallSlot)); if(!cand2.length)cand2=pool;
-    let sm=cand2[0]; for(const m of cand2) if(betterSmall(m,sm)) sm=m;
-    out[smallSlot]={...sm.p,slot:smallSlot}; pool=pool.filter(x=>x!==sm); open=open.filter(s=>s!==smallSlot);
-  }
+  if(best)for(let k=0;k<n;k++)out[best[k]]={...ps[k],slot:best[k]};
   return out;
 }
 function lineupBalance(lineup){
