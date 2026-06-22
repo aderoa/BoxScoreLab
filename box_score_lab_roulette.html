@@ -47,6 +47,9 @@ body{background:linear-gradient(160deg,#1a1a3e 0%,#0a0a1a 55%,#050510 100%);back
 .war-margin{font-family:'JetBrains Mono',monospace;font-size:14px;color:#cfcff0}
 .war-best{font-family:'Oswald',sans-serif;font-size:13px;letter-spacing:.4px;color:#bcbce6;margin-top:8px}
 .war-best b{color:#ffd700;font-weight:700}
+.szn{display:inline-block;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;color:#ffd166;background:rgba(255,209,102,.12);border:1px solid rgba(255,209,102,.3);border-radius:6px;padding:1px 6px;margin:0 4px;vertical-align:middle;letter-spacing:.5px}
+.shared-cta{margin:18px auto 8px;display:flex;justify-content:center}
+.shared-tag{text-align:center;font-family:'Oswald',sans-serif;letter-spacing:2px;text-transform:uppercase;font-size:12px;color:#8a8ab8;margin-bottom:2px}
 .war-note{font-family:'Oswald',sans-serif;font-size:12px;letter-spacing:.4px;color:#8a8ab8;margin-top:10px}
 .war-beat{color:#34d97a;font-weight:600}
 .war-five{font-family:'JetBrains Mono',monospace;font-size:11px;color:#6a6a98;margin-top:10px}
@@ -721,7 +724,24 @@ let WAR2016=new Set();   // 2015-16 Warriors, removed from the draftable pool
 let teams=[[],[]], adjusted=[[],[]], teamNames=["YOUR SQUAD","OPPONENT"];
 
 // --- tunable game constants (easy to tweak / move to a config later) ---
-const BUILD      = "v23 · confetti on flawless draft · 2026-06-13";
+const BUILD      = "v24 · shareable squad link + season clarity · 2026-06-22";
+// Where a shared squad link points. Swap this one line to the hoopsmatic.com URL
+// when the game moves there; the ?sq= payload format stays identical.
+const SHARE_BASE_URL = "https://aderoa.github.io/BoxScoreLab/box_score_lab_roulette.html";
+
+// URL-safe base64 of a small JSON payload (unicode-safe for accented names).
+function _b64urlEncode(o){return btoa(unescape(encodeURIComponent(JSON.stringify(o)))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');}
+function _b64urlDecode(s){s=s.replace(/-/g,'+').replace(/_/g,'/');while(s.length%4)s+='=';return JSON.parse(decodeURIComponent(escape(atob(s))));}
+// Build the shareable link encoding the exact five + the Warriors win%.
+function buildShareURL(){
+  if(!shareCardData)return SHARE_BASE_URL;
+  const payload={v:1,wp:shareCardData.warPct,p:shareCardData.players.map(p=>({pos:p.pos,nm:p.name,tm:p.team,sy:p.season,c:p.cost}))};
+  return SHARE_BASE_URL+'?sq='+_b64urlEncode(payload);
+}
+function shareText(){
+  const wp=shareCardData?shareCardData.warPct:'';
+  return 'My team beat the 73-9 Warriors '+wp+' of the time. Think you can build a squad that does better?';
+}
 const CAP_2026   = 165_000_000;   // 2026-27 projected NBA salary cap ($165M, ESPN/Shams Mar 2026)
 const BUDGET     = 120_000_000;   // bankroll
 const SLOTS      = 5;             // signings
@@ -1804,7 +1824,7 @@ function squadRowsHTML(lineup,bestNames){
     const slotPos=(typeof p.slot==='number')?p.slot:p.pos;     // show the position they were assigned to
     const flexed=(typeof p.slot==='number')&&p.slot!==p.pos;   // flag out-of-position fits
     return '<div class="sq-row"><span class="pos">'+POS_NAMES[slotPos]+(flexed?'<sup class="pos-flex" title="natural '+POS_NAMES[p.pos]+'">'+POS_NAMES[p.pos]+'</sup>':'')+'</span>'+
-      '<span class="nm">'+escapeHtmlS(p.name)+star+accoladeBadges(p.name,p.sy)+'<small>'+escapeHtmlS(p.meta.name)+' · '+formatSeasonYear(p.sy)+' · '+p.ppg.toFixed(1)+'/'+p.rpg.toFixed(1)+'/'+p.apg.toFixed(1)+' · '+p.fgpct.toFixed(1)+'% FG</small></span>'+
+      '<span class="nm">'+escapeHtmlS(p.name)+star+' <span class="szn">'+formatSeasonYear(p.sy)+'</span>'+accoladeBadges(p.name,p.sy)+'<small>'+escapeHtmlS(p.meta.name)+' · '+p.ppg.toFixed(1)+'/'+p.rpg.toFixed(1)+'/'+p.apg.toFixed(1)+' · '+p.fgpct.toFixed(1)+'% FG</small></span>'+
       '<span class="rtg">RTG '+p.rating.toFixed(1)+'</span>'+
       '<span class="cost">'+fmtM(p.cost)+'</span></div>';
   }).join("");
@@ -2060,7 +2080,14 @@ function buildShareCardCanvas(d){
     ctx.fillStyle='#ffffff';_fit(ctx,p.name,nameMaxW,'600',40,'Oswald, sans-serif',26);
     ctx.fillText(p.name,tx,midY-4);
     ctx.fillStyle='#8080b0';ctx.font='500 22px JetBrains Mono, monospace';
-    ctx.fillText(_ellip(ctx,p.team+'  \u00b7  '+p.season,nameMaxW),tx,midY+30);
+    // team in gray, season highlighted so 2000-01 vs 2004-05 reads at a glance
+    const _sep='  \u00b7  ';
+    const _seasonW=ctx.measureText(p.season).width;
+    const _teamMaxW=nameMaxW-ctx.measureText(_sep).width-_seasonW;
+    const _teamTxt=_ellip(ctx,p.team,Math.max(40,_teamMaxW));
+    ctx.fillText(_teamTxt+_sep,tx,midY+30);
+    const _sx=tx+ctx.measureText(_teamTxt+_sep).width;
+    ctx.fillStyle='#ffd166';ctx.fillText(p.season,_sx,midY+30);
     // salary
     ctx.textAlign='right';ctx.textBaseline='middle';ctx.fillStyle='#ffd700';ctx.font='700 36px Oswald, sans-serif';
     ctx.fillText(p.cost,rx,midY);
@@ -2111,6 +2138,7 @@ function _openShareModal(durl,blob){
     '<div class="share-btns">'+
       '<button class="btn" data-act="download">Download</button>'+
       (canCopy?'<button class="btn ghost" data-act="copy">Copy image</button>':'')+
+      '<button class="btn ghost" data-act="copylink">Copy text + link</button>'+
       (canShare?'<button class="btn ghost" data-act="share">Share\u2026</button>':'')+
     '</div>'+
     '<div class="share-msg"></div></div>';
@@ -2129,11 +2157,14 @@ function _openShareModal(durl,blob){
         try{ await navigator.clipboard.write([new ClipboardItem({'image/png':blob})]); msg.textContent='Copied. Paste it anywhere.'; }
         catch(e){ msg.textContent='Copy blocked here. Use Download.'; }
       }
+      else if(act==='copylink'){
+        try{ await navigator.clipboard.writeText(shareText()+'\n'+buildShareURL()); msg.textContent='Text + link copied. Paste it into your post.'; }
+        catch(e){ msg.textContent='Copy blocked here. Try Share instead.'; }
+      }
       else if(act==='share'){
         const file=new File([blob],'draft-roulette.png',{type:'image/png'});
-        const txt='I went '+shareCardData.w+'\u2013'+shareCardData.l+' in Draft Roulette. Spin your own five at HoopsMatic.com';
-        try{ await navigator.share({files:[file],title:'My Draft Roulette result',text:txt}); }
-        catch(e){ if(!(e&&e.name==='AbortError'))msg.textContent='Share unavailable. Use Download.'; }
+        try{ await navigator.share({files:[file],title:'Draft Roulette',text:shareText(),url:buildShareURL()}); }
+        catch(e){ if(!(e&&e.name==='AbortError'))msg.textContent='Share unavailable. Use Download or Copy link.'; }
       }
     };
   });
@@ -2142,9 +2173,48 @@ function _openShareModal(durl,blob){
 // re-roll the 82-game gauntlet against the same two squads (variance flavor)
 
 /* ============================================================
+   SHARED SQUAD VIEW — when opened via a ?sq= link, render the shared team
+   read-only (no data.bin needed) and skip the game boot entirely.
+   "Spin your own five" reloads the clean URL into the normal game.
+   ============================================================ */
+const SHARED_PAYLOAD=(function(){
+  try{const s=new URLSearchParams(location.search).get('sq');return s?_b64urlDecode(s):null;}
+  catch(e){console.warn('[ROULETTE] bad share link',e);return null;}
+})();
+function renderSharedView(d){
+  if(!d||!Array.isArray(d.p))return;
+  try{const ls=$("loadScreen");if(ls)ls.style.display="none";}catch(e){}
+  ["intro","game"].forEach(id=>{const el=$(id);if(el)el.classList.add("hidden");});
+  const wp=escapeHtmlS(d.wp||'');
+  const rows=d.p.map(p=>(
+    '<div class="sq-row">'+
+      '<span class="pos">'+escapeHtmlS(p.pos||'')+'</span>'+
+      '<span class="nm">'+escapeHtmlS(p.nm||'')+' <span class="szn">'+escapeHtmlS(p.sy||'')+'</span>'+
+        '<small>'+escapeHtmlS(p.tm||'')+'</small></span>'+
+      '<span class="cost">'+escapeHtmlS(p.c||'')+'</span>'+
+    '</div>'
+  )).join('');
+  const html=''+
+    '<div class="shared-tag">A Draft Roulette squad</div>'+
+    '<div class="war-panel">'+
+      '<div class="war-hdr">vs the 73-9 Warriors · the wall</div>'+
+      '<div class="war-main">'+wp+'<small>of games won</small></div>'+
+      '<div class="war-note">Built at HoopsMatic.com. Think you can put together a five that does better?</div>'+
+    '</div>'+
+    '<div class="sq yours"><div class="sq-hdr"><span class="t">The squad</span></div>'+rows+'</div>'+
+    '<div class="shared-cta"><button class="btn" id="sharedSpinBtn">Spin your own five \u2192</button></div>';
+  const res=$("results");
+  res.innerHTML=html;res.classList.remove("hidden");
+  const btn=$("sharedSpinBtn");
+  if(btn)btn.onclick=()=>{location.href=location.origin+location.pathname;};
+}
+if(SHARED_PAYLOAD){window.__SHARED__=true;renderSharedView(SHARED_PAYLOAD);}
+
+/* ============================================================
    BOOT / DATA LOADING (mirrors the salary variant's loader)
    ============================================================ */
 (async function(){
+  if(window.__SHARED__)return;   // shared-link view handles its own render; skip the 17MB boot
   console.log("%c[ROULETTE BUILD] "+BUILD,"color:#ffd700;font-weight:bold");
   const fill=$("progressFill"),text=$("progressText"),label=$("progressLabel");
   try{
