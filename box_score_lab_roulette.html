@@ -39,6 +39,15 @@ body{background:linear-gradient(160deg,#1a1a3e 0%,#0a0a1a 55%,#050510 100%);back
 .share-btns{display:flex;gap:12px;flex-wrap:wrap;justify-content:center}
 .share-x{position:absolute;top:-16px;right:-16px;width:40px;height:40px;border-radius:50%;border:none;background:#1a1a3e;color:#fff;font-size:24px;line-height:1;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.5)}
 .share-msg{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--green);min-height:16px;text-align:center}
+.war-panel{margin:8px 0 22px;padding:18px 20px;border-radius:14px;background:linear-gradient(160deg,rgba(30,42,92,.5),rgba(10,12,30,.5));border:1px solid #ffd70033;text-align:center}
+.war-hdr{font-family:'Oswald',sans-serif;font-weight:700;letter-spacing:2px;text-transform:uppercase;font-size:13px;color:#ffd700}
+.war-sub-yr{font-family:'Oswald',sans-serif;font-size:10px;letter-spacing:2px;color:#8a8ab8;text-transform:uppercase;margin-top:3px}
+.war-main{font-family:'Oswald',sans-serif;font-weight:700;font-size:46px;line-height:1.05;margin:12px 0 2px;color:#fff}
+.war-main small{display:block;font-size:11px;letter-spacing:2px;color:#9a9ac8;font-weight:600;text-transform:uppercase;margin-top:4px}
+.war-margin{font-family:'JetBrains Mono',monospace;font-size:14px;color:#cfcff0}
+.war-note{font-family:'Oswald',sans-serif;font-size:12px;letter-spacing:.4px;color:#8a8ab8;margin-top:10px}
+.war-beat{color:#34d97a;font-weight:600}
+.war-five{font-family:'JetBrains Mono',monospace;font-size:11px;color:#6a6a98;margin-top:10px}
 .btn:hover{transform:translateY(-2px);box-shadow:0 10px 24px rgba(255,107,53,.35)}
 .btn:active{transform:translateY(0)}
 .btn.ghost{background:transparent;color:var(--gold);border:1px solid #4a4a7a;box-shadow:none}
@@ -706,6 +715,7 @@ let bioData=[], bioByName={};
 let ACC_DATA={};   // season accolades: { "Player Name": { "<endYear>": [codes...] } }
 let POS_PROFILE={}; // per-player minutes-share position fingerprints (slotting only)
 let salaryByPlayer={}, salaryEntries=[], CAP_BY_SY={};
+let WAR2016=new Set();   // 2015-16 Warriors, removed from the draftable pool
 let teams=[[],[]], adjusted=[[],[]], teamNames=["YOUR SQUAD","OPPONENT"];
 
 // --- tunable game constants (easy to tweak / move to a config later) ---
@@ -1637,6 +1647,61 @@ function findBestSquad(gauntlet){
 /* ============================================================
    RESULTS
    ============================================================ */
+/* ============================================================
+   THE 73-9 WALL — your five vs the 2015-16 Warriors. A team "beats"
+   them only when its strength clears the wall, and the wall sits at the
+   ~99.9th percentile of drawn-team strength (sampled from the live data),
+   so only about 1 in 1000 drawn teams can win the matchup.
+   ============================================================ */
+let _warFive=null,_warBar=null;
+const WARRIORS_Z=3.09;   // 99.9th percentile z. Raise to make the wall harder, lower to ease it.
+function warriorsFive(){
+  if(_warFive)return _warFive;
+  const wf=winFactor('GSW',2016);
+  const cand=[];
+  WAR2016.forEach(name=>{
+    const pr=seasonProfile(name,2016);
+    if(pr.rating>0)cand.push({name,sy:2016,rating:pr.rating*wf,ppg:pr.ppg,rpg:pr.rpg,apg:pr.apg,fgpct:pr.fgpct,pos:positionForSeason(name,2016),abbr:'GSW'});
+  });
+  cand.sort((a,b)=>b.rating-a.rating);
+  _warFive=allocateSlots(cand.slice(0,5));
+  return _warFive;
+}
+// One realistic drawn team: five distinct random team-seasons, a budget-feasible
+// rating-weighted pick from each (mirrors how a player actually drafts), slotted.
+function _sampleTeamStrength(){
+  const order=[],used={};let tries=0;
+  while(order.length<5&&tries<80){tries++;const g=GROUPS[(Math.random()*GROUPS.length)|0];if(!g||used[g.key])continue;used[g.key]=true;order.push(g);}
+  if(order.length<5)return null;
+  const mins=order.map(g=>Math.min.apply(null,g.players.map(p=>p.cost)));
+  const suffix=new Array(order.length+1).fill(0);
+  for(let i=order.length-1;i>=0;i--)suffix[i]=suffix[i+1]+mins[i];
+  let rem=BUDGET;const chosen=[];
+  for(let i=0;i<order.length;i++){
+    const cap=rem-suffix[i+1];
+    const aff=order[i].players.filter(p=>p.cost<=cap+1);
+    const pool=aff.length?aff:[order[i].players.reduce((a,b)=>a.cost<b.cost?a:b)];
+    const p=weightedPick(pool);chosen.push({...p});rem-=p.cost;
+  }
+  return lineupStrength(allocateSlots(chosen));
+}
+function warriorsBar(){
+  if(_warBar!=null)return _warBar;
+  const N=3000;let sum=0,sum2=0,n=0;
+  for(let i=0;i<N;i++){const s=_sampleTeamStrength();if(s==null)continue;sum+=s;sum2+=s*s;n++;}
+  const real=lineupStrength(warriorsFive());
+  if(!n){_warBar=real;return _warBar;}
+  const mu=sum/n,sd=Math.sqrt(Math.max(0,sum2/n-mu*mu));
+  // the wall is the harder of (99.9th-pct drawn team, the Warriors' own five), so it is
+  // never weaker than the real team and beating it stays a ~1-in-1000 feat.
+  _warBar=Math.max(mu+WARRIORS_Z*sd,real);
+  return _warBar;
+}
+function vsWarriors(lineup){
+  const margin=lineupStrength(lineup)-warriorsBar();   // per-game point differential (yours minus theirs)
+  return {winPct:normCdf(margin/GAME_SD),margin};
+}
+
 function gradeFor(w){
   if(w>=60)return {t:"Title contender",c:"var(--gold)",bg:"#2a230a"};
   if(w>=50)return {t:"Playoff lock",c:"var(--green)",bg:"#0e2018"};
@@ -1838,12 +1903,33 @@ function showResults(){
     const g=gradeFor(yours.w);
     const samePicks=sameAsYours;
 
+    // 73-9 Warriors wall
+    const war=vsWarriors(roster);
+    const _wp=war.winPct*100;
+    const winPctStr=_wp<1?'<1%':(_wp<10?_wp.toFixed(1)+'%':Math.round(_wp)+'%');
+    const marginStr=(war.margin>=0?'+':'')+war.margin.toFixed(1)+' pts/game';
+    const beatWall=war.margin>0;
+    const warFive=warriorsFive().filter(Boolean).map(p=>p.name.split(' ').slice(-1)[0]).join(', ');
+    const warNote=beatWall
+      ? 'You cracked the wall. Only about 1 in 1,000 drawn teams beats the 73-9 Warriors.'
+      : 'Beating them takes a top 0.1% team. You are '+(-war.margin).toFixed(1)+' pts/game short.';
+    const warPanel='<div class="war-panel">'+
+      '<div class="war-hdr">vs the 73-9 Warriors</div>'+
+      '<div class="war-sub-yr">2015-16 Golden State · the wall</div>'+
+      '<div class="war-main">'+winPctStr+'<small>of games won</small></div>'+
+      '<div class="war-margin">avg margin '+marginStr+'</div>'+
+      '<div class="war-note'+(beatWall?' war-beat':'')+'">'+warNote+'</div>'+
+      (warFive?'<div class="war-five">their five: '+warFive+'</div>':'')+
+    '</div>';
+
     let html='<div class="res-record">'+
       '<div class="rl">Your season</div>'+
       '<div class="rv">'+yours.w+'<span class="dash">–</span>'+yours.l+'</div>'+
       '<div class="grade" style="color:'+g.c+';background:'+g.bg+';border:1px solid '+g.c+'55">'+g.t+'</div>'+
       '</div>'+
       '<div class="res-sub">'+yours.ppg.toFixed(1)+' – '+yours.oppg.toFixed(1)+' PPG vs all-era fives · spent '+fmtM(spent)+' of '+fmtM(BUDGET)+'</div>';
+
+    html+=warPanel;
 
     // your squad
     html+='<div class="sq yours">'+
@@ -2171,6 +2257,21 @@ function _openShareModal(durl,blob){
       if(posResp.ok){const pj=await posResp.json();POS_PROFILE=(pj&&pj.players)||{};console.log("[ROULETTE] position profiles: "+Object.keys(POS_PROFILE).length);}
       else{console.log("[ROULETTE] no positions.json — slotting falls back to game logs");}
     }catch(e){console.warn("positions.json not loaded (slotting falls back)",e)}
+
+    // --- 73-9 WALL: drop every 2015-16 Golden State Warrior from the draftable pool.
+    // Identified by a real 2015-16 (SY=2016) playable game with the GSW franchise. With
+    // all of its players gone, the 2015-16 Warriors team-season also falls off the wheel,
+    // while other team-seasons those journeymen passed through keep their remaining players.
+    label.textContent="Sealing the 73-9 wall...";
+    WAR2016=new Set();
+    for(const name of playerNames){
+      const games=playerIndex[name]||[];
+      for(const gm of games){ if(gm[G.SY]===2016 && isPlayableGame(gm) && gameMatchesFranchise(gm,"GSW")){ WAR2016.add(name); break; } }
+    }
+    if(WAR2016.size){
+      salaryEntries=salaryEntries.filter(e=>!WAR2016.has(e[0]));
+      console.log("[ROULETTE] 73-9 wall: removed "+WAR2016.size+" Warriors players from the pool");
+    } else { console.warn("[ROULETTE] 73-9 wall: matched 0 Warriors — check GSW/SY=2016"); }
 
     label.textContent="Building team-seasons...";fill.style.width="99%";
     buildGroups();
