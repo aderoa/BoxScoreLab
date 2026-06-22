@@ -33,6 +33,12 @@ body{background:linear-gradient(160deg,#1a1a3e 0%,#0a0a1a 55%,#050510 100%);back
 .btn{font-family:'Oswald',sans-serif;font-weight:700;letter-spacing:2px;text-transform:uppercase;border:none;border-radius:8px;cursor:pointer;padding:14px 30px;font-size:15px;background:linear-gradient(135deg,var(--orange),var(--gold));color:#1a1006;transition:transform .12s,box-shadow .12s;box-shadow:0 6px 18px rgba(255,107,53,.25)}
 .btn.ghost{background:transparent;color:var(--orange);border:1.5px solid var(--orange);box-shadow:none}
 .res-actions{display:flex;gap:14px;justify-content:center;flex-wrap:wrap;margin-top:14px}
+.share-modal{position:fixed;inset:0;z-index:10000;background:rgba(5,5,16,.82);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;padding:20px;animation:fadeIn .2s}
+.share-box{position:relative;max-width:min(92vw,440px);display:flex;flex-direction:column;align-items:center;gap:16px}
+.share-img{width:100%;max-height:72vh;object-fit:contain;border-radius:14px;box-shadow:0 18px 50px rgba(0,0,0,.6)}
+.share-btns{display:flex;gap:12px;flex-wrap:wrap;justify-content:center}
+.share-x{position:absolute;top:-16px;right:-16px;width:40px;height:40px;border-radius:50%;border:none;background:#1a1a3e;color:#fff;font-size:24px;line-height:1;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.5)}
+.share-msg{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--green);min-height:16px;text-align:center}
 .btn:hover{transform:translateY(-2px);box-shadow:0 10px 24px rgba(255,107,53,.35)}
 .btn:active{transform:translateY(0)}
 .btn.ghost{background:transparent;color:var(--gold);border:1px solid #4a4a7a;box-shadow:none}
@@ -1978,19 +1984,57 @@ function _downloadBlob(blob){
 }
 function shareResultCard(){
   if(!shareCardData)return;
-  let blob;
+  let durl,blob;
   try{
     const cv=buildShareCardCanvas(shareCardData);
-    blob=_dataURLtoBlob(cv.toDataURL('image/png'));   // sync, keeps the click gesture for iOS share
+    durl=cv.toDataURL('image/png');
+    blob=_dataURLtoBlob(durl);
   }catch(e){console.warn('share card failed',e);alert('Could not build the image.');return;}
-  const file=new File([blob],'draft-roulette.png',{type:'image/png'});
-  const txt='I went '+shareCardData.w+'\u2013'+shareCardData.l+' in Draft Roulette. Spin your own five at HoopsMatic.com';
-  if(navigator.canShare&&navigator.canShare({files:[file]})){
-    navigator.share({files:[file],title:'My Draft Roulette result',text:txt})
-      .catch(err=>{if(err&&err.name==='AbortError')return;_downloadBlob(blob);});
-    return;
-  }
-  _downloadBlob(blob);
+  _openShareModal(durl,blob);
+}
+// Preview the card in-app first: the image shows immediately, then Download / Copy /
+// (where supported) the native share sheet. No OS picker fires on its own.
+function _canShareFile(blob){
+  if(!navigator.canShare)return false;
+  try{return navigator.canShare({files:[new File([blob],'x.png',{type:'image/png'})]});}catch(e){return false;}
+}
+function _openShareModal(durl,blob){
+  const ex=document.getElementById('shareModal');if(ex)ex.remove();
+  const ov=document.createElement('div');ov.id='shareModal';ov.className='share-modal';
+  const canCopy=!!(navigator.clipboard&&window.ClipboardItem);
+  const canShare=_canShareFile(blob);
+  ov.innerHTML='<div class="share-box">'+
+    '<button class="share-x" aria-label="Close">\u00d7</button>'+
+    '<img class="share-img" alt="Your Draft Roulette result" src="'+durl+'">'+
+    '<div class="share-btns">'+
+      '<button class="btn" data-act="download">Download</button>'+
+      (canCopy?'<button class="btn ghost" data-act="copy">Copy image</button>':'')+
+      (canShare?'<button class="btn ghost" data-act="share">Share\u2026</button>':'')+
+    '</div>'+
+    '<div class="share-msg"></div></div>';
+  document.body.appendChild(ov);
+  const msg=ov.querySelector('.share-msg');
+  const close=()=>{ov.remove();document.removeEventListener('keydown',onKey);};
+  const onKey=e=>{if(e.key==='Escape')close();};
+  document.addEventListener('keydown',onKey);
+  ov.addEventListener('click',e=>{if(e.target===ov)close();});
+  ov.querySelector('.share-x').onclick=close;
+  ov.querySelectorAll('[data-act]').forEach(b=>{
+    b.onclick=async()=>{
+      const act=b.getAttribute('data-act');
+      if(act==='download'){ _downloadBlob(blob); msg.textContent='Saved to your downloads.'; }
+      else if(act==='copy'){
+        try{ await navigator.clipboard.write([new ClipboardItem({'image/png':blob})]); msg.textContent='Copied. Paste it anywhere.'; }
+        catch(e){ msg.textContent='Copy blocked here. Use Download.'; }
+      }
+      else if(act==='share'){
+        const file=new File([blob],'draft-roulette.png',{type:'image/png'});
+        const txt='I went '+shareCardData.w+'\u2013'+shareCardData.l+' in Draft Roulette. Spin your own five at HoopsMatic.com';
+        try{ await navigator.share({files:[file],title:'My Draft Roulette result',text:txt}); }
+        catch(e){ if(!(e&&e.name==='AbortError'))msg.textContent='Share unavailable. Use Download.'; }
+      }
+    };
+  });
 }
 
 // re-roll the 82-game gauntlet against the same two squads (variance flavor)
