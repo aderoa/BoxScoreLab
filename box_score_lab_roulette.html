@@ -31,6 +31,8 @@ body{background:linear-gradient(160deg,#1a1a3e 0%,#0a0a1a 55%,#050510 100%);back
 /* ===== Generic ===== */
 .hidden{display:none!important}
 .btn{font-family:'Oswald',sans-serif;font-weight:700;letter-spacing:2px;text-transform:uppercase;border:none;border-radius:8px;cursor:pointer;padding:14px 30px;font-size:15px;background:linear-gradient(135deg,var(--orange),var(--gold));color:#1a1006;transition:transform .12s,box-shadow .12s;box-shadow:0 6px 18px rgba(255,107,53,.25)}
+.btn.ghost{background:transparent;color:var(--orange);border:1.5px solid var(--orange);box-shadow:none}
+.res-actions{display:flex;gap:14px;justify-content:center;flex-wrap:wrap;margin-top:14px}
 .btn:hover{transform:translateY(-2px);box-shadow:0 10px 24px rgba(255,107,53,.35)}
 .btn:active{transform:translateY(0)}
 .btn.ghost{background:transparent;color:var(--gold);border:1px solid #4a4a7a;box-shadow:none}
@@ -930,6 +932,7 @@ function logoMarkup(meta,imgClass){
    ============================================================ */
 let remaining=BUDGET;
 let roster=[];          // [{name,sy,abbr,pct,cost,rating,pos,key,meta}]
+let shareCardData=null;  // snapshot of the last shown result, used by the share card
 let rolledGroups=[];    // the group object the user actually drew for each slot
 let pickedNames=new Set();
 let pickedPositions=new Set();   // natural-position indices already signed (one player per position)
@@ -1857,10 +1860,137 @@ function showResults(){
         '</div>';
     }
 
-    html+='<div class="center"><button class="btn" onclick="playAgain()">Play again</button></div>';
+    // snapshot what we just rendered so the share card draws from a stable copy
+    shareCardData={
+      w:yours.w, l:yours.l,
+      ppg:yours.ppg.toFixed(1), oppg:yours.oppg.toFixed(1),
+      gradeT:g.t, gradeC:g.c,
+      spent:fmtM(spent),
+      players:roster.filter(Boolean).map(p=>({
+        pos:POS_NAMES[(typeof p.slot==='number')?p.slot:p.pos],
+        name:p.name,
+        team:(p.meta&&p.meta.name)||p.abbr||'',
+        season:formatSeasonYear(p.sy),
+        cost:fmtM(p.cost)
+      }))
+    };
+    html+='<div class="res-actions">'+
+      '<button class="btn" onclick="shareResultCard()">Share result</button>'+
+      '<button class="btn ghost" onclick="playAgain()">Play again</button>'+
+      '</div>';
     el.innerHTML=html;
     if(samePicks){ try{ fireConfetti(); }catch(e){} }
   },40);
+}
+
+/* ============================================================
+   SHARE CARD — hand-drawn 1080x1350 PNG of the result. No external
+   images (team logos are cross-origin and would taint the canvas),
+   so the card is text-forward and exports cleanly everywhere.
+   ============================================================ */
+function _rr(ctx,x,y,w,h,r){r=Math.min(r,w/2,h/2);ctx.beginPath();
+  ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();}
+function _fit(ctx,text,maxW,weight,startPx,family,minPx){
+  let s=startPx;ctx.font=weight+' '+s+'px '+family;
+  while(s>minPx&&ctx.measureText(text).width>maxW){s-=2;ctx.font=weight+' '+s+'px '+family;}
+}
+function _ellip(ctx,text,maxW){
+  if(ctx.measureText(text).width<=maxW)return text;
+  let t=text;while(t.length>1&&ctx.measureText(t+'\u2026').width>maxW)t=t.slice(0,-1);
+  return t+'\u2026';
+}
+function _ls(ctx,v){try{ctx.letterSpacing=v;}catch(e){}}
+function buildShareCardCanvas(d){
+  const W=1080,H=1350,cv=document.createElement('canvas');cv.width=W;cv.height=H;
+  const ctx=cv.getContext('2d');
+  // background + top glow
+  const bg=ctx.createLinearGradient(0,0,W*0.4,H);
+  bg.addColorStop(0,'#1a1a3e');bg.addColorStop(0.55,'#0a0a1a');bg.addColorStop(1,'#050510');
+  ctx.fillStyle=bg;ctx.fillRect(0,0,W,H);
+  const glow=ctx.createRadialGradient(W/2,-120,40,W/2,-120,720);
+  glow.addColorStop(0,'rgba(255,107,53,0.20)');glow.addColorStop(1,'rgba(255,107,53,0)');
+  ctx.fillStyle=glow;ctx.fillRect(0,0,W,460);
+  ctx.strokeStyle='rgba(255,255,255,0.06)';ctx.lineWidth=2;_rr(ctx,28,28,W-56,H-56,30);ctx.stroke();
+  ctx.textAlign='center';ctx.textBaseline='alphabetic';
+  // header (gradient) + site
+  const grd=ctx.createLinearGradient(W/2-320,0,W/2+320,0);
+  grd.addColorStop(0,'#ff6b35');grd.addColorStop(0.5,'#ffd700');grd.addColorStop(1,'#ff6b35');
+  _ls(ctx,'10px');ctx.fillStyle=grd;ctx.font='700 66px Oswald, sans-serif';
+  ctx.fillText('DRAFT ROULETTE',W/2,142);
+  _ls(ctx,'6px');ctx.fillStyle='#7a7aa8';ctx.font='600 22px Oswald, sans-serif';
+  ctx.fillText('HOOPSMATIC.COM',W/2,184);
+  // record label + big W-L
+  _ls(ctx,'5px');ctx.fillStyle='#9a9ac8';ctx.font='600 26px Oswald, sans-serif';
+  ctx.fillText('MY SEASON',W/2,272);
+  _ls(ctx,'0px');ctx.fillStyle='#fff';ctx.font='700 150px Oswald, sans-serif';
+  ctx.fillText(d.w+' \u2013 '+d.l,W/2,406);
+  // grade pill
+  ctx.font='700 30px Oswald, sans-serif';
+  const pillW=ctx.measureText(d.gradeT).width+60,pillH=56,px=W/2-pillW/2,py=440;
+  ctx.save();ctx.globalAlpha=0.15;ctx.fillStyle=d.gradeC;_rr(ctx,px,py,pillW,pillH,28);ctx.fill();ctx.restore();
+  ctx.save();ctx.globalAlpha=0.55;ctx.strokeStyle=d.gradeC;ctx.lineWidth=2;_rr(ctx,px,py,pillW,pillH,28);ctx.stroke();ctx.restore();
+  ctx.fillStyle=d.gradeC;ctx.textBaseline='middle';ctx.fillText(d.gradeT,W/2,py+pillH/2+1);ctx.textBaseline='alphabetic';
+  // sub line
+  ctx.fillStyle='#8a8ab8';ctx.font='500 24px JetBrains Mono, monospace';
+  ctx.fillText(d.ppg+' \u2013 '+d.oppg+' PPG  \u00b7  '+d.spent+' spent',W/2,py+pillH+52);
+  // player rows
+  const tileH=108,gap=14,lx=72,rx=W-72,chipW=88,chipH=54;
+  const nameMaxW=(rx-160)-(lx+chipW+30);
+  let ty=600;
+  d.players.forEach(p=>{
+    ctx.fillStyle='rgba(255,255,255,0.03)';_rr(ctx,48,ty,W-96,tileH,16);ctx.fill();
+    const midY=ty+tileH/2;
+    // position chip
+    const chipX=lx,chipY=midY-chipH/2;
+    ctx.fillStyle='rgba(255,107,53,0.16)';_rr(ctx,chipX,chipY,chipW,chipH,12);ctx.fill();
+    ctx.fillStyle='#ff8a5c';ctx.font='700 28px Oswald, sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText(p.pos,chipX+chipW/2,midY+1);
+    // name + team-season
+    const tx=chipX+chipW+30;
+    ctx.textAlign='left';ctx.textBaseline='alphabetic';
+    ctx.fillStyle='#ffffff';_fit(ctx,p.name,nameMaxW,'600',40,'Oswald, sans-serif',26);
+    ctx.fillText(p.name,tx,midY-4);
+    ctx.fillStyle='#8080b0';ctx.font='500 22px JetBrains Mono, monospace';
+    ctx.fillText(_ellip(ctx,p.team+'  \u00b7  '+p.season,nameMaxW),tx,midY+30);
+    // salary
+    ctx.textAlign='right';ctx.textBaseline='middle';ctx.fillStyle='#ffd700';ctx.font='700 36px Oswald, sans-serif';
+    ctx.fillText(p.cost,rx,midY);
+    ctx.textAlign='left';ctx.textBaseline='alphabetic';
+    ty+=tileH+gap;
+  });
+  // footer
+  ctx.textAlign='center';ctx.fillStyle='#6a6a98';ctx.font='600 24px Oswald, sans-serif';
+  _ls(ctx,'2px');ctx.fillText('SPIN YOUR OWN FIVE AT HOOPSMATIC.COM',W/2,H-72);_ls(ctx,'0px');
+  return cv;
+}
+function _dataURLtoBlob(d){
+  const parts=d.split(',');const mime=(parts[0].match(/:(.*?);/)||[])[1]||'image/png';
+  const bin=atob(parts[1]);const u=new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);
+  return new Blob([u],{type:mime});
+}
+function _downloadBlob(blob){
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');a.href=url;a.download='draft-roulette.png';
+  document.body.appendChild(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),1500);
+}
+function shareResultCard(){
+  if(!shareCardData)return;
+  let blob;
+  try{
+    const cv=buildShareCardCanvas(shareCardData);
+    blob=_dataURLtoBlob(cv.toDataURL('image/png'));   // sync, keeps the click gesture for iOS share
+  }catch(e){console.warn('share card failed',e);alert('Could not build the image.');return;}
+  const file=new File([blob],'draft-roulette.png',{type:'image/png'});
+  const txt='I went '+shareCardData.w+'\u2013'+shareCardData.l+' in Draft Roulette. Spin your own five at HoopsMatic.com';
+  if(navigator.canShare&&navigator.canShare({files:[file]})){
+    navigator.share({files:[file],title:'My Draft Roulette result',text:txt})
+      .catch(err=>{if(err&&err.name==='AbortError')return;_downloadBlob(blob);});
+    return;
+  }
+  _downloadBlob(blob);
 }
 
 // re-roll the 82-game gauntlet against the same two squads (variance flavor)
