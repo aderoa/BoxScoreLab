@@ -42,9 +42,11 @@ body{background:linear-gradient(160deg,#1a1a3e 0%,#0a0a1a 55%,#050510 100%);back
 .war-panel{margin:8px 0 22px;padding:18px 20px;border-radius:14px;background:linear-gradient(160deg,rgba(30,42,92,.5),rgba(10,12,30,.5));border:1px solid #ffd70033;text-align:center}
 .war-hdr{font-family:'Oswald',sans-serif;font-weight:700;letter-spacing:2px;text-transform:uppercase;font-size:13px;color:#ffd700}
 .war-sub-yr{font-family:'Oswald',sans-serif;font-size:10px;letter-spacing:2px;color:#8a8ab8;text-transform:uppercase;margin-top:3px}
-.war-main{font-family:'Oswald',sans-serif;font-weight:700;font-size:46px;line-height:1.05;margin:12px 0 2px;color:#fff}
-.war-main small{display:block;font-size:11px;letter-spacing:2px;color:#9a9ac8;font-weight:600;text-transform:uppercase;margin-top:4px}
+.war-main{font-family:'Oswald',sans-serif;font-weight:700;font-size:68px;line-height:1;margin:6px 0 4px;color:#fff;letter-spacing:1px}
+.war-main small{display:block;font-size:12px;letter-spacing:2px;color:#9a9ac8;font-weight:600;text-transform:uppercase;margin-top:6px}
 .war-margin{font-family:'JetBrains Mono',monospace;font-size:14px;color:#cfcff0}
+.war-best{font-family:'Oswald',sans-serif;font-size:13px;letter-spacing:.4px;color:#bcbce6;margin-top:8px}
+.war-best b{color:#ffd700;font-weight:700}
 .war-note{font-family:'Oswald',sans-serif;font-size:12px;letter-spacing:.4px;color:#8a8ab8;margin-top:10px}
 .war-beat{color:#34d97a;font-weight:600}
 .war-five{font-family:'JetBrains Mono',monospace;font-size:11px;color:#6a6a98;margin-top:10px}
@@ -1697,9 +1699,22 @@ function warriorsBar(){
   _warBar=Math.max(mu+WARRIORS_Z*sd,real);
   return _warBar;
 }
+// The raw strength model compresses team quality (a median team sits only ~6.5 pts
+// below the 99.9th-pct wall), which over-credits weak teams. WALL_GAP_SCALE stretches
+// the gap to a realistic NBA spread so a roughly average team lands ~11 pts/game short
+// and wins ~18%, while keeping the beat-the-wall threshold (margin>0) exactly where it
+// was — scaling never changes the sign, so it stays a ~1-in-1000 feat. Display-only:
+// GAME_SD and the season sim are untouched. Raise it to make the Warriors tougher.
+const WALL_GAP_SCALE=1.8;
 function vsWarriors(lineup){
-  const margin=lineupStrength(lineup)-warriorsBar();   // per-game point differential (yours minus theirs)
+  const margin=(lineupStrength(lineup)-warriorsBar())*WALL_GAP_SCALE;   // scaled per-game differential (yours minus theirs)
   return {winPct:normCdf(margin/GAME_SD),margin};
+}
+// Their five in full names, ordered shortest to tallest by the game's own height data.
+function warriorsFiveNames(){
+  return warriorsFive().filter(Boolean).slice()
+    .sort((a,b)=>(heightOf(a)||0)-(heightOf(b)||0))
+    .map(p=>p.name).join(', ');
 }
 
 function gradeFor(w){
@@ -1905,19 +1920,20 @@ function showResults(){
 
     // 73-9 Warriors wall
     const war=vsWarriors(roster);
-    const _wp=war.winPct*100;
-    const winPctStr=_wp<1?'<1%':(_wp<10?_wp.toFixed(1)+'%':Math.round(_wp)+'%');
+    const fmtPct=p=>{const v=p*100;return v<0.01?'<0.01%':v.toFixed(2)+'%';};
+    const winPctStr=fmtPct(war.winPct);
     const marginStr=(war.margin>=0?'+':'')+war.margin.toFixed(1)+' pts/game';
     const beatWall=war.margin>0;
-    const warFive=warriorsFive().filter(Boolean).map(p=>p.name.split(' ').slice(-1)[0]).join(', ');
+    const warFive=warriorsFiveNames();
+    const bestWar=opt?vsWarriors(allocateSlots(opt.slice())):null;
     const warNote=beatWall
       ? 'You cracked the wall. Only about 1 in 1,000 drawn teams beats the 73-9 Warriors.'
       : 'Beating them takes a top 0.1% team. You are '+(-war.margin).toFixed(1)+' pts/game short.';
     const warPanel='<div class="war-panel">'+
-      '<div class="war-hdr">vs the 73-9 Warriors</div>'+
-      '<div class="war-sub-yr">2015-16 Golden State · the wall</div>'+
+      '<div class="war-hdr">vs the 73-9 Warriors · the wall</div>'+
       '<div class="war-main">'+winPctStr+'<small>of games won</small></div>'+
       '<div class="war-margin">avg margin '+marginStr+'</div>'+
+      (bestWar?'<div class="war-best">Best squad you could\'ve signed would win <b>'+fmtPct(bestWar.winPct)+'</b></div>':'')+
       '<div class="war-note'+(beatWall?' war-beat':'')+'">'+warNote+'</div>'+
       (warFive?'<div class="war-five">their five: '+warFive+'</div>':'')+
     '</div>';
@@ -1958,6 +1974,8 @@ function showResults(){
       ppg:yours.ppg.toFixed(1), oppg:yours.oppg.toFixed(1),
       gradeT:g.t, gradeC:g.c,
       spent:fmtM(spent),
+      warPct:winPctStr,
+      warSub:beatWall?('WALL CRACKED · '+marginStr.toUpperCase()):((-war.margin).toFixed(1)+' PTS/GAME SHORT'),
       players:roster.filter(Boolean).map(p=>({
         pos:POS_NAMES[(typeof p.slot==='number')?p.slot:p.pos],
         name:p.name,
@@ -2012,20 +2030,18 @@ function buildShareCardCanvas(d){
   ctx.fillText('DRAFT ROULETTE',W/2,142);
   _ls(ctx,'6px');ctx.fillStyle='#7a7aa8';ctx.font='600 22px Oswald, sans-serif';
   ctx.fillText('HOOPSMATIC.COM',W/2,184);
-  // record label + big W-L
-  _ls(ctx,'5px');ctx.fillStyle='#9a9ac8';ctx.font='600 26px Oswald, sans-serif';
-  ctx.fillText('MY SEASON',W/2,272);
-  _ls(ctx,'0px');ctx.fillStyle='#fff';ctx.font='700 150px Oswald, sans-serif';
-  ctx.fillText(d.w+' \u2013 '+d.l,W/2,406);
-  // grade pill
-  ctx.font='700 30px Oswald, sans-serif';
-  const pillW=ctx.measureText(d.gradeT).width+60,pillH=56,px=W/2-pillW/2,py=440;
-  ctx.save();ctx.globalAlpha=0.15;ctx.fillStyle=d.gradeC;_rr(ctx,px,py,pillW,pillH,28);ctx.fill();ctx.restore();
-  ctx.save();ctx.globalAlpha=0.55;ctx.strokeStyle=d.gradeC;ctx.lineWidth=2;_rr(ctx,px,py,pillW,pillH,28);ctx.stroke();ctx.restore();
-  ctx.fillStyle=d.gradeC;ctx.textBaseline='middle';ctx.fillText(d.gradeT,W/2,py+pillH/2+1);ctx.textBaseline='alphabetic';
-  // sub line
-  ctx.fillStyle='#8a8ab8';ctx.font='500 24px JetBrains Mono, monospace';
-  ctx.fillText(d.ppg+' \u2013 '+d.oppg+' PPG  \u00b7  '+d.spent+' spent',W/2,py+pillH+52);
+  // hero: win% vs the 73-9 Warriors (the headline number)
+  _ls(ctx,'4px');ctx.fillStyle='#ffd700';ctx.font='700 26px Oswald, sans-serif';
+  ctx.fillText('VS THE 73-9 WARRIORS',W/2,256);
+  _ls(ctx,'0px');ctx.fillStyle='#fff';_fit(ctx,d.warPct,W-200,'700',150,'Oswald, sans-serif',86);
+  ctx.fillText(d.warPct,W/2,392);
+  _ls(ctx,'2px');ctx.fillStyle='#9a9ac8';ctx.font='600 22px Oswald, sans-serif';
+  ctx.fillText('OF GAMES WON  \u00b7  '+d.warSub,W/2,432);_ls(ctx,'0px');
+  // season summary (secondary)
+  ctx.fillStyle='#8a8ab8';ctx.font='500 22px JetBrains Mono, monospace';
+  ctx.fillText('MY SEASON  '+d.w+' \u2013 '+d.l+'  \u00b7  '+d.gradeT,W/2,500);
+  ctx.fillStyle='#6f6f9c';ctx.font='500 20px JetBrains Mono, monospace';
+  ctx.fillText(d.ppg+' \u2013 '+d.oppg+' PPG  \u00b7  '+d.spent+' spent',W/2,532);
   // player rows
   const tileH=108,gap=14,lx=72,rx=W-72,chipW=88,chipH=54;
   const nameMaxW=(rx-160)-(lx+chipW+30);
