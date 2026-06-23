@@ -35,7 +35,7 @@ body{background:linear-gradient(160deg,#1a1a3e 0%,#0a0a1a 55%,#050510 100%);back
 .res-actions{display:flex;gap:14px;justify-content:center;flex-wrap:wrap;margin-top:14px}
 .share-modal{position:fixed;inset:0;z-index:10000;background:rgba(5,5,16,.82);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;padding:20px;animation:fadeIn .2s}
 .share-box{position:relative;max-width:min(92vw,440px);display:flex;flex-direction:column;align-items:center;gap:16px}
-.share-img{width:100%;max-height:44vh;object-fit:contain;border-radius:14px;box-shadow:0 18px 50px rgba(0,0,0,.6)}
+.share-img{width:100%;max-height:52vh;object-fit:contain;border-radius:14px;box-shadow:0 18px 50px rgba(0,0,0,.6)}
 .share-btns{display:flex;gap:12px;flex-wrap:wrap;justify-content:center}
 .share-x{position:absolute;top:-16px;right:-16px;width:40px;height:40px;border-radius:50%;border:none;background:#1a1a3e;color:#fff;font-size:24px;line-height:1;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.5)}
 .share-msg{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--green);min-height:16px;text-align:center}
@@ -737,7 +737,7 @@ let WAR2016=new Set();   // 2015-16 Warriors, removed from the draftable pool
 let teams=[[],[]], adjusted=[[],[]], teamNames=["YOUR SQUAD","OPPONENT"];
 
 // --- tunable game constants (easy to tweak / move to a config later) ---
-const BUILD      = "v27 · fix Amare/Shaq position split, branded social buttons · 2026-06-22";
+const BUILD      = "v28 · fix apostrophe pick (De'Aaron Fox), bigger sharper card, drop More button · 2026-06-22";
 // Where a shared squad link points. This must be a page that serves THIS game's
 // HTML (it reads the ?sq= payload client-side). Until hoopsmatic.com/73-9 serves
 // this file, shared links will 404 — change this one line back to the GitHub Pages
@@ -1159,8 +1159,8 @@ function renderLanded(group){
         const tooFar=p.cost>remaining+1;
         const flexed=naturalPos(p)!==pos;
         const cls="pick-card"+(tooFar?" tooFar":"")+(flexed?" flexed":"");
-        const onclick=tooFar?"":(' onclick="pickPlayer(\''+group.key+'\',\''+escapeHtmlS(p.name).replace(/'/g,"\\'")+'\')"');
-        cells+='<div class="'+cls+'"'+onclick+'>'+
+        const pickAttrs=tooFar?"":(' data-pick="1" data-key="'+escapeHtmlS(group.key)+'" data-name="'+escapeHtmlS(p.name)+'"');
+        cells+='<div class="'+cls+'"'+pickAttrs+'>'+
           '<div class="pc-top"><span class="pc-mpg">'+p.mpg.toFixed(1)+' MPG</span>'+(flexed?'<span class="pc-flex" title="Natural '+POS_NAMES[naturalPos(p)]+'">'+POS_NAMES[naturalPos(p)]+'</span>':'')+'</div>'+
           '<div class="pc-name">'+escapeHtmlS(p.name)+'</div>'+
           '<div class="pc-acc">'+accoladeBadges(p.name,group.sy)+'</div>'+
@@ -1181,6 +1181,7 @@ function renderLanded(group){
     cards+
     (anySelectable?'':'<div class="center"><button class="btn" onclick="spin()">Spin again</button></div>');
   el.classList.remove("hidden");
+  el.querySelectorAll('.pick-card[data-pick]').forEach(c=>{ c.onclick=()=>pickPlayer(c.dataset.key,c.dataset.name); });
   $("reelHint").textContent="Landed: "+m.name+" "+seasonStr;
   $("spinBtn").disabled=true;
   if(!anySelectable){ setTimeout(()=>{ if(!spinning && rosterCount()<SLOTS) spin(); },900); }
@@ -2310,19 +2311,19 @@ function buildShareCardCanvas(d){
   grd.addColorStop(0,'#ff6b35');grd.addColorStop(0.5,'#ffd700');grd.addColorStop(1,'#ff6b35');
   _ls(ctx,'2px');ctx.fillStyle=grd;ctx.font='700 100px Oswald, sans-serif';
   ctx.fillText('73-9',W/2,170);
-  _ls(ctx,'6px');ctx.fillStyle='#7a7aa8';ctx.font='600 22px Oswald, sans-serif';
+  _ls(ctx,'6px');ctx.fillStyle='#9494be';ctx.font='600 22px Oswald, sans-serif';
   ctx.fillText('HOOPSMATIC.COM',W/2,206);
   // hero: win% vs the 2015-16 Warriors (the headline number)
-  _ls(ctx,'4px');ctx.fillStyle='#ffd700';ctx.font='700 26px Oswald, sans-serif';
+  _ls(ctx,'4px');ctx.fillStyle='#ffd84d';ctx.font='700 30px Oswald, sans-serif';
   ctx.fillText('VS THE 2015-16 WARRIORS',W/2,262);
   _ls(ctx,'0px');ctx.fillStyle='#fff';_fit(ctx,d.warPct,W-200,'700',150,'Oswald, sans-serif',86);
   ctx.fillText(d.warPct,W/2,392);
-  _ls(ctx,'2px');ctx.fillStyle='#9a9ac8';ctx.font='600 22px Oswald, sans-serif';
+  _ls(ctx,'2px');ctx.fillStyle='#c6c6ec';ctx.font='600 24px Oswald, sans-serif';
   ctx.fillText('OF GAMES WON  \u00b7  '+d.warSub,W/2,432);_ls(ctx,'0px');
   // season summary (secondary)
-  ctx.fillStyle='#8a8ab8';ctx.font='500 22px JetBrains Mono, monospace';
+  ctx.fillStyle='#bcbce0';ctx.font='600 23px JetBrains Mono, monospace';
   ctx.fillText('MY SEASON  '+d.w+' \u2013 '+d.l+'  \u00b7  '+d.gradeT,W/2,500);
-  ctx.fillStyle='#6f6f9c';ctx.font='500 20px JetBrains Mono, monospace';
+  ctx.fillStyle='#9a9ac8';ctx.font='500 21px JetBrains Mono, monospace';
   ctx.fillText(d.ppg+' \u2013 '+d.oppg+' PPG  \u00b7  '+d.spent+' spent',W/2,532);
   // player rows
   const tileH=108,gap=14,lx=72,rx=W-72,chipW=88,chipH=54;
@@ -2341,7 +2342,7 @@ function buildShareCardCanvas(d){
     ctx.textAlign='left';ctx.textBaseline='alphabetic';
     ctx.fillStyle='#ffffff';_fit(ctx,p.name,nameMaxW,'600',40,'Oswald, sans-serif',26);
     ctx.fillText(p.name,tx,midY-4);
-    ctx.fillStyle='#8080b0';ctx.font='500 22px JetBrains Mono, monospace';
+    ctx.fillStyle='#a8a8d0';ctx.font='500 23px JetBrains Mono, monospace';
     // team in gray, season highlighted so 2000-01 vs 2004-05 reads at a glance
     const _sep='  \u00b7  ';
     const _seasonW=ctx.measureText(p.season).width;
@@ -2357,7 +2358,7 @@ function buildShareCardCanvas(d){
     ty+=tileH+gap;
   });
   // footer
-  ctx.textAlign='center';ctx.fillStyle='#6a6a98';ctx.font='600 24px Oswald, sans-serif';
+  ctx.textAlign='center';ctx.fillStyle='#8e8eb6';ctx.font='600 24px Oswald, sans-serif';
   _ls(ctx,'2px');ctx.fillText('SPIN YOUR OWN FIVE AT HOOPSMATIC.COM',W/2,H-72);_ls(ctx,'0px');
   return cv;
 }
@@ -2430,7 +2431,6 @@ function _openShareModal(durl,blob){
     '<div class="share-btns">'+
       '<button class="btn" data-act="download">Download image</button>'+
       (canCopy?'<button class="btn ghost" data-act="copy">Copy image</button>':'')+
-      (canShare?'<button class="btn ghost" data-act="share">More\u2026</button>':'')+
     '</div>'+
     '<div class="share-msg"></div></div>';
   document.body.appendChild(ov);
