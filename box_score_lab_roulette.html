@@ -724,7 +724,7 @@ let WAR2016=new Set();   // 2015-16 Warriors, removed from the draftable pool
 let teams=[[],[]], adjusted=[[],[]], teamNames=["YOUR SQUAD","OPPONENT"];
 
 // --- tunable game constants (easy to tweak / move to a config later) ---
-const BUILD      = "v24 · shareable squad link + season clarity · 2026-06-22";
+const BUILD      = "v25 · 73-9 brand, 2015-16 label, tougher wall, 2x card, 100+ notes · 2026-06-22";
 // Where a shared squad link points. Swap this one line to the hoopsmatic.com URL
 // when the game moves there; the ?sq= payload format stays identical.
 const SHARE_BASE_URL = "https://aderoa.github.io/BoxScoreLab/box_score_lab_roulette.html";
@@ -740,7 +740,7 @@ function buildShareURL(){
 }
 function shareText(){
   const wp=shareCardData?shareCardData.warPct:'';
-  return 'My team beat the 73-9 Warriors '+wp+' of the time. Think you can build a squad that does better?';
+  return 'My team beat the 2015-16 Warriors '+wp+' of the time. Think you can build a squad that does better?';
 }
 const CAP_2026   = 165_000_000;   // 2026-27 projected NBA salary cap ($165M, ESPN/Shams Mar 2026)
 const BUDGET     = 120_000_000;   // bankroll
@@ -1725,15 +1725,21 @@ function warriorsBar(){
 // and wins ~18%, while keeping the beat-the-wall threshold (margin>0) exactly where it
 // was — scaling never changes the sign, so it stays a ~1-in-1000 feat. Display-only:
 // GAME_SD and the season sim are untouched. Raise it to make the Warriors tougher.
-const WALL_GAP_SCALE=1.8;
+const WALL_GAP_SCALE=3.3;
 function vsWarriors(lineup){
   const margin=(lineupStrength(lineup)-warriorsBar())*WALL_GAP_SCALE;   // scaled per-game differential (yours minus theirs)
   return {winPct:normCdf(margin/GAME_SD),margin};
 }
-// Their five in full names, ordered shortest to tallest by the game's own height data.
+// Their five in the recognizable Death Lineup order (Green as the small-ball 5).
+// Any unexpected pick falls to the end, ordered by height.
 function warriorsFiveNames(){
+  const ORDER=['stephen curry','klay thompson','andre iguodala','harrison barnes','draymond green'];
   return warriorsFive().filter(Boolean).slice()
-    .sort((a,b)=>(heightOf(a)||0)-(heightOf(b)||0))
+    .sort((a,b)=>{
+      const ia=ORDER.indexOf(normName(a.name)),ib=ORDER.indexOf(normName(b.name));
+      const ra=ia<0?99:ia,rb=ib<0?99:ib;
+      return ra!==rb?ra-rb:((heightOf(a)||0)-(heightOf(b)||0));
+    })
     .map(p=>p.name).join(', ');
 }
 
@@ -1747,76 +1753,291 @@ function gradeFor(w){
 // Roster-construction critique (Forge-style). Reads the data we have on each
 // player — position, rebounding, assists (creation proxy), RTG (focal-point
 // proxy) — and emits short, basketball-savvy notes about structural flaws.
+// Pick one phrasing at random; shuffle a pool. Variety so repeat plays read fresh.
+function _pickN(a){return a[(Math.random()*a.length)|0];}
+function _shufN(a){a=a.slice();for(let i=a.length-1;i>0;i--){const j=(Math.random()*(i+1))|0;const t=a[i];a[i]=a[j];a[j]=t;}return a;}
+// Returns an array of {tone:'warn'|'note'|'good', text}. Structural warnings come
+// first (capped), then a random mix of flavor/positive notes, so the chips vary
+// from one result to the next instead of repeating the same line.
 function lineupNotes(lineup){
   const L=lineup.filter(Boolean);
   const ct=[0,0,0,0,0];
-  let creators=0, focal=false, sumReb=0, sumPpg=0, scorers=0, shooters=0, sumAst=0;
-  const misfits=[];
+  let creators=0,focal=false,sumReb=0,sumPpg=0,sumAst=0,scorers=0,shooters=0;
+  let spent=0,maxCost=0;
+  const misfits=[],years=[],heights=[],franch={};
   L.forEach(p=>{
     if(p.pos>=0&&p.pos<5)ct[p.pos]++;
     if((p.apg||0)>=4.5)creators++;
-    if((p.apg||0)>=6)sumAst+=1;
     if((p.rating||0)>=18)focal=true;
     if((p.ppg||0)>=20)scorers++;
     if((p.fgpct||0)>=47)shooters++;
-    sumReb+=(p.rpg||0); sumPpg+=(p.ppg||0);
-    // misplacement: a player whose assigned slot differs from natural position
-    if(typeof p.slot==='number' && p.slot!==p.pos){
-      const dist=Math.abs(p.slot-p.pos);
-      misfits.push({name:p.name, from:POS_NAMES[p.pos], to:POS_NAMES[p.slot], dist});
+    sumReb+=(p.rpg||0);sumPpg+=(p.ppg||0);sumAst+=(p.apg||0);
+    spent+=(p.cost||0);if((p.cost||0)>maxCost)maxCost=p.cost||0;
+    if(typeof p.sy==='number')years.push(p.sy);
+    const h=heightOf(p);if(h)heights.push(h);
+    if(p.abbr)franch[p.abbr]=(franch[p.abbr]||0)+1;
+    if(typeof p.slot==='number'&&p.slot!==p.pos){
+      misfits.push({name:p.name,from:POS_NAMES[p.pos],to:POS_NAMES[p.slot],dist:Math.abs(p.slot-p.pos)});
     }
   });
-  const guards=ct[0]+ct[1], wings=ct[2], bigs=ct[3]+ct[4];
-  const out=[];
+  const guards=ct[0]+ct[1],bigs=ct[3]+ct[4];
+  const warn=[],flavor=[];
+  const W=t=>warn.push(t), F=(tone,t)=>flavor.push({tone,text:t});
 
-  // --- MISPLACEMENT FIRST (the user controls this via drag-drop) ---
+  // ---------- structural warnings ----------
   if(misfits.length){
     misfits.sort((a,b)=>b.dist-a.dist);
-    const big=misfits.filter(m=>m.dist>=3);     // e.g. C at PG
-    const mid=misfits.filter(m=>m.dist===2);
-    if(big.length){
-      const m=big[0];
-      out.push("Badly out of position — "+m.name+" is a natural "+m.from+" stuck at "+m.to+", a mismatch on both ends");
-    }
-    if(mid.length){
-      const m=mid[0];
-      out.push("Out of position — "+m.name+" ("+m.from+") is playing "+m.to+", giving up size or quickness");
-    }
+    const big=misfits.find(m=>m.dist>=3),mid=misfits.find(m=>m.dist===2);
     const minor=misfits.filter(m=>m.dist===1);
-    if(minor.length && !big.length && !mid.length){
-      out.push("Slightly off-position — "+minor.map(m=>m.name+" at "+m.to).slice(0,2).join(" and ")+", a manageable stretch");
+    if(big)W(_pickN([
+      'Badly out of position: '+big.name+' is a natural '+big.from+' marooned at '+big.to+', a mismatch on both ends.',
+      big.name+' at '+big.to+' is a fish out of water, a career '+big.from+' giving up everything physically.',
+      'Square peg, round hole: '+big.name+' ('+big.from+') has no business at '+big.to+'.',
+      big.name+' is miscast at '+big.to+'. He is a '+big.from+', and it will show on both ends.',
+      'Positional disaster: '+big.name+' dragged from '+big.from+' all the way to '+big.to+'.'
+    ]));
+    if(mid)W(_pickN([
+      'Out of position: '+mid.name+' ('+mid.from+') is playing '+mid.to+', giving up size or quickness.',
+      mid.name+' is stretched from '+mid.from+' to '+mid.to+', a tougher cover than it looks.',
+      'Awkward fit: '+mid.name+' at '+mid.to+' when he is really a '+mid.from+'.',
+      mid.name+' has to fake it at '+mid.to+', a natural '+mid.from+'.',
+      'Reaching here: '+mid.name+' ('+mid.from+') slotted up to '+mid.to+'.'
+    ]));
+    if(minor.length&&!big&&!mid){
+      const lst=minor.map(m=>m.name+' at '+m.to).slice(0,2).join(' and ');
+      W(_pickN([
+        'Slightly off position: '+lst+', a manageable stretch.',
+        'Minor stretch: '+lst+', nothing fatal.',
+        lst+' is a small ask, the kind good players absorb.',
+        'A touch out of spot: '+lst+', livable.',
+        'Close enough: '+lst+', a forgivable bend.'
+      ]));
     }
   }
+  if(bigs===0)W(_pickN([
+    'No size: an all-perimeter group gets pounded on the glass and at the rim.',
+    'Zero bigs, so who guards the paint and who rebounds?',
+    'Smallball to a fault, nobody to protect the rim or finish over length.',
+    'All guards and wings, no anchor. The boards will be a problem.',
+    'No center of gravity, this five gives up the interior entirely.',
+    'Undersized everywhere, a tall, physical team would feast inside.'
+  ]));
+  else if(bigs===1)W(_pickN([
+    'Thin frontcourt: just one true big to anchor the paint and rebound.',
+    'One big doing all the dirty work, foul trouble would be fatal.',
+    'Light up front, a single anchor inside and little behind him.',
+    'Your one big had better stay out of foul trouble.',
+    'Frontcourt is one deep, rebounding falls on a single set of shoulders.',
+    'Only one real big, so the glass and the rim are a coin flip.'
+  ]));
+  if(guards===0)W(_pickN([
+    'No backcourt: nobody to bring it up or break a defense down off the dribble.',
+    'Who runs the offense? There is no real guard here.',
+    'No ball handler, this group will labor just to get into its sets.',
+    'Zero guards means ball pressure could turn you over at will.',
+    'No engine in the backcourt, so the offense has to come from the post.'
+  ]));
+  else if(ct[0]>=3)W(_pickN([
+    'Point-guard heavy: three lead guards sharing one basketball.',
+    'Three primary handlers, one ball. Somebody plays off it.',
+    'Too many quarterbacks, a glut of point guards muddies the pecking order.',
+    'A backcourt of floor generals, none of them spacing the floor.',
+    'Three point guards is a lot of dribbling and not much size.'
+  ]));
+  else if(guards>=4)W(_pickN([
+    'Guard-heavy: undersized on the wing and inside.',
+    'Four guards is fun until a big wing posts you up all night.',
+    'A jitterbug backcourt with no length behind it.',
+    'Lots of quickness, very little size. Switch everything or get killed inside.',
+    'Guard-stacked and small, this group lives and dies on the perimeter.'
+  ]));
+  if(bigs>=4)W(_pickN([
+    'Frontcourt-clogged: four bigs with little spacing or perimeter creation.',
+    'Four bigs in the paint, no room to breathe and no one to bring it up.',
+    'A traffic jam inside, with nobody to space the floor.',
+    'Too much size, not enough handle. The lane will be a parking lot.',
+    'Big and slow, four frontcourt players is a spacing nightmare.'
+  ]));
+  else if(bigs>=3&&guards<=1)W(_pickN([
+    'Big-heavy: short on ball-handling and shooting around the bigs.',
+    'Plenty of beef inside, not enough creation outside.',
+    'Three bigs and barely a guard, so who initiates?',
+    'Size for days, spacing for none.',
+    'A bruising frontcourt with a thin backcourt to feed it.'
+  ]));
+  if(creators===0)W(_pickN([
+    'No primary creator: no one to reliably generate a good shot.',
+    'Nobody breaks a defense down, every bucket will be earned the hard way.',
+    'No engine, this group has no natural shot creator.',
+    'Who makes the play when it stalls? There is no answer here.',
+    'No setup man, so late-clock possessions could get ugly.'
+  ]));
+  else if(creators>=3)W(_pickN([
+    'Pass-first everywhere: lots of playmaking, but who finishes?',
+    'Plenty of passers, light on closers.',
+    'Everybody wants to set the table, nobody wants the last bite.',
+    'A roster of distributors, someone has to be selfish late.',
+    'Ball movement galore, finishing punch to be determined.'
+  ]));
+  if(!focal)W(_pickN([
+    'No focal scorer: a role-player committee with a limited ceiling.',
+    'Solid pieces, no star. The ceiling is capped.',
+    'Nobody to run the offense through in crunch time.',
+    'A committee, not a centerpiece. Where do the buckets come from late?',
+    'No alpha scorer, so the margin for error is thin.'
+  ]));
+  else if(scorers>=3)W(_pickN([
+    'Loaded with scorers: shot distribution and touches could get crowded.',
+    'Three 20-point scorers, one basketball. Egos optional.',
+    'A lot of mouths to feed, touches will be a nightly negotiation.',
+    'Bucket-getters everywhere, a great problem until it is not.',
+    'Three go-to scorers means somebody is taking a back seat.',
+    'Plenty of firepower, but only one ball to go around.'
+  ]));
+  if(shooters===0)W(_pickN([
+    'Poor shooting efficiency: no high-percentage finisher to lean on.',
+    'Nobody shoots a good clip, so the offense has to grind.',
+    'Bricklayers, this group will leave points at the rim and the line.',
+    'Efficiency is a question mark, with no knockdown shooter to trust.',
+    'Cold-shooting risk, no one here scores at a comfortable rate.'
+  ]));
+  if(bigs>=2&&sumReb<28)W(_pickN([
+    'Soft on the glass: the bigs are not crashing the boards.',
+    'Size without rebounding, which defeats the purpose.',
+    'Two bigs, modest rebounding. Second chances will hurt you.',
+    'These bigs would rather float than crash, the glass suffers.',
+    'Tall but not physical, so the boards stay up for grabs.'
+  ]));
 
-  // --- size / rim protection ---
-  if(bigs===0) out.push("No size — an all-perimeter group gets pounded on the glass and at the rim");
-  else if(bigs===1) out.push("Thin frontcourt — just one true big to anchor the paint and rebound");
-  // --- backcourt shape ---
-  if(guards===0) out.push("No backcourt — nobody to bring it up or break a defense down off the dribble");
-  else if(ct[0]>=3) out.push("Point-guard heavy — three lead guards sharing one basketball");
-  else if(guards>=4) out.push("Guard-heavy — undersized on the wing and inside");
-  // --- frontcourt glut ---
-  if(bigs>=4) out.push("Frontcourt-clogged — four bigs with little spacing or perimeter creation");
-  else if(bigs>=3&&guards<=1) out.push("Big-heavy — short on ball-handling and shooting around the bigs");
-  // --- creation & ceiling ---
-  if(creators===0) out.push("No primary creator — no one to reliably generate a good shot");
-  else if(creators>=3) out.push("Pass-first everywhere — lots of playmaking but watch for who finishes");
-  if(!focal) out.push("No focal scorer — a role-player committee with a limited ceiling");
-  else if(scorers>=3) out.push("Loaded with scorers — shot distribution and touches could get crowded");
-  // --- shooting efficiency ---
-  if(shooters===0) out.push("Poor shooting efficiency — no high-percentage finisher to lean on");
-  // --- rebounding ---
-  if(bigs>=2&&sumReb<28) out.push("Soft on the glass — the bigs aren't crashing the boards");
-  // --- positive summary when nothing's wrong ---
-  if(!out.length) out.push("Well-rounded — every man in his natural spot, with size, creation, and a scoring focal point all covered");
-  return out;
+  // ---------- flavor / neutral / positive ----------
+  const dec=y=>(Math.floor((y-1)/10)*10)+'s';
+  if(years.length){
+    const minY=Math.min.apply(null,years),maxY=Math.max.apply(null,years),span=maxY-minY;
+    if(span>=25)F('note',_pickN([
+      'Time-machine five, these careers span the '+dec(minY)+' to the '+dec(maxY)+', eras that never shared a floor.',
+      'Cross-generational squad, from the '+dec(minY)+' to the '+dec(maxY)+'.',
+      'Wormhole roster, a '+dec(minY)+' name lining up next to a '+dec(maxY)+' one.',
+      'Different NBAs entirely, the '+dec(minY)+' through the '+dec(maxY)+', all in one lineup.',
+      'A pickup game across the decades, the '+dec(minY)+' to the '+dec(maxY)+'.'
+    ]));
+    else if(span<=6)F('note',_pickN([
+      'Period piece, all five are snapshots of the same NBA era.',
+      'One-era five, a tidy slice of a single moment in league history.',
+      'Same generation across the board, no time travel required.',
+      'These guys could have actually shared a league.'
+    ]));
+  }
+  const share=spent>0?maxCost/spent:0;
+  if(share>=0.42)F('note',_pickN([
+    'Star-and-scrubs build, one big contract with role players around it.',
+    'Top-heavy books, one salary eats the budget and the rest are bargains.',
+    'A superstar and his supporting cast, by the numbers.',
+    'One max, four minimums. Boom or bust.',
+    'Most of the money on one man, the rest is value hunting.'
+  ]));
+  else if(maxCost>0&&share<=0.28)F('note',_pickN([
+    'Evenly funded, no single contract dominates the books.',
+    'Balanced payroll, five contributors and no anchor salary.',
+    'Spread the wealth, the money is shared across the five.',
+    'No single star price tag, just a balanced ledger.'
+  ]));
+  const unspent=BUDGET-spent;
+  if(unspent>=12000000)F('note',_pickN([
+    'Money left on the table, about '+fmtM(unspent)+' unspent. You could have splurged.',
+    'Penny-pincher build, '+fmtM(unspent)+' still in the bank.',
+    'Plenty of cap room to spare, '+fmtM(unspent)+' unused.',
+    'You came in well under budget, '+fmtM(unspent)+' to spare.'
+  ]));
+  else if(unspent<=2500000)F('note',_pickN([
+    'Capped out, you used nearly every available dollar.',
+    'Right up against the budget, no wiggle room left.',
+    'All in, barely a dollar of cap space unspent.',
+    'You spent it down to the last dollar.'
+  ]));
+  if(sumReb>=42)F('good',_pickN([
+    'Glass-cleaning machine, this group ends defensive possessions.',
+    'The boards belong to you, second chances will be rare.',
+    'Monster on the glass, a rebounding edge most nights.',
+    'Rebounding is a clear strength here.',
+    'Nobody is out-working this lineup on the glass.'
+  ]));
+  if(shooters>=4)F('good',_pickN([
+    'Surgical shooting, multiple high-percentage scorers to space the floor.',
+    'Spacing for days, defenders cannot help off anybody.',
+    'A shooting clinic, efficient bucket-getters across the board.',
+    'Floor-spacing five, shooters at nearly every spot.',
+    'Defenses will be stretched thin chasing all this shooting.'
+  ]));
+  if(creators>=2&&sumAst>=18)F('good',_pickN([
+    'Ball movement, multiple real playmakers keep the offense humming.',
+    'The ball will find the open man with this group.',
+    'Unselfish by design, with passing from several spots.',
+    'Pretty basketball, the rock should not stick here.',
+    'Plenty of vision, the offense flows through more than one set of hands.'
+  ]));
+  const topFr=Object.keys(franch).find(k=>franch[k]>=2);
+  if(topFr){
+    const tm=(L.find(p=>p.abbr===topFr)||{}).meta;const nm=(tm&&tm.name)?tm.name:topFr;
+    F('note',_pickN([
+      'Hometown flavor, two '+nm+' alums in the same five.',
+      'A little '+nm+' reunion in this lineup.',
+      'Two ex-'+nm+' players sharing a floor again.',
+      nm+' loyalty, a pair from the same franchise.',
+      'Old teammates energy, two '+nm+' names together.'
+    ]));
+  }
+  if(sumPpg>=88)F('note',_pickN([
+    'Bucket parade, this five projects to fill it up.',
+    'Offense will not be the issue, the points are everywhere.',
+    'Scoreboard-melting potential, lots of scoring punch.',
+    'Run-and-gun firepower, this group can put up numbers.',
+    'A high-octane five that should light the scoreboard.'
+  ]));
+  else if(sumPpg<=58)F('note',_pickN([
+    'Defense-or-bust, the offense will have to grind for everything.',
+    'Light on scoring, this group has to win ugly.',
+    'Points will come hard, so the defense had better travel.',
+    'Not much scoring pop, every bucket is a project.'
+  ]));
+  if(heights.length>=4){
+    const tall=Math.max.apply(null,heights),short=Math.min.apply(null,heights);
+    if(short>=78)F('note',_pickN([
+      'Towering five, not a small man in the bunch.',
+      'Length everywhere, a tall and rangy group.',
+      'Size at every spot, this lineup plays big.',
+      'A forest of arms, nobody here is short.'
+    ]));
+    else if(tall<=78)F('note',_pickN([
+      'Pocket-sized, quickness over length all the way down.',
+      'A small, scrappy five that has to scheme around size.',
+      'Speed kills here, because the size sure does not.',
+      'Undersized but feisty, this group plays small on purpose.'
+    ]));
+  }
+
+  // ---------- assemble: warnings first (cap 2), then random flavor to 3 total ----------
+  const chosen=warn.slice(0,2).map(t=>({tone:'warn',text:t}));
+  const pool=_shufN(flavor);
+  while(chosen.length<3&&pool.length)chosen.push(pool.shift());
+  if(!chosen.length)chosen.push({tone:'good',text:_pickN([
+    'Well-rounded, every man in his natural spot with size, creation, and a scoring focal point covered.',
+    'No holes here, balanced, well-positioned, and built to compete.',
+    'Clean build, the right players in the right spots.',
+    'Hard to poke a hole in this one, it checks every box.',
+    'Textbook construction, size, shooting, and creation all accounted for.',
+    'A sound five with no obvious weakness to attack.'
+  ])});
+  return chosen;
 }
 function notesHTML(lineup){
   const notes=lineupNotes(lineup);
-  const clean=notes.length===1&&/^Well-rounded/.test(notes[0]);
-  return '<div class="sq-notes'+(clean?' ok':'')+'">'+
-    notes.map(n=>'<span class="note-chip">'+(clean?'✓ ':'△ ')+escapeHtmlS(n)+'</span>').join("")+
-    '</div>';
+  const allGood=notes.every(n=>n.tone!=='warn');
+  return '<div class="sq-notes'+(allGood?' ok':'')+'">'+
+    notes.map(n=>{
+      const icon=n.tone==='warn'?'\u25b3 ':(n.tone==='good'?'\u2713 ':'\u2022 ');
+      return '<span class="note-chip">'+icon+escapeHtmlS(n.text)+'</span>';
+    }).join("")+
+  '</div>';
 }
 function squadRowsHTML(lineup,bestNames){
   return lineup.filter(Boolean).map(p=>{
@@ -1947,10 +2168,10 @@ function showResults(){
     const warFive=warriorsFiveNames();
     const bestWar=opt?vsWarriors(allocateSlots(opt.slice())):null;
     const warNote=beatWall
-      ? 'You cracked the wall. Only about 1 in 1,000 drawn teams beats the 73-9 Warriors.'
+      ? 'You cracked the wall. Only about 1 in 1,000 drawn teams beats the 2015-16 Warriors.'
       : 'Beating them takes a top 0.1% team. You are '+(-war.margin).toFixed(1)+' pts/game short.';
     const warPanel='<div class="war-panel">'+
-      '<div class="war-hdr">vs the 73-9 Warriors · the wall</div>'+
+      '<div class="war-hdr">vs the 2015-16 Warriors · the wall</div>'+
       '<div class="war-main">'+winPctStr+'<small>of games won</small></div>'+
       '<div class="war-margin">avg margin '+marginStr+'</div>'+
       (bestWar?'<div class="war-best">Best squad you could\'ve signed would win <b>'+fmtPct(bestWar.winPct)+'</b></div>':'')+
@@ -2032,8 +2253,8 @@ function _ellip(ctx,text,maxW){
 }
 function _ls(ctx,v){try{ctx.letterSpacing=v;}catch(e){}}
 function buildShareCardCanvas(d){
-  const W=1080,H=1350,cv=document.createElement('canvas');cv.width=W;cv.height=H;
-  const ctx=cv.getContext('2d');
+  const W=1080,H=1350,SS=2,cv=document.createElement('canvas');cv.width=W*SS;cv.height=H*SS;
+  const ctx=cv.getContext('2d');ctx.scale(SS,SS);   // 2x pixel density so text stays crisp when scaled
   // background + top glow
   const bg=ctx.createLinearGradient(0,0,W*0.4,H);
   bg.addColorStop(0,'#1a1a3e');bg.addColorStop(0.55,'#0a0a1a');bg.addColorStop(1,'#050510');
@@ -2046,13 +2267,13 @@ function buildShareCardCanvas(d){
   // header (gradient) + site
   const grd=ctx.createLinearGradient(W/2-320,0,W/2+320,0);
   grd.addColorStop(0,'#ff6b35');grd.addColorStop(0.5,'#ffd700');grd.addColorStop(1,'#ff6b35');
-  _ls(ctx,'10px');ctx.fillStyle=grd;ctx.font='700 66px Oswald, sans-serif';
-  ctx.fillText('DRAFT ROULETTE',W/2,142);
+  _ls(ctx,'2px');ctx.fillStyle=grd;ctx.font='700 100px Oswald, sans-serif';
+  ctx.fillText('73-9',W/2,170);
   _ls(ctx,'6px');ctx.fillStyle='#7a7aa8';ctx.font='600 22px Oswald, sans-serif';
-  ctx.fillText('HOOPSMATIC.COM',W/2,184);
-  // hero: win% vs the 73-9 Warriors (the headline number)
+  ctx.fillText('HOOPSMATIC.COM',W/2,206);
+  // hero: win% vs the 2015-16 Warriors (the headline number)
   _ls(ctx,'4px');ctx.fillStyle='#ffd700';ctx.font='700 26px Oswald, sans-serif';
-  ctx.fillText('VS THE 73-9 WARRIORS',W/2,256);
+  ctx.fillText('VS THE 2015-16 WARRIORS',W/2,262);
   _ls(ctx,'0px');ctx.fillStyle='#fff';_fit(ctx,d.warPct,W-200,'700',150,'Oswald, sans-serif',86);
   ctx.fillText(d.warPct,W/2,392);
   _ls(ctx,'2px');ctx.fillStyle='#9a9ac8';ctx.font='600 22px Oswald, sans-serif';
@@ -2197,7 +2418,7 @@ function renderSharedView(d){
   const html=''+
     '<div class="shared-tag">A Draft Roulette squad</div>'+
     '<div class="war-panel">'+
-      '<div class="war-hdr">vs the 73-9 Warriors · the wall</div>'+
+      '<div class="war-hdr">vs the 2015-16 Warriors · the wall</div>'+
       '<div class="war-main">'+wp+'<small>of games won</small></div>'+
       '<div class="war-note">Built at HoopsMatic.com. Think you can put together a five that does better?</div>'+
     '</div>'+
