@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>All-Time NBA Challenge — Draft Roulette</title>
+<title>73-9 · HoopsMatic</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎰</text></svg>">
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
@@ -35,10 +35,22 @@ body{background:linear-gradient(160deg,#1a1a3e 0%,#0a0a1a 55%,#050510 100%);back
 .res-actions{display:flex;gap:14px;justify-content:center;flex-wrap:wrap;margin-top:14px}
 .share-modal{position:fixed;inset:0;z-index:10000;background:rgba(5,5,16,.82);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;padding:20px;animation:fadeIn .2s}
 .share-box{position:relative;max-width:min(92vw,440px);display:flex;flex-direction:column;align-items:center;gap:16px}
-.share-img{width:100%;max-height:72vh;object-fit:contain;border-radius:14px;box-shadow:0 18px 50px rgba(0,0,0,.6)}
+.share-img{width:100%;max-height:44vh;object-fit:contain;border-radius:14px;box-shadow:0 18px 50px rgba(0,0,0,.6)}
 .share-btns{display:flex;gap:12px;flex-wrap:wrap;justify-content:center}
 .share-x{position:absolute;top:-16px;right:-16px;width:40px;height:40px;border-radius:50%;border:none;background:#1a1a3e;color:#fff;font-size:24px;line-height:1;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.5)}
 .share-msg{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--green);min-height:16px;text-align:center}
+.share-link{display:flex;width:100%;gap:8px}
+.share-url{flex:1;min-width:0;background:#0f0f24;border:1px solid #2a2a52;border-radius:10px;color:#cfcff0;font-family:'JetBrains Mono',monospace;font-size:12px;padding:10px 12px}
+.share-copybtn{flex:0 0 auto;background:var(--gold,#ffd700);color:#1a1a2e;border:none;border-radius:10px;padding:0 16px;font-family:'Oswald',sans-serif;font-weight:600;font-size:14px;cursor:pointer}
+.share-social{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;width:100%}
+.soc{padding:11px 8px;border-radius:10px;border:1px solid #2a2a52;background:#14142e;color:#fff;font-family:'Oswald',sans-serif;font-weight:600;font-size:14px;letter-spacing:.5px;cursor:pointer;transition:transform .08s,border-color .15s,color .15s}
+.soc:hover{transform:translateY(-1px)}
+.soc-x:hover{border-color:#fff}
+.soc-bsky:hover{border-color:#0085ff;color:#4fa6ff}
+.soc-fb:hover{border-color:#1877f2;color:#5a9bff}
+.soc-wa:hover{border-color:#25d366;color:#4fe089}
+.soc-reddit:hover{border-color:#ff4500;color:#ff7a45}
+.soc-telegram:hover{border-color:#229ed9;color:#5bc0ef}
 .war-panel{margin:8px 0 22px;padding:18px 20px;border-radius:14px;background:linear-gradient(160deg,rgba(30,42,92,.5),rgba(10,12,30,.5));border:1px solid #ffd70033;text-align:center}
 .war-hdr{font-family:'Oswald',sans-serif;font-weight:700;letter-spacing:2px;text-transform:uppercase;font-size:13px;color:#ffd700}
 .war-sub-yr{font-family:'Oswald',sans-serif;font-size:10px;letter-spacing:2px;color:#8a8ab8;text-transform:uppercase;margin-top:3px}
@@ -235,8 +247,8 @@ body{background:linear-gradient(160deg,#1a1a3e 0%,#0a0a1a 55%,#050510 100%);back
 
   <!-- LOAD -->
   <div id="loadScreen">
-    <div class="logo-main">ALL-TIME NBA<br>CHALLENGE</div>
-    <div class="subtitle">Draft Roulette</div>
+    <div class="logo-main">73-9</div>
+    <div class="subtitle">Beat the 2015-16 Warriors</div>
     <div id="progressLabel">Loading game data...</div>
     <div class="bar"><div id="progressFill"></div></div>
     <div id="progressText">0.0 / ~11 MB</div>
@@ -244,8 +256,8 @@ body{background:linear-gradient(160deg,#1a1a3e 0%,#0a0a1a 55%,#050510 100%);back
 
   <!-- INTRO -->
   <div id="intro" class="hidden">
-    <div class="logo-main">DRAFT<br>ROULETTE</div>
-    <div class="subtitle">Spin · Pick · Build · Simulate</div>
+    <div class="logo-main">73-9</div>
+    <div class="subtitle">Build a five that beats the Warriors</div>
     <div class="budget-hero">Your bankroll<span class="big" id="introBudget">$120.0M</span></div>
     <div class="rules">
       <div><span class="num">1</span>The wheel spins to a random <b>team-season</b> (1990 to today).</div>
@@ -262,7 +274,7 @@ body{background:linear-gradient(160deg,#1a1a3e 0%,#0a0a1a 55%,#050510 100%);back
   <div id="game" class="hidden">
     <div class="hud">
       <div class="hud-left">
-        <div class="hud-title">Draft Roulette</div>
+        <div class="hud-title">73-9</div>
         <div class="slot-dots" id="slotDots"></div>
       </div>
       <div class="cap-pill" id="capPill"><span class="lab">Remaining</span>$120.0M</div>
@@ -724,10 +736,12 @@ let WAR2016=new Set();   // 2015-16 Warriors, removed from the draftable pool
 let teams=[[],[]], adjusted=[[],[]], teamNames=["YOUR SQUAD","OPPONENT"];
 
 // --- tunable game constants (easy to tweak / move to a config later) ---
-const BUILD      = "v25 · 73-9 brand, 2015-16 label, tougher wall, 2x card, 100+ notes · 2026-06-22";
-// Where a shared squad link points. Swap this one line to the hoopsmatic.com URL
-// when the game moves there; the ?sq= payload format stays identical.
-const SHARE_BASE_URL = "https://aderoa.github.io/BoxScoreLab/box_score_lab_roulette.html";
+const BUILD      = "v26 · 73-9 branding, share modal with link + social buttons · 2026-06-22";
+// Where a shared squad link points. This must be a page that serves THIS game's
+// HTML (it reads the ?sq= payload client-side). Until hoopsmatic.com/73-9 serves
+// this file, shared links will 404 — change this one line back to the GitHub Pages
+// URL if you need to test the click-through before the hoopsmatic route is live.
+const SHARE_BASE_URL = "https://www.hoopsmatic.com/73-9";
 
 // URL-safe base64 of a small JSON payload (unicode-safe for accented names).
 function _b64urlEncode(o){return btoa(unescape(encodeURIComponent(JSON.stringify(o)))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');}
@@ -2171,7 +2185,7 @@ function showResults(){
       ? 'You cracked the wall. Only about 1 in 1,000 drawn teams beats the 2015-16 Warriors.'
       : 'Beating them takes a top 0.1% team. You are '+(-war.margin).toFixed(1)+' pts/game short.';
     const warPanel='<div class="war-panel">'+
-      '<div class="war-hdr">vs the 2015-16 Warriors · the wall</div>'+
+      '<div class="war-hdr">vs the 2015-16 Warriors</div>'+
       '<div class="war-main">'+winPctStr+'<small>of games won</small></div>'+
       '<div class="war-margin">avg margin '+marginStr+'</div>'+
       (bestWar?'<div class="war-best">Best squad you could\'ve signed would win <b>'+fmtPct(bestWar.winPct)+'</b></div>':'')+
@@ -2328,7 +2342,7 @@ function _dataURLtoBlob(d){
 }
 function _downloadBlob(blob){
   const url=URL.createObjectURL(blob);
-  const a=document.createElement('a');a.href=url;a.download='draft-roulette.png';
+  const a=document.createElement('a');a.href=url;a.download='73-9-result.png';
   document.body.appendChild(a);a.click();a.remove();
   setTimeout(()=>URL.revokeObjectURL(url),1500);
 }
@@ -2348,19 +2362,40 @@ function _canShareFile(blob){
   if(!navigator.canShare)return false;
   try{return navigator.canShare({files:[new File([blob],'x.png',{type:'image/png'})]});}catch(e){return false;}
 }
+// Platform share composers. They carry the text + link; the image itself rides
+// along only via Download / Copy image / the native More sheet (web intents can't
+// attach a file). Once the link unfurls (Layer 2 Worker), the card shows on click.
+function _socialURL(kind){
+  const url=buildShareURL(),text=shareText();
+  const u=encodeURIComponent(url),t=encodeURIComponent(text),tu=encodeURIComponent(text+' '+url);
+  switch(kind){
+    case 'x':        return 'https://twitter.com/intent/tweet?text='+t+'&url='+u;
+    case 'bsky':     return 'https://bsky.app/intent/compose?text='+tu;
+    case 'fb':       return 'https://www.facebook.com/sharer/sharer.php?u='+u+'&quote='+t;
+    case 'wa':       return 'https://wa.me/?text='+tu;
+    case 'reddit':   return 'https://www.reddit.com/submit?url='+u+'&title='+t;
+    case 'telegram': return 'https://t.me/share/url?url='+u+'&text='+t;
+  }
+  return url;
+}
 function _openShareModal(durl,blob){
   const ex=document.getElementById('shareModal');if(ex)ex.remove();
   const ov=document.createElement('div');ov.id='shareModal';ov.className='share-modal';
   const canCopy=!!(navigator.clipboard&&window.ClipboardItem);
   const canShare=_canShareFile(blob);
+  const link=buildShareURL();
+  const SOC=[['x','X'],['bsky','Bluesky'],['fb','Facebook'],['wa','WhatsApp'],['reddit','Reddit'],['telegram','Telegram']];
   ov.innerHTML='<div class="share-box">'+
     '<button class="share-x" aria-label="Close">\u00d7</button>'+
-    '<img class="share-img" alt="Your Draft Roulette result" src="'+durl+'">'+
+    '<img class="share-img" alt="Your 73-9 result" src="'+durl+'">'+
+    '<div class="share-link"><input class="share-url" readonly value="'+escapeHtmlS(link)+'"><button class="share-copybtn" data-act="copylink">Copy</button></div>'+
+    '<div class="share-social">'+
+      SOC.map(s=>'<button class="soc soc-'+s[0]+'" data-soc="'+s[0]+'">'+s[1]+'</button>').join('')+
+    '</div>'+
     '<div class="share-btns">'+
-      '<button class="btn" data-act="download">Download</button>'+
+      '<button class="btn" data-act="download">Download image</button>'+
       (canCopy?'<button class="btn ghost" data-act="copy">Copy image</button>':'')+
-      '<button class="btn ghost" data-act="copylink">Copy text + link</button>'+
-      (canShare?'<button class="btn ghost" data-act="share">Share\u2026</button>':'')+
+      (canShare?'<button class="btn ghost" data-act="share">More\u2026</button>':'')+
     '</div>'+
     '<div class="share-msg"></div></div>';
   document.body.appendChild(ov);
@@ -2370,22 +2405,27 @@ function _openShareModal(durl,blob){
   document.addEventListener('keydown',onKey);
   ov.addEventListener('click',e=>{if(e.target===ov)close();});
   ov.querySelector('.share-x').onclick=close;
+  ov.querySelectorAll('[data-soc]').forEach(b=>{
+    b.onclick=()=>{window.open(_socialURL(b.getAttribute('data-soc')),'_blank','noopener,noreferrer');};
+  });
+  const urlField=ov.querySelector('.share-url');
+  if(urlField)urlField.onclick=()=>urlField.select();
   ov.querySelectorAll('[data-act]').forEach(b=>{
     b.onclick=async()=>{
       const act=b.getAttribute('data-act');
       if(act==='download'){ _downloadBlob(blob); msg.textContent='Saved to your downloads.'; }
       else if(act==='copy'){
-        try{ await navigator.clipboard.write([new ClipboardItem({'image/png':blob})]); msg.textContent='Copied. Paste it anywhere.'; }
+        try{ await navigator.clipboard.write([new ClipboardItem({'image/png':blob})]); msg.textContent='Image copied. Paste it anywhere.'; }
         catch(e){ msg.textContent='Copy blocked here. Use Download.'; }
       }
       else if(act==='copylink'){
-        try{ await navigator.clipboard.writeText(shareText()+'\n'+buildShareURL()); msg.textContent='Text + link copied. Paste it into your post.'; }
-        catch(e){ msg.textContent='Copy blocked here. Try Share instead.'; }
+        try{ await navigator.clipboard.writeText(shareText()+'\n'+buildShareURL()); msg.textContent='Text + link copied.'; }
+        catch(e){ msg.textContent='Copy blocked here.'; }
       }
       else if(act==='share'){
-        const file=new File([blob],'draft-roulette.png',{type:'image/png'});
-        try{ await navigator.share({files:[file],title:'Draft Roulette',text:shareText(),url:buildShareURL()}); }
-        catch(e){ if(!(e&&e.name==='AbortError'))msg.textContent='Share unavailable. Use Download or Copy link.'; }
+        const file=new File([blob],'73-9-result.png',{type:'image/png'});
+        try{ await navigator.share({files:[file],title:'73-9',text:shareText(),url:buildShareURL()}); }
+        catch(e){ if(!(e&&e.name==='AbortError'))msg.textContent='Share unavailable. Use the buttons above.'; }
       }
     };
   });
@@ -2416,9 +2456,9 @@ function renderSharedView(d){
     '</div>'
   )).join('');
   const html=''+
-    '<div class="shared-tag">A Draft Roulette squad</div>'+
+    '<div class="shared-tag">A team built in 73-9</div>'+
     '<div class="war-panel">'+
-      '<div class="war-hdr">vs the 2015-16 Warriors · the wall</div>'+
+      '<div class="war-hdr">vs the 2015-16 Warriors</div>'+
       '<div class="war-main">'+wp+'<small>of games won</small></div>'+
       '<div class="war-note">Built at HoopsMatic.com. Think you can put together a five that does better?</div>'+
     '</div>'+
