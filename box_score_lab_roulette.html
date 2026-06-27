@@ -36,7 +36,8 @@ body{background:linear-gradient(160deg,#1a1a3e 0%,#0a0a1a 55%,#050510 100%);back
 .share-modal{position:fixed;inset:0;z-index:10000;background:rgba(5,5,16,.82);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;padding:20px;animation:fadeIn .2s}
 .share-box{position:relative;max-width:min(92vw,440px);display:flex;flex-direction:column;align-items:center;gap:16px}
 .share-img{width:100%;max-height:52vh;object-fit:contain;border-radius:14px;box-shadow:0 18px 50px rgba(0,0,0,.6)}
-.share-btns{display:flex;gap:12px;flex-wrap:wrap;justify-content:center}
+.share-btns{display:flex;gap:10px;flex-wrap:nowrap;justify-content:center}
+.share-btns .btn{flex:1 1 0;min-width:0;padding-left:8px;padding-right:8px;white-space:nowrap}
 .share-x{position:absolute;top:-16px;right:-16px;width:40px;height:40px;border-radius:50%;border:none;background:#1a1a3e;color:#fff;font-size:24px;line-height:1;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.5)}
 .share-msg{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--green);min-height:16px;text-align:center}
 .share-link{display:flex;width:100%;gap:8px}
@@ -185,6 +186,10 @@ body{background:linear-gradient(160deg,#1a1a3e 0%,#0a0a1a 55%,#050510 100%);back
 .pick-card.tooFar{cursor:not-allowed;opacity:.4;filter:grayscale(.6)}
 .pick-card.tooFar:hover{transform:none;border-color:var(--line);box-shadow:none}
 .pick-card.tooFar .pc-cost{color:var(--red)}
+.pick-card.locked{cursor:not-allowed;opacity:.78;filter:grayscale(.45);border-color:#3a3f52;background:linear-gradient(180deg,rgba(50,42,18,.35),rgba(20,22,30,.5))}
+.pick-card.locked:hover{transform:none;border-color:#3a3f52;box-shadow:none}
+.pc-lockbadge{font-size:9px;font-weight:800;letter-spacing:.04em;color:#0c0d12;background:var(--gold);border-radius:4px;padding:1px 5px}
+.pc-lock{font-size:10px;font-weight:700;color:var(--gold);opacity:.92;margin-top:2px;letter-spacing:.01em}
 .pick-card.taken{cursor:not-allowed;opacity:.3}
 .pick-card.taken::after{content:"PICKED";position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:'Oswald',sans-serif;letter-spacing:2px;font-size:13px;color:#9a9ac0;background:rgba(8,8,20,.55);border-radius:10px}
 .pick-matrix{display:flex;gap:10px;overflow-x:auto;padding-bottom:8px;-webkit-overflow-scrolling:touch}
@@ -274,14 +279,14 @@ body{background:linear-gradient(160deg,#1a1a3e 0%,#0a0a1a 55%,#050510 100%);back
   <!-- INTRO -->
   <div id="intro" class="hidden">
     <div class="logo-main">73-9</div>
-    <div class="subtitle">Build a five that beats the Warriors</div>
+    <div class="subtitle">Build a five that beats the 2015-16 Warriors</div>
     <div class="budget-hero">Your bankroll<span class="big" id="introBudget">$120.0M</span></div>
     <div class="rules">
       <div><span class="num">1</span>The wheel spins to a random <b>team-season</b> (1990 to today).</div>
       <div><span class="num">2</span>Sign <b>one player</b> from it. Each costs what their deal would be worth at the <b>2026 cap</b>.</div>
       <div><span class="num">3</span>Five spins, five signings. You can only sign players you can <b>still afford</b>.</div>
       <div><span class="num">4</span>Blow it early and you'll be scraping minimum-salary scrubs by the fifth slot.</div>
-      <div><span class="num">5</span>We simulate an <b>82-game season</b> and hand you a record — plus the <b>best squad</b> you could've signed.</div>
+      <div><span class="num">5</span>We simulate an <b>82-game season</b>, then show how often your five would <b>beat the 2015-16 Warriors</b> (plus the best squad you could've signed).</div>
     </div>
     <div class="fine" id="introFine"></div>
     <div class="center" style="margin-top:26px"><button class="btn" id="startBtn">Start the wheel</button></div>
@@ -753,7 +758,7 @@ let WAR2016=new Set();   // 2015-16 Warriors, removed from the draftable pool
 let teams=[[],[]], adjusted=[[],[]], teamNames=["YOUR SQUAD","OPPONENT"];
 
 // --- tunable game constants (easy to tweak / move to a config later) ---
-const BUILD      = "v33 · leaderboard live (LB_API set) · 2026-06-22";
+const BUILD      = "v34 · Warriors shown locked + intro copy + share row · 2026-06-27";
 // Where a shared squad link points. This must be a page that serves THIS game's
 // HTML (it reads the ?sq= payload client-side). Until hoopsmatic.com/73-9 serves
 // this file, shared links will 404 — change this one line back to the GitHub Pages
@@ -945,6 +950,9 @@ function buildGroups(){
     }
   }
   GROUPS=Object.values(byKey).filter(g=>g.players.length>=2); // need a real choice
+  // The 2015-16 Warriors are shown (locked) on other rosters, but their own team-season is
+  // not landable, since every player on it is off the board.
+  GROUPS=GROUPS.filter(g=>!(g.abbr==='GSW'&&g.sy===2016));
   GROUP_BY_KEY={};GROUPS.forEach(g=>{GROUP_BY_KEY[g.key]=g});
   // precompute cost units for the optimizer
   GROUPS.forEach(g=>g.players.forEach(p=>{p.costUnit=Math.round(p.cost/1e5)}));
@@ -1165,7 +1173,7 @@ function renderLanded(group){
   const el=$("landed");
   const seasonStr=formatSeasonYear(group.sy);
   const avail=unpickedPlayers(group);
-  const anySelectable=avail.some(p=>p.cost<=remaining+1);
+  const anySelectable=avail.some(p=>p.cost<=remaining+1 && !WAR2016.has(p.name));
 
   let cards;
   if(!anySelectable){
@@ -1176,16 +1184,17 @@ function renderLanded(group){
     for(let pos=0;pos<5;pos++){
       let cells='';
       for(const p of cols[pos]){
+        const locked=WAR2016.has(p.name);
         const tooFar=p.cost>remaining+1;
         const flexed=naturalPos(p)!==pos;
-        const cls="pick-card"+(tooFar?" tooFar":"")+(flexed?" flexed":"");
-        const pickAttrs=tooFar?"":(' data-pick="1" data-key="'+escapeHtmlS(group.key)+'" data-name="'+escapeHtmlS(p.name)+'"');
+        const cls="pick-card"+(locked?" locked":(tooFar?" tooFar":""))+(flexed?" flexed":"");
+        const pickAttrs=(tooFar||locked)?"":(' data-pick="1" data-key="'+escapeHtmlS(group.key)+'" data-name="'+escapeHtmlS(p.name)+'"');
         cells+='<div class="'+cls+'"'+pickAttrs+'>'+
-          '<div class="pc-top"><span class="pc-mpg">'+p.mpg.toFixed(1)+' MPG</span>'+(flexed?'<span class="pc-flex" title="Natural '+POS_NAMES[naturalPos(p)]+'">'+POS_NAMES[naturalPos(p)]+'</span>':'')+'</div>'+
+          '<div class="pc-top"><span class="pc-mpg">'+p.mpg.toFixed(1)+' MPG</span>'+(locked?'<span class="pc-lockbadge">73-9</span>':(flexed?'<span class="pc-flex" title="Natural '+POS_NAMES[naturalPos(p)]+'">'+POS_NAMES[naturalPos(p)]+'</span>':''))+'</div>'+
           '<div class="pc-name">'+escapeHtmlS(p.name)+'</div>'+
           '<div class="pc-acc">'+accoladeBadges(p.name,group.sy)+'</div>'+
           '<div class="pc-stats">'+statTriple(p)+'</div>'+
-          '<div class="pc-cost">'+fmtM(p.cost)+' <span>\u00b7 '+p.pct.toFixed(1)+'% cap</span></div>'+
+          (locked?'<div class="pc-lock">2015-16 Warrior \u00b7 off the board</div>':'<div class="pc-cost">'+fmtM(p.cost)+' <span>\u00b7 '+p.pct.toFixed(1)+'% cap</span></div>')+
           '</div>';
       }
       if(!cols[pos].length) cells='<div class="pm-empty">\u2014</div>';
@@ -1210,6 +1219,7 @@ function pickPlayer(key,name){
   if(spinning)return;
   const group=GROUP_BY_KEY[key]; if(!group)return;
   const p=group.players.find(x=>x.name===name); if(!p)return;
+  if(WAR2016.has(p.name))return;   // 2015-16 Warriors are locked, never signable
   if(pickedNames.has(p.name)||p.cost>remaining+1)return;   // total flexibility: any affordable player
 
   remaining-=p.cost;
@@ -1571,14 +1581,19 @@ function simRecord(lineup,gauntlet){
    OPTIMIZER — multiple-choice knapsack over the drawn team-seasons
    (one player per drawn team-season, maximize total RTG within budget)
    ============================================================ */
+// Players a human can actually sign from a group: everyone except locked 2015-16
+// Warriors. Cached per group. Display code still uses g.players so the locked
+// Warriors remain visible in the depth chart.
+function draftable(g){return g._draftable||(g._draftable=g.players.filter(p=>!WAR2016.has(p.name)));}
 function optimalLineup(){
   const groups=rolledGroups;
   if(!groups.length)return null;
+  const optsByGi=groups.map(draftable);
   const BU=Math.floor(BUDGET/1e5);
   let dp=new Float64Array(BU+1).fill(-Infinity);dp[0]=0;
   const choiceLayers=[],prevLayers=[];
   for(let gi=0;gi<groups.length;gi++){
-    const opts=groups[gi].players;
+    const opts=optsByGi[gi];
     const ndp=new Float64Array(BU+1).fill(-Infinity);
     const choice=new Int32Array(BU+1).fill(-1);
     const prev=new Int32Array(BU+1).fill(-1);
@@ -1602,7 +1617,7 @@ function optimalLineup(){
   let b=bestB;
   for(let gi=groups.length-1;gi>=0;gi--){
     const pi=choiceLayers[gi][b];
-    chosen[gi]=groups[gi].players[pi];
+    chosen[gi]=optsByGi[gi][pi];
     b=prevLayers[gi][b];
   }
   return allocateSlots(chosen.map((p,gi)=>({...p,abbr:groups[gi].abbr,meta:resolveGroupMeta(groups[gi])})));
@@ -1633,15 +1648,16 @@ function weightedPick(opts){
 }
 function genLineup(weighted){
   const order=shuffle(rolledGroups.slice());
-  const mins=order.map(g=>Math.min.apply(null,g.players.map(p=>p.cost)));
+  const mins=order.map(g=>Math.min.apply(null,draftable(g).map(p=>p.cost)));
   const suffix=new Array(order.length+1).fill(0);
   for(let i=order.length-1;i>=0;i--)suffix[i]=suffix[i+1]+mins[i];
   let rem=BUDGET;const chosen={};
   for(let i=0;i<order.length;i++){
     const g=order[i];
     const cap=rem-suffix[i+1];               // leave enough for the cheapest in remaining groups
-    const aff=g.players.filter(p=>p.cost<=cap+1);
-    const pool=aff.length?aff:[g.players.reduce((a,b)=>a.cost<b.cost?a:b)];
+    const list=draftable(g);
+    const aff=list.filter(p=>p.cost<=cap+1);
+    const pool=aff.length?aff:[list.reduce((a,b)=>a.cost<b.cost?a:b)];
     const p=weighted?weightedPick(pool):pool[Math.floor(Math.random()*pool.length)];
     chosen[g.key]=p;rem-=p.cost;
   }
@@ -1757,14 +1773,16 @@ function _sampleTeamStrength(){
   const order=[],used={};let tries=0;
   while(order.length<5&&tries<80){tries++;const g=GROUPS[(Math.random()*GROUPS.length)|0];if(!g||used[g.key])continue;used[g.key]=true;order.push(g);}
   if(order.length<5)return null;
-  const mins=order.map(g=>Math.min.apply(null,g.players.map(p=>p.cost)));
+  const lists=order.map(draftable);
+  if(lists.some(l=>!l.length))return null;
+  const mins=lists.map(l=>Math.min.apply(null,l.map(p=>p.cost)));
   const suffix=new Array(order.length+1).fill(0);
   for(let i=order.length-1;i>=0;i--)suffix[i]=suffix[i+1]+mins[i];
   let rem=BUDGET;const chosen=[];
   for(let i=0;i<order.length;i++){
     const cap=rem-suffix[i+1];
-    const aff=order[i].players.filter(p=>p.cost<=cap+1);
-    const pool=aff.length?aff:[order[i].players.reduce((a,b)=>a.cost<b.cost?a:b)];
+    const aff=lists[i].filter(p=>p.cost<=cap+1);
+    const pool=aff.length?aff:[lists[i].reduce((a,b)=>a.cost<b.cost?a:b)];
     const p=weightedPick(pool);chosen.push({...p});rem-=p.cost;
   }
   return lineupStrength(allocateSlots(chosen));
@@ -2536,8 +2554,8 @@ function _openShareModal(durl,blob){
       SOC.map(s=>'<button class="soc soc-'+s[0]+'" data-soc="'+s[0]+'" aria-label="Share on '+s[1]+'">'+SOC_ICON[s[0]]+'<span>'+s[1]+'</span></button>').join('')+
     '</div>'+
     '<div class="share-btns">'+
-      '<button class="btn" data-act="download">Download image</button>'+
-      (canCopy?'<button class="btn ghost" data-act="copy">Copy image</button>':'')+
+      '<button class="btn" data-act="download">Download</button>'+
+      (canCopy?'<button class="btn ghost" data-act="copy">Copy</button>':'')+
       '<button class="btn ghost" data-act="again">Play again</button>'+
     '</div>'+
     '<div class="share-msg"></div></div>';
@@ -2750,9 +2768,10 @@ if(SHARED_PAYLOAD){window.__SHARED__=true;renderSharedView(SHARED_PAYLOAD);}
     }catch(e){console.warn("positions.json not loaded (slotting falls back)",e)}
 
     // --- 73-9 WALL: drop every 2015-16 Golden State Warrior from the draftable pool.
-    // Identified by a real 2015-16 (SY=2016) playable game with the GSW franchise. With
-    // all of its players gone, the 2015-16 Warriors team-season also falls off the wheel,
-    // while other team-seasons those journeymen passed through keep their remaining players.
+    // Identified by a real 2015-16 (SY=2016) playable game with the GSW franchise. We keep
+    // these players in the pool so they still show up (locked, unpickable) on every roster
+    // they pass through. The 2015-16 Warriors team-season itself is dropped from the wheel in
+    // buildGroups(), since landing on a team where everyone is locked would be a dead end.
     label.textContent="Sealing the 73-9 wall...";
     WAR2016=new Set();
     for(const name of playerNames){
@@ -2760,8 +2779,7 @@ if(SHARED_PAYLOAD){window.__SHARED__=true;renderSharedView(SHARED_PAYLOAD);}
       for(const gm of games){ if(gm[G.SY]===2016 && isPlayableGame(gm) && gameMatchesFranchise(gm,"GSW")){ WAR2016.add(name); break; } }
     }
     if(WAR2016.size){
-      salaryEntries=salaryEntries.filter(e=>!WAR2016.has(e[0]));
-      console.log("[ROULETTE] 73-9 wall: removed "+WAR2016.size+" Warriors players from the pool");
+      console.log("[ROULETTE] 73-9 wall: marked "+WAR2016.size+" Warriors players locked (kept in pool)");
     } else { console.warn("[ROULETTE] 73-9 wall: matched 0 Warriors — check GSW/SY=2016"); }
 
     label.textContent="Building team-seasons...";fill.style.width="99%";
