@@ -737,12 +737,12 @@ let WAR2016=new Set();   // 2015-16 Warriors, removed from the draftable pool
 let teams=[[],[]], adjusted=[[],[]], teamNames=["YOUR SQUAD","OPPONENT"];
 
 // --- tunable game constants (easy to tweak / move to a config later) ---
-const BUILD      = "v29 · smarter, more varied lineup notes · 2026-06-22";
+const BUILD      = "v30 · Play Again in share modal, live game URL · 2026-06-22";
 // Where a shared squad link points. This must be a page that serves THIS game's
 // HTML (it reads the ?sq= payload client-side). Until hoopsmatic.com/73-9 serves
 // this file, shared links will 404 — change this one line back to the GitHub Pages
 // URL if you need to test the click-through before the hoopsmatic route is live.
-const SHARE_BASE_URL = "https://www.hoopsmatic.com/73-9";
+const SHARE_BASE_URL = "https://hoopsmatic.com/73-9-game";
 
 // URL-safe base64 of a small JSON payload (unicode-safe for accented names).
 function _b64urlEncode(o){return btoa(unescape(encodeURIComponent(JSON.stringify(o)))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');}
@@ -2448,6 +2448,7 @@ function _openShareModal(durl,blob){
     '<div class="share-btns">'+
       '<button class="btn" data-act="download">Download image</button>'+
       (canCopy?'<button class="btn ghost" data-act="copy">Copy image</button>':'')+
+      '<button class="btn ghost" data-act="again">Play again</button>'+
     '</div>'+
     '<div class="share-msg"></div></div>';
   document.body.appendChild(ov);
@@ -2465,6 +2466,7 @@ function _openShareModal(durl,blob){
   ov.querySelectorAll('[data-act]').forEach(b=>{
     b.onclick=async()=>{
       const act=b.getAttribute('data-act');
+      if(act==='again'){ close(); playAgain(); return; }
       if(act==='download'){ _downloadBlob(blob); msg.textContent='Saved to your downloads.'; }
       else if(act==='copy'){
         try{ await navigator.clipboard.write([new ClipboardItem({'image/png':blob})]); msg.textContent='Image copied. Paste it anywhere.'; }
