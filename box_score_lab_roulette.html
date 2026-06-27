@@ -753,7 +753,7 @@ let WAR2016=new Set();   // 2015-16 Warriors, removed from the draftable pool
 let teams=[[],[]], adjusted=[[],[]], teamNames=["YOUR SQUAD","OPPONENT"];
 
 // --- tunable game constants (easy to tweak / move to a config later) ---
-const BUILD      = "v31 · daily/weekly/all-time leaderboard (highest win%) · 2026-06-22";
+const BUILD      = "v33 · leaderboard live (LB_API set) · 2026-06-22";
 // Where a shared squad link points. This must be a page that serves THIS game's
 // HTML (it reads the ?sq= payload client-side). Until hoopsmatic.com/73-9 serves
 // this file, shared links will 404 — change this one line back to the GitHub Pages
@@ -762,7 +762,7 @@ const SHARE_BASE_URL = "https://hoopsmatic.com/73-9-game";
 // Leaderboard API (the Cloudflare Worker). Leave "" to keep the leaderboard hidden.
 // Set to the deployed Worker URL once it's live, e.g.
 // "https://hoopsmatic-73-9-leaderboard.<your-subdomain>.workers.dev"
-const LB_API = "";
+const LB_API = "https://hoopsmatic-73-9-leaderboard.thejorgesierra.workers.dev";
 
 // URL-safe base64 of a small JSON payload (unicode-safe for accented names).
 function _b64urlEncode(o){return btoa(unescape(encodeURIComponent(JSON.stringify(o)))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');}
@@ -2238,6 +2238,7 @@ function lbRenderBoard(panel,board){
       '<div class="lb-row"><span class="lb-per">All-time</span><span class="lb-mark">'+lbFmt(board.alltime)+'</span></div>'+
     '</div>';
 }
+let _lbBoard=null,_lbFetched=false;   // session cache so we read the board once, not per play
 function lbShowNameForm(panel,nonce,beat){
   const which=(beat.alltime?'all-time':(beat.week?'week':'day'));
   const wrap=document.createElement('div');wrap.className='lb-claim';
@@ -2252,7 +2253,7 @@ function lbShowNameForm(panel,nonce,beat){
     try{
       const r=await fetch(_lbBase()+'/name',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({nonce,name})});
       const d=await r.json();
-      if(d&&d.board){ lbRenderBoard(panel,d.board); }
+      if(d&&d.board){ _lbBoard=d.board; lbRenderBoard(panel,d.board); }
       else note.textContent=(d&&d.error==='inappropriate')?'Keep it clean, try another name.':'Could not save that name.';
     }catch(e){ note.textContent='Network error, try again.'; }
   };
@@ -2263,16 +2264,28 @@ async function lbInit(pct,record){
   if(!LB_API)return;
   const panel=document.getElementById('lbPanel');
   if(!panel)return;
-  panel.innerHTML='<div class="lb-hdr">Best win % vs the 2015-16 Warriors</div><div class="lb-rows lb-loading">loading…</div>';
-  let data=null;
-  try{
-    const r=await fetch(_lbBase()+'/submit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pct:Number(pct.toFixed(2)),record:record})});
-    data=await r.json();
-  }catch(e){ panel.remove(); return; }
-  if(!data||!data.board){ panel.remove(); return; }
-  lbRenderBoard(panel,data.board);
-  const beat=data.beat||{};
-  if((beat.day||beat.week||beat.alltime)&&data.nonce) lbShowNameForm(panel,data.nonce,beat);
+  // Fetch the board ONCE per session (cached). Cheap, and keeps us inside the free tier.
+  if(!_lbFetched){
+    panel.innerHTML='<div class="lb-hdr">Best win % vs the 2015-16 Warriors</div><div class="lb-rows lb-loading">loading…</div>';
+    try{ const r=await fetch(_lbBase()+'/board'); _lbBoard=await r.json(); _lbFetched=true; }
+    catch(e){ panel.remove(); return; }
+  }
+  if(!_lbBoard){ panel.remove(); return; }
+  lbRenderBoard(panel,_lbBoard);
+  // Only contact the server when this result actually beats a window we know about,
+  // so most plays cost nothing. The server re-validates and is the source of truth.
+  const beats=w=>{const e=_lbBoard[w];return !e||e.pct==null||pct>e.pct;};
+  if(beats('day')||beats('week')||beats('alltime')){
+    try{
+      const r=await fetch(_lbBase()+'/claim',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pct:Number(pct.toFixed(2)),record:record})});
+      const d=await r.json();
+      if(d&&d.board){
+        _lbBoard=d.board; lbRenderBoard(panel,_lbBoard);
+        const beat=d.beat||{};
+        if((beat.day||beat.week||beat.alltime)&&d.nonce) lbShowNameForm(panel,d.nonce,beat);
+      }
+    }catch(e){ /* board already shown from cache; ignore */ }
+  }
 }
 function showResults(){
   if(spinning)return;
