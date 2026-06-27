@@ -63,6 +63,22 @@ body{background:linear-gradient(160deg,#1a1a3e 0%,#0a0a1a 55%,#050510 100%);back
 .szn{display:inline-block;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;color:#ffd166;background:rgba(255,209,102,.12);border:1px solid rgba(255,209,102,.3);border-radius:6px;padding:1px 6px;margin:0 4px;vertical-align:middle;letter-spacing:.5px}
 .shared-cta{margin:18px auto 8px;display:flex;justify-content:center}
 .shared-tag{text-align:center;font-family:'Oswald',sans-serif;letter-spacing:2px;text-transform:uppercase;font-size:12px;color:#8a8ab8;margin-bottom:2px}
+.lb-panel{margin-top:14px}
+.lb-hdr{font-family:'Oswald',sans-serif;text-transform:uppercase;letter-spacing:1.5px;font-size:12px;color:#9a9ac8;text-align:center;margin-bottom:10px}
+.lb-rows{display:flex;flex-direction:column;gap:0}
+.lb-loading{font-family:'JetBrains Mono',monospace;font-size:12px;color:#8a8ab8;text-align:center}
+.lb-row{display:flex;justify-content:space-between;align-items:baseline;font-family:'JetBrains Mono',monospace;font-size:13px;color:#cfcff0;border-top:1px solid rgba(255,255,255,.06);padding:7px 2px}
+.lb-row:first-child{border-top:none}
+.lb-per{color:#8a8ab8;letter-spacing:.5px}
+.lb-mark b{color:#ffd700;font-size:15px}
+.lb-name{color:#bcbce6;margin-left:8px}
+.lb-empty{color:#666}
+.lb-claim{margin-top:12px;padding-top:10px;border-top:1px solid rgba(255,209,102,.25)}
+.lb-claim-msg{font-family:'Oswald',sans-serif;color:#ffd166;font-size:13px;margin-bottom:8px;text-align:center}
+.lb-claim-row{display:flex;gap:8px;justify-content:center}
+.lb-input{flex:0 1 200px;min-width:0;background:#0f0f24;border:1px solid #2a2a52;border-radius:8px;color:#fff;font-family:'JetBrains Mono',monospace;font-size:13px;padding:8px 10px}
+.lb-save{flex:0 0 auto}
+.lb-claim-note{font-family:'JetBrains Mono',monospace;font-size:11px;color:#ff8a8a;text-align:center;margin-top:6px;min-height:14px}
 .war-note{font-family:'Oswald',sans-serif;font-size:12px;letter-spacing:.4px;color:#8a8ab8;margin-top:10px}
 .war-beat{color:#34d97a;font-weight:600}
 .war-five{font-family:'JetBrains Mono',monospace;font-size:11px;color:#6a6a98;margin-top:10px}
@@ -737,12 +753,16 @@ let WAR2016=new Set();   // 2015-16 Warriors, removed from the draftable pool
 let teams=[[],[]], adjusted=[[],[]], teamNames=["YOUR SQUAD","OPPONENT"];
 
 // --- tunable game constants (easy to tweak / move to a config later) ---
-const BUILD      = "v30 · Play Again in share modal, live game URL · 2026-06-22";
+const BUILD      = "v31 · daily/weekly/all-time leaderboard (highest win%) · 2026-06-22";
 // Where a shared squad link points. This must be a page that serves THIS game's
 // HTML (it reads the ?sq= payload client-side). Until hoopsmatic.com/73-9 serves
 // this file, shared links will 404 — change this one line back to the GitHub Pages
 // URL if you need to test the click-through before the hoopsmatic route is live.
 const SHARE_BASE_URL = "https://hoopsmatic.com/73-9-game";
+// Leaderboard API (the Cloudflare Worker). Leave "" to keep the leaderboard hidden.
+// Set to the deployed Worker URL once it's live, e.g.
+// "https://hoopsmatic-73-9-leaderboard.<your-subdomain>.workers.dev"
+const LB_API = "";
 
 // URL-safe base64 of a small JSON payload (unicode-safe for accented names).
 function _b64urlEncode(o){return btoa(unescape(encodeURIComponent(JSON.stringify(o)))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');}
@@ -2199,6 +2219,61 @@ function bestSquadExplanation(yoursLineup,bestLineup,yoursRec,bestRec){
   return '<div class="opt-note">'+recLine+'It '+moves.join(', and ')+'. '+why+'</div>';
 }
 
+/* ============================================================
+   LEADERBOARD (optional) — posts the result to the Cloudflare Worker, shows the
+   best win% for today / this week / all-time, and lets the user name a new best.
+   Fails silently and never blocks the results screen if LB_API is unset or down.
+   ============================================================ */
+function _lbBase(){return LB_API.replace(/\/+$/,'');}
+function lbFmt(e){
+  if(!e||e.pct==null)return '<span class="lb-empty">—</span>';
+  const nm=e.name?escapeHtmlS(e.name):'anon';
+  return '<b>'+Number(e.pct).toFixed(2)+'%</b> <span class="lb-name">'+nm+'</span>';
+}
+function lbRenderBoard(panel,board){
+  panel.innerHTML='<div class="lb-hdr">Best win % vs the 2015-16 Warriors</div>'+
+    '<div class="lb-rows">'+
+      '<div class="lb-row"><span class="lb-per">Today</span><span class="lb-mark">'+lbFmt(board.day)+'</span></div>'+
+      '<div class="lb-row"><span class="lb-per">This week</span><span class="lb-mark">'+lbFmt(board.week)+'</span></div>'+
+      '<div class="lb-row"><span class="lb-per">All-time</span><span class="lb-mark">'+lbFmt(board.alltime)+'</span></div>'+
+    '</div>';
+}
+function lbShowNameForm(panel,nonce,beat){
+  const which=(beat.alltime?'all-time':(beat.week?'week':'day'));
+  const wrap=document.createElement('div');wrap.className='lb-claim';
+  wrap.innerHTML='<div class="lb-claim-msg">You set the best mark of the '+which+'! Add your name to the board:</div>'+
+    '<div class="lb-claim-row"><input class="lb-input" maxlength="16" placeholder="Your name" autocomplete="off"><button class="btn lb-save">Save</button></div>'+
+    '<div class="lb-claim-note"></div>';
+  panel.appendChild(wrap);
+  const input=wrap.querySelector('.lb-input'),note=wrap.querySelector('.lb-claim-note');
+  const save=async()=>{
+    const name=input.value.trim();
+    if(!name){note.textContent='Type a name first.';return;}
+    try{
+      const r=await fetch(_lbBase()+'/name',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({nonce,name})});
+      const d=await r.json();
+      if(d&&d.board){ lbRenderBoard(panel,d.board); }
+      else note.textContent=(d&&d.error==='inappropriate')?'Keep it clean, try another name.':'Could not save that name.';
+    }catch(e){ note.textContent='Network error, try again.'; }
+  };
+  wrap.querySelector('.lb-save').onclick=save;
+  input.addEventListener('keydown',e=>{if(e.key==='Enter')save();});
+}
+async function lbInit(pct,record){
+  if(!LB_API)return;
+  const panel=document.getElementById('lbPanel');
+  if(!panel)return;
+  panel.innerHTML='<div class="lb-hdr">Best win % vs the 2015-16 Warriors</div><div class="lb-rows lb-loading">loading…</div>';
+  let data=null;
+  try{
+    const r=await fetch(_lbBase()+'/submit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pct:Number(pct.toFixed(2)),record:record})});
+    data=await r.json();
+  }catch(e){ panel.remove(); return; }
+  if(!data||!data.board){ panel.remove(); return; }
+  lbRenderBoard(panel,data.board);
+  const beat=data.beat||{};
+  if((beat.day||beat.week||beat.alltime)&&data.nonce) lbShowNameForm(panel,data.nonce,beat);
+}
 function showResults(){
   if(spinning)return;
   if(rosterCount()<3){alert("Sign at least 3 players before simulating.");return}
@@ -2246,6 +2321,7 @@ function showResults(){
       '<div class="res-sub">'+yours.ppg.toFixed(1)+' – '+yours.oppg.toFixed(1)+' PPG vs all-era fives · spent '+fmtM(spent)+' of '+fmtM(BUDGET)+'</div>';
 
     html+=warPanel;
+    if(LB_API) html+='<div id="lbPanel" class="war-panel lb-panel"></div>';
 
     // your squad
     html+='<div class="sq yours">'+
@@ -2289,6 +2365,7 @@ function showResults(){
       '<button class="btn ghost" onclick="playAgain()">Play again</button>'+
       '</div>';
     el.innerHTML=html;
+    try{ lbInit(war.winPct*100, yours.w+'\u2013'+yours.l); }catch(e){}
     if(samePicks){ try{ fireConfetti(); }catch(e){} }
   },40);
 }
