@@ -37,7 +37,7 @@ body{background:linear-gradient(160deg,#1a1a3e 0%,#0a0a1a 55%,#050510 100%);back
 .share-box{position:relative;max-width:min(92vw,440px);display:flex;flex-direction:column;align-items:center;gap:16px}
 .share-img{width:100%;max-height:52vh;object-fit:contain;border-radius:14px;box-shadow:0 18px 50px rgba(0,0,0,.6)}
 .share-btns{display:flex;gap:8px;flex-wrap:nowrap;justify-content:center}
-.share-btns .btn{flex:1 1 0;min-width:0;padding:13px 6px;font-size:12px;letter-spacing:.4px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.share-btns .btn{flex:0 1 auto;padding:13px 14px;font-size:12px;letter-spacing:.5px;white-space:nowrap}
 .share-x{position:absolute;top:-16px;right:-16px;width:40px;height:40px;border-radius:50%;border:none;background:#1a1a3e;color:#fff;font-size:24px;line-height:1;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.5)}
 .share-msg{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--green);min-height:16px;text-align:center}
 .share-link{display:flex;width:100%;gap:8px}
@@ -758,7 +758,7 @@ let WAR2016=new Set();   // 2015-16 Warriors, removed from the draftable pool
 let teams=[[],[]], adjusted=[[],[]], teamNames=["YOUR SQUAD","OPPONENT"];
 
 // --- tunable game constants (easy to tweak / move to a config later) ---
-const BUILD      = "v35 · dedup picks by normalized name + share buttons fit · 2026-06-27";
+const BUILD      = "v36 · best-squad distinct players + share buttons full labels · 2026-06-27";
 // Where a shared squad link points. This must be a page that serves THIS game's
 // HTML (it reads the ?sq= payload client-side). Until hoopsmatic.com/73-9 serves
 // this file, shared links will 404 — change this one line back to the GitHub Pages
@@ -1646,20 +1646,28 @@ function weightedPick(opts){
   for(let i=0;i<opts.length;i++){r-=w[i];if(r<=0)return opts[i]}
   return opts[opts.length-1];
 }
-function genLineup(weighted){
-  const order=shuffle(rolledGroups.slice());
+function _topRating(g){let m=-Infinity;for(const p of draftable(g))if(p.rating>m)m=p.rating;return m;}
+function genLineup(mode){
+  // mode: 'weighted' (rating^2-weighted), 'random' (uniform), or 'greedy' (highest rating).
+  // A player is never taken twice within one lineup, even if they appear on two landed teams.
+  const order = mode==='greedy'
+    ? rolledGroups.slice().sort((a,b)=>_topRating(b)-_topRating(a))   // claim the strongest teams first
+    : shuffle(rolledGroups.slice());
   const mins=order.map(g=>Math.min.apply(null,draftable(g).map(p=>p.cost)));
   const suffix=new Array(order.length+1).fill(0);
   for(let i=order.length-1;i>=0;i--)suffix[i]=suffix[i+1]+mins[i];
-  let rem=BUDGET;const chosen={};
+  let rem=BUDGET;const chosen={};const used=new Set();
   for(let i=0;i<order.length;i++){
     const g=order[i];
     const cap=rem-suffix[i+1];               // leave enough for the cheapest in remaining groups
-    const list=draftable(g);
+    let list=draftable(g).filter(p=>!used.has(normName(p.name)));
+    if(!list.length)list=draftable(g);       // safety; cannot really happen with <=5 picks
     const aff=list.filter(p=>p.cost<=cap+1);
     const pool=aff.length?aff:[list.reduce((a,b)=>a.cost<b.cost?a:b)];
-    const p=weighted?weightedPick(pool):pool[Math.floor(Math.random()*pool.length)];
-    chosen[g.key]=p;rem-=p.cost;
+    const p = mode==='weighted' ? weightedPick(pool)
+            : mode==='greedy'   ? pool.reduce((a,b)=>b.rating>a.rating?b:a)
+            :                     pool[Math.floor(Math.random()*pool.length)];
+    chosen[g.key]=p;used.add(normName(p.name));rem-=p.cost;
   }
   return allocateSlots(rolledGroups.map(g=>materializePick(g,chosen[g.key])));
 }
@@ -1720,11 +1728,15 @@ const FINALISTS=6, EXTRA_GAUNTLETS=2;
 function findBestSquad(gauntlet){
   const seen=new Set(),cands=[];
   const keyOf=l=>l.filter(Boolean).map(p=>p.name).slice().sort().join("|");
-  const add=l=>{if(!l||l.filter(Boolean).length<rolledGroups.length)return;const k=keyOf(l);if(seen.has(k))return;seen.add(k);cands.push(l)};
+  // A legal squad can't roster the same player twice (even from two different landed
+  // team-seasons), so any candidate with a repeated player is rejected outright.
+  const noDup=l=>{const s=new Set();for(const p of l){if(!p)continue;const n=normName(p.name);if(s.has(n))return false;s.add(n);}return true;};
+  const add=l=>{if(!l||l.filter(Boolean).length<rolledGroups.length)return;if(!noDup(l))return;const k=keyOf(l);if(seen.has(k))return;seen.add(k);cands.push(l)};
   add(roster);
   add(optimalLineup());
-  for(let i=0;i<CANDIDATES_WEIGHTED;i++)add(genLineup(true));
-  for(let i=0;i<CANDIDATES_RANDOM;i++)add(genLineup(false));
+  add(genLineup('greedy'));
+  for(let i=0;i<CANDIDATES_WEIGHTED;i++)add(genLineup('weighted'));
+  for(let i=0;i<CANDIDATES_RANDOM;i++)add(genLineup('random'));
 
   const rosterKey=keyOf(roster);
   // DETERMINISTIC selection: a lineup's strength (talent points + balance) is
