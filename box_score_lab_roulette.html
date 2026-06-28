@@ -36,8 +36,8 @@ body{background:linear-gradient(160deg,#1a1a3e 0%,#0a0a1a 55%,#050510 100%);back
 .share-modal{position:fixed;inset:0;z-index:10000;background:rgba(5,5,16,.82);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;padding:20px;animation:fadeIn .2s}
 .share-box{position:relative;max-width:min(92vw,440px);display:flex;flex-direction:column;align-items:center;gap:16px}
 .share-img{width:100%;max-height:52vh;object-fit:contain;border-radius:14px;box-shadow:0 18px 50px rgba(0,0,0,.6)}
-.share-btns{display:flex;gap:10px;flex-wrap:nowrap;justify-content:center}
-.share-btns .btn{flex:1 1 0;min-width:0;padding-left:8px;padding-right:8px;white-space:nowrap}
+.share-btns{display:flex;gap:8px;flex-wrap:nowrap;justify-content:center}
+.share-btns .btn{flex:1 1 0;min-width:0;padding:13px 6px;font-size:12px;letter-spacing:.4px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .share-x{position:absolute;top:-16px;right:-16px;width:40px;height:40px;border-radius:50%;border:none;background:#1a1a3e;color:#fff;font-size:24px;line-height:1;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.5)}
 .share-msg{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--green);min-height:16px;text-align:center}
 .share-link{display:flex;width:100%;gap:8px}
@@ -758,7 +758,7 @@ let WAR2016=new Set();   // 2015-16 Warriors, removed from the draftable pool
 let teams=[[],[]], adjusted=[[],[]], teamNames=["YOUR SQUAD","OPPONENT"];
 
 // --- tunable game constants (easy to tweak / move to a config later) ---
-const BUILD      = "v34 · Warriors shown locked + intro copy + share row · 2026-06-27";
+const BUILD      = "v35 · dedup picks by normalized name + share buttons fit · 2026-06-27";
 // Where a shared squad link points. This must be a page that serves THIS game's
 // HTML (it reads the ?sq= payload client-side). Until hoopsmatic.com/73-9 serves
 // this file, shared links will 404 — change this one line back to the GitHub Pages
@@ -1115,7 +1115,7 @@ function wireDragDrop(){
 }
 
 /* ---- pickable pools ---- */
-function unpickedPlayers(g){return g.players.filter(p=>!pickedNames.has(p.name))}
+function unpickedPlayers(g){return g.players.filter(p=>!pickedNames.has(normName(p.name)))}
 function groupHasAffordable(g){return unpickedPlayers(g).some(p=>p.cost<=remaining+1)}
 function groupHasUnpicked(g){return unpickedPlayers(g).length>0}
 // one-per-position aware: a player only counts if its natural position is still open
@@ -1220,7 +1220,7 @@ function pickPlayer(key,name){
   const group=GROUP_BY_KEY[key]; if(!group)return;
   const p=group.players.find(x=>x.name===name); if(!p)return;
   if(WAR2016.has(p.name))return;   // 2015-16 Warriors are locked, never signable
-  if(pickedNames.has(p.name)||p.cost>remaining+1)return;   // total flexibility: any affordable player
+  if(pickedNames.has(normName(p.name))||p.cost>remaining+1)return;   // total flexibility: any affordable player
 
   remaining-=p.cost;
   const entry={name:p.name,sy:p.sy,abbr:group.abbr,pct:p.pct,cost:p.cost,rating:p.rating,
@@ -1230,7 +1230,7 @@ function pickPlayer(key,name){
   // breaks ties), so the depth chart settles itself as you go.
   roster=allocateSlots(roster.filter(Boolean).concat([entry]));
   rolledGroups.push(group);
-  pickedNames.add(p.name);
+  pickedNames.add(normName(p.name));
 
   $("landed").classList.add("hidden");
   currentGroup=null;
