@@ -61,6 +61,25 @@ body{background:linear-gradient(160deg,#1a1a3e 0%,#0a0a1a 55%,#050510 100%);back
 .war-margin{font-family:'JetBrains Mono',monospace;font-size:14px;color:#cfcff0}
 .war-best{font-family:'Oswald',sans-serif;font-size:13px;letter-spacing:.4px;color:#bcbce6;margin-top:8px}
 .war-best b{color:#ffd700;font-weight:700}
+/* friend challenge */
+.ch-banner{margin:0 0 14px;padding:12px 16px;border-radius:12px;background:linear-gradient(160deg,rgba(92,42,30,.55),rgba(30,12,10,.55));border:1px solid #ff9a4d55;color:#ffd9bf;font-size:14px;line-height:1.4;text-align:center}
+.ch-banner b{color:#ffb27a}
+.ch-panel{background:linear-gradient(160deg,rgba(92,42,30,.42),rgba(20,12,10,.5));border-color:#ff9a4d44}
+.ch-panel .war-hdr{color:#ff9a4d}
+.ch-vs{display:flex;align-items:stretch;justify-content:center;gap:10px;margin:12px 0 6px}
+.ch-side{flex:1 1 0;min-width:0}
+.ch-who{font-family:'Oswald',sans-serif;font-weight:700;font-size:13px;letter-spacing:.5px;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ch-wp{font-family:'Oswald',sans-serif;font-weight:700;font-size:32px;line-height:1.1;color:#ffd9bf}
+.ch-sub{font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:#b89a8a}
+.ch-mid{align-self:center;font-family:'Oswald',sans-serif;font-weight:700;font-size:14px;color:#8a7a72}
+.ch-h2h{font-family:'Oswald',sans-serif;font-size:14px;line-height:1.4;color:#e6d2c8;margin-top:8px}
+.ch-h2h b{color:#ff9a4d;font-weight:700}
+.ch-h2h.ch-win b{color:#ffd700}
+.ch-box{max-width:440px}
+.ch-modal-hdr{font-family:'Oswald',sans-serif;font-weight:700;letter-spacing:1px;text-transform:uppercase;font-size:16px;color:#ff9a4d;margin:2px 0 4px}
+.ch-modal-sub{font-size:13px;color:#bcbce6;margin-bottom:12px;line-height:1.4}
+.perfect-callout{margin:0 0 14px;padding:14px 18px;border-radius:14px;text-align:center;font-family:'Oswald',sans-serif;font-size:15px;line-height:1.4;color:#1a1206;background:linear-gradient(135deg,#ffe08a,#ffc24d);border:1px solid #ffd166;box-shadow:0 6px 22px rgba(255,193,77,.25);font-weight:600}
+.perfect-callout b{font-weight:800}
 .szn{display:inline-block;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;color:#ffd166;background:rgba(255,209,102,.12);border:1px solid rgba(255,209,102,.3);border-radius:6px;padding:1px 6px;margin:0 4px;vertical-align:middle;letter-spacing:.5px}
 .shared-cta{margin:18px auto 8px;display:flex;justify-content:center}
 .shared-tag{text-align:center;font-family:'Oswald',sans-serif;letter-spacing:2px;text-transform:uppercase;font-size:12px;color:#8a8ab8;margin-bottom:2px}
@@ -758,7 +777,7 @@ let WAR2016=new Set();   // 2015-16 Warriors, removed from the draftable pool
 let teams=[[],[]], adjusted=[[],[]], teamNames=["YOUR SQUAD","OPPONENT"];
 
 // --- tunable game constants (easy to tweak / move to a config later) ---
-const BUILD      = "v36 · best-squad distinct players + share buttons full labels · 2026-06-27";
+const BUILD      = "v38 · leaderboard visible-on-fail + perfect-squad callout and counter · 2026-06-27";
 // Where a shared squad link points. This must be a page that serves THIS game's
 // HTML (it reads the ?sq= payload client-side). Until hoopsmatic.com/73-9 serves
 // this file, shared links will 404 — change this one line back to the GitHub Pages
@@ -2283,7 +2302,7 @@ function lbShowNameForm(panel,nonce,beat){
     try{
       const r=await fetch(_lbBase()+'/name',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({nonce,name})});
       const d=await r.json();
-      if(d&&d.board){ _lbBoard=d.board; lbRenderBoard(panel,d.board); }
+      if(d&&d.board){ _lbBoard=d.board; _lbSavedName=name; lbRenderBoard(panel,d.board); }
       else note.textContent=(d&&d.error==='inappropriate')?'Keep it clean, try another name.':'Could not save that name.';
     }catch(e){ note.textContent='Network error, try again.'; }
   };
@@ -2294,13 +2313,18 @@ async function lbInit(pct,record){
   if(!LB_API)return;
   const panel=document.getElementById('lbPanel');
   if(!panel)return;
+  const unavailable=()=>{panel.innerHTML='<div class="lb-hdr">Best win % vs the 2015-16 Warriors</div><div class="lb-rows lb-loading">leaderboard unavailable right now</div>';};
   // Fetch the board ONCE per session (cached). Cheap, and keeps us inside the free tier.
   if(!_lbFetched){
     panel.innerHTML='<div class="lb-hdr">Best win % vs the 2015-16 Warriors</div><div class="lb-rows lb-loading">loading…</div>';
-    try{ const r=await fetch(_lbBase()+'/board'); _lbBoard=await r.json(); _lbFetched=true; }
-    catch(e){ panel.remove(); return; }
+    try{
+      const r=await fetch(_lbBase()+'/board');
+      if(!r.ok)throw new Error('HTTP '+r.status);
+      _lbBoard=await r.json(); _lbFetched=true;
+    }
+    catch(e){ console.warn('[ROULETTE] leaderboard /board fetch failed:',e); unavailable(); return; }
   }
-  if(!_lbBoard){ panel.remove(); return; }
+  if(!_lbBoard){ unavailable(); return; }
   lbRenderBoard(panel,_lbBoard);
   // Only contact the server when this result actually beats a window we know about,
   // so most plays cost nothing. The server re-validates and is the source of truth.
@@ -2314,9 +2338,13 @@ async function lbInit(pct,record){
         const beat=d.beat||{};
         if((beat.day||beat.week||beat.alltime)&&d.nonce) lbShowNameForm(panel,d.nonce,beat);
       }
-    }catch(e){ /* board already shown from cache; ignore */ }
+    }catch(e){ console.warn('[ROULETTE] leaderboard /claim failed:',e); /* board already shown from cache */ }
   }
 }
+// Personal tally of best-possible-squad games, kept on the device (works on the
+// live site; localStorage is only off-limits inside Claude artifacts).
+function perfectCount(){try{return parseInt(localStorage.getItem('h99_perfect')||'0',10)||0;}catch(e){return 0;}}
+function bumpPerfect(){try{const n=perfectCount()+1;localStorage.setItem('h99_perfect',String(n));return n;}catch(e){return 0;}}
 function showResults(){
   if(spinning)return;
   if(rosterCount()<3){alert("Sign at least 3 players before simulating.");return}
@@ -2364,6 +2392,13 @@ function showResults(){
       '<div class="res-sub">'+yours.ppg.toFixed(1)+' – '+yours.oppg.toFixed(1)+' PPG vs all-era fives · spent '+fmtM(spent)+' of '+fmtM(BUDGET)+'</div>';
 
     html+=warPanel;
+    if(samePicks){
+      const pc=bumpPerfect();
+      const tail = pc>1 ? ('That\u2019s <b>'+pc+'</b> best-possible squads you\u2019ve built.')
+                        : 'Your first best-possible squad.';
+      html='<div class="perfect-callout">\u2605 Best possible squad! No five from your team-seasons beats it. '+tail+'</div>'+html;
+    }
+    if(window.__CHALLENGE__){ try{ html+=challengePanelHTML(winPctStr); }catch(e){} }
     if(LB_API) html+='<div id="lbPanel" class="war-panel lb-panel"></div>';
 
     // your squad
@@ -2405,6 +2440,7 @@ function showResults(){
     };
     html+='<div class="res-actions">'+
       '<button class="btn" onclick="shareResultCard()">Share result</button>'+
+      '<button class="btn ghost" onclick="openChallengeModal()">Challenge a friend</button>'+
       '<button class="btn ghost" onclick="playAgain()">Play again</button>'+
       '</div>';
     el.innerHTML=html;
@@ -2608,6 +2644,106 @@ function _openShareModal(durl,blob){
 // re-roll the 82-game gauntlet against the same two squads (variance flavor)
 
 /* ============================================================
+   FRIEND CHALLENGE — a challenge link (?ch=) encodes the challenger's five,
+   their Warriors win% and record. The friend plays their own game; at results
+   we rebuild the challenger's five from the live data, score both fives with
+   the SAME engine, and run a best-of-7 head to head. All in the URL, no server.
+   ============================================================ */
+let _lbSavedName='';   // set when the player names a leaderboard mark, used as the default challenger name
+function buildChallengeURL(){
+  const five=roster.filter(Boolean);
+  if(!five.length)return SHARE_BASE_URL;
+  const payload={
+    v:1,
+    nm:(_lbSavedName||''),
+    wp:(shareCardData?shareCardData.warPct:''),
+    rec:(shareCardData?(shareCardData.w+'-'+shareCardData.l):''),
+    st:lineupStrength(roster),                       // fallback strength if rebuild fails
+    p:five.map(p=>({nm:p.name,ab:p.abbr,sy:p.sy}))
+  };
+  return SHARE_BASE_URL+'?ch='+_b64urlEncode(payload);
+}
+// Rebuild a lineup of strength-bearing player objects from {nm,ab,sy} using the
+// loaded data, so both squads are scored by THIS build's engine (version-proof).
+function reconstructLineup(players){
+  if(!Array.isArray(players)||!players.length)return null;
+  const picks=[];
+  for(const pl of players){
+    const g=GROUP_BY_KEY[(pl.ab||'')+'|'+pl.sy];
+    if(!g)return null;
+    const pp=g.players.find(x=>normName(x.name)===normName(pl.nm||''));
+    if(!pp)return null;
+    picks.push(materializePick(g,pp));
+  }
+  return allocateSlots(picks);
+}
+// Best-of-7 from the single-game win probability. Deterministic: same two squads
+// always give the same verdict and the same most-likely scoreline.
+function headToHead(friendLineup,chStrength){
+  const fs=lineupStrength(friendLineup);
+  const p=Math.max(0.001,Math.min(0.999,winProb(fs,chStrength)));  // friend's single-game win prob
+  const C=[1,4,10,20];   // C(3+k,k) for k=0..3
+  let youSeries=0,themSeries=0;const youSc=[],themSc=[];
+  for(let k=0;k<4;k++){const pr=C[k]*Math.pow(p,4)*Math.pow(1-p,k);youSeries+=pr;youSc.push({you:4,them:k,pr});}
+  for(let k=0;k<4;k++){const pr=C[k]*Math.pow(1-p,4)*Math.pow(p,k);themSeries+=pr;themSc.push({you:k,them:4,pr});}
+  const youWin=youSeries>=themSeries;
+  const pool=(youWin?youSc:themSc).sort((a,b)=>b.pr-a.pr);
+  return {youWin,score:pool[0],seriesPct:(youWin?youSeries:themSeries)};
+}
+function challengePanelHTML(friendWarPctStr){
+  const ch=window.__CHALLENGE__;if(!ch)return '';
+  const chName=ch.nm?escapeHtmlS(ch.nm):'Challenger';
+  const chWp=escapeHtmlS(ch.wp||'\u2014');
+  const recon=reconstructLineup(ch.p);
+  const chStrength=recon?lineupStrength(recon):(typeof ch.st==='number'?ch.st:null);
+  let h2h='';
+  if(chStrength!=null){
+    const r=headToHead(roster,chStrength);
+    h2h = r.youWin
+      ? '<div class="ch-h2h ch-win">Head to head, you take a 7-game series <b>'+r.score.you+'\u2013'+r.score.them+'</b> ('+Math.round(r.seriesPct*100)+'% of the time).</div>'
+      : '<div class="ch-h2h">'+chName+' takes a 7-game series <b>'+r.score.them+'\u2013'+r.score.you+'</b> ('+Math.round(r.seriesPct*100)+'% of the time). Rematch?</div>';
+  }else{
+    h2h='<div class="ch-h2h">Couldn\'t rebuild their five to simulate, so compare the Warriors marks above.</div>';
+  }
+  return '<div class="war-panel ch-panel">'+
+    '<div class="war-hdr">Friend challenge</div>'+
+    '<div class="ch-vs">'+
+      '<div class="ch-side"><div class="ch-who">You</div><div class="ch-wp">'+friendWarPctStr+'</div><div class="ch-sub">vs Warriors</div></div>'+
+      '<div class="ch-mid">vs</div>'+
+      '<div class="ch-side"><div class="ch-who">'+chName+'</div><div class="ch-wp">'+chWp+'</div><div class="ch-sub">vs Warriors</div></div>'+
+    '</div>'+h2h+'</div>';
+}
+function openChallengeModal(){
+  const url=buildChallengeURL();
+  const ex=document.getElementById('chModal');if(ex)ex.remove();
+  const ov=document.createElement('div');ov.id='chModal';ov.className='share-modal';
+  const wp=shareCardData?shareCardData.warPct:'';
+  const txt='I built a five that beats the 2015-16 Warriors '+wp+' of the time. Can you beat me in 73-9?';
+  ov.innerHTML='<div class="share-box ch-box">'+
+    '<button class="share-x" aria-label="Close">\u00d7</button>'+
+    '<div class="ch-modal-hdr">Challenge a friend</div>'+
+    '<div class="ch-modal-sub">Send this link. They build their own five, then the game pits it against yours head to head.</div>'+
+    '<div class="share-link"><input class="share-url" readonly value="'+escapeHtmlS(url)+'"><button class="share-copybtn" data-act="copych">Copy</button></div>'+
+    (navigator.share?'<div class="share-btns"><button class="btn" data-act="sharech">Share</button></div>':'')+
+    '<div class="share-msg"></div></div>';
+  document.body.appendChild(ov);
+  const msg=ov.querySelector('.share-msg');
+  const close=()=>{ov.remove();document.removeEventListener('keydown',onKey);};
+  const onKey=e=>{if(e.key==='Escape')close();};
+  document.addEventListener('keydown',onKey);
+  ov.addEventListener('click',e=>{if(e.target===ov)close();});
+  ov.querySelector('.share-x').onclick=close;
+  const f=ov.querySelector('.share-url');if(f)f.onclick=()=>f.select();
+  ov.querySelectorAll('[data-act]').forEach(b=>{
+    b.onclick=async()=>{
+      const act=b.getAttribute('data-act');
+      if(act==='copych'){ try{ await navigator.clipboard.writeText(txt+'\n'+url); msg.textContent='Challenge link copied.'; }catch(e){ msg.textContent='Copy blocked here. Tap the link to select it.'; } }
+      else if(act==='sharech'){ try{ await navigator.share({title:'73-9 challenge',text:txt,url:url}); }catch(e){ if(!(e&&e.name==='AbortError'))msg.textContent='Share unavailable. Use Copy.'; } }
+    };
+  });
+}
+
+/* ============================================================
    SHARED SQUAD VIEW — when opened via a ?sq= link, render the shared team
    read-only (no data.bin needed) and skip the game boot entirely.
    "Spin your own five" reloads the clean URL into the normal game.
@@ -2644,6 +2780,27 @@ function renderSharedView(d){
   if(btn)btn.onclick=()=>{location.href=location.origin+location.pathname;};
 }
 if(SHARED_PAYLOAD){window.__SHARED__=true;renderSharedView(SHARED_PAYLOAD);}
+
+/* Friend-challenge entry: a ?ch= link loads the FULL game (so the friend can
+   play), flags the session as a challenge, and shows who they're up against. */
+const CH_PAYLOAD=(function(){
+  try{const s=new URLSearchParams(location.search).get('ch');return s?_b64urlDecode(s):null;}
+  catch(e){console.warn('[ROULETTE] bad challenge link',e);return null;}
+})();
+if(CH_PAYLOAD&&Array.isArray(CH_PAYLOAD.p)&&!window.__SHARED__){
+  window.__CHALLENGE__=CH_PAYLOAD;
+  try{
+    const nm=CH_PAYLOAD.nm?escapeHtmlS(CH_PAYLOAD.nm):'A 73-9 challenger';
+    const wp=escapeHtmlS(CH_PAYLOAD.wp||'');
+    const rec=escapeHtmlS(CH_PAYLOAD.rec||'');
+    const intro=$("intro");
+    if(intro){
+      const b=document.createElement('div');b.className='ch-banner';
+      b.innerHTML='<b>'+nm+'</b> challenged you'+(rec?(' (went '+rec+')'):'')+(wp?(', beat the Warriors '+wp):'')+'. Build a five that beats them.';
+      intro.insertBefore(b,intro.firstChild);
+    }
+  }catch(e){}
+}
 
 /* ============================================================
    BOOT / DATA LOADING (mirrors the salary variant's loader)
