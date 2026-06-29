@@ -777,7 +777,7 @@ let WAR2016=new Set();   // 2015-16 Warriors, removed from the draftable pool
 let teams=[[],[]], adjusted=[[],[]], teamNames=["YOUR SQUAD","OPPONENT"];
 
 // --- tunable game constants (easy to tweak / move to a config later) ---
-const BUILD      = "v38 · leaderboard visible-on-fail + perfect-squad callout and counter · 2026-06-27";
+const BUILD      = "v39 · actions row moved up + challenge Copy = link only · 2026-06-27";
 // Where a shared squad link points. This must be a page that serves THIS game's
 // HTML (it reads the ?sq= payload client-side). Until hoopsmatic.com/73-9 serves
 // this file, shared links will 404 — change this one line back to the GitHub Pages
@@ -2401,6 +2401,13 @@ function showResults(){
     if(window.__CHALLENGE__){ try{ html+=challengePanelHTML(winPctStr); }catch(e){} }
     if(LB_API) html+='<div id="lbPanel" class="war-panel lb-panel"></div>';
 
+    // actions row sits between the win% area and the squad breakdown
+    html+='<div class="res-actions">'+
+      '<button class="btn" onclick="shareResultCard()">Share result</button>'+
+      '<button class="btn ghost" onclick="openChallengeModal()">Challenge a friend</button>'+
+      '<button class="btn ghost" onclick="playAgain()">Play again</button>'+
+      '</div>';
+
     // your squad
     html+='<div class="sq yours">'+
       '<div class="sq-hdr"><span class="t">Your squad</span>'+
@@ -2438,11 +2445,6 @@ function showResults(){
         cost:fmtM(p.cost)
       }))
     };
-    html+='<div class="res-actions">'+
-      '<button class="btn" onclick="shareResultCard()">Share result</button>'+
-      '<button class="btn ghost" onclick="openChallengeModal()">Challenge a friend</button>'+
-      '<button class="btn ghost" onclick="playAgain()">Play again</button>'+
-      '</div>';
     el.innerHTML=html;
     try{ lbInit(war.winPct*100, yours.w+'\u2013'+yours.l); }catch(e){}
     if(samePicks){ try{ fireConfetti(); }catch(e){} }
@@ -2737,7 +2739,7 @@ function openChallengeModal(){
   ov.querySelectorAll('[data-act]').forEach(b=>{
     b.onclick=async()=>{
       const act=b.getAttribute('data-act');
-      if(act==='copych'){ try{ await navigator.clipboard.writeText(txt+'\n'+url); msg.textContent='Challenge link copied.'; }catch(e){ msg.textContent='Copy blocked here. Tap the link to select it.'; } }
+      if(act==='copych'){ try{ await navigator.clipboard.writeText(url); msg.textContent='Link copied.'; }catch(e){ msg.textContent='Copy blocked here. Tap the link to select it.'; } }
       else if(act==='sharech'){ try{ await navigator.share({title:'73-9 challenge',text:txt,url:url}); }catch(e){ if(!(e&&e.name==='AbortError'))msg.textContent='Share unavailable. Use Copy.'; } }
     };
   });
