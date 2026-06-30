@@ -32,7 +32,7 @@ body{background:linear-gradient(160deg,#1a1a3e 0%,#0a0a1a 55%,#050510 100%);back
 .hidden{display:none!important}
 .btn{font-family:'Oswald',sans-serif;font-weight:700;letter-spacing:2px;text-transform:uppercase;border:none;border-radius:8px;cursor:pointer;padding:14px 30px;font-size:15px;background:linear-gradient(135deg,var(--orange),var(--gold));color:#1a1006;transition:transform .12s,box-shadow .12s;box-shadow:0 6px 18px rgba(255,107,53,.25)}
 .btn.ghost{background:transparent;color:var(--orange);border:1.5px solid var(--orange);box-shadow:none}
-.res-actions{display:flex;gap:14px;justify-content:center;flex-wrap:wrap;margin-top:14px}
+.res-actions{display:flex;gap:14px;justify-content:center;flex-wrap:wrap;margin:16px 0 46px}
 .share-modal{position:fixed;inset:0;z-index:10000;background:rgba(5,5,16,.82);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;padding:20px;animation:fadeIn .2s}
 .share-box{position:relative;max-width:min(92vw,440px);display:flex;flex-direction:column;align-items:center;gap:16px}
 .share-img{width:100%;max-height:52vh;object-fit:contain;border-radius:14px;box-shadow:0 18px 50px rgba(0,0,0,.6)}
@@ -75,6 +75,14 @@ body{background:linear-gradient(160deg,#1a1a3e 0%,#0a0a1a 55%,#050510 100%);back
 .ch-h2h{font-family:'Oswald',sans-serif;font-size:14px;line-height:1.4;color:#e6d2c8;margin-top:8px}
 .ch-h2h b{color:#ff9a4d;font-weight:700}
 .ch-h2h.ch-win b{color:#ffd700}
+.ch-feud{font-family:'Oswald',sans-serif;font-size:13px;letter-spacing:.3px;color:#ffd9bf;margin-top:8px}
+.ch-feud b{color:#fff;font-weight:800}
+.ch-fire-row{margin-top:12px}
+.ch-fire{background:linear-gradient(135deg,#ff9a4d,#ff7a59);border:none;color:#1a0d06}
+.ch-banner-feud{margin-top:6px;font-size:13px;color:#ffd9bf}
+.ch-banner-feud b{color:#fff;font-weight:800}
+.ch-name-row{margin-bottom:10px}
+.ch-name{width:100%;box-sizing:border-box}
 .ch-box{max-width:440px}
 .ch-modal-hdr{font-family:'Oswald',sans-serif;font-weight:700;letter-spacing:1px;text-transform:uppercase;font-size:16px;color:#ff9a4d;margin:2px 0 4px}
 .ch-modal-sub{font-size:13px;color:#bcbce6;margin-bottom:12px;line-height:1.4}
@@ -92,6 +100,7 @@ body{background:linear-gradient(160deg,#1a1a3e 0%,#0a0a1a 55%,#050510 100%);back
 .lb-per{color:#8a8ab8;letter-spacing:.5px}
 .lb-mark b{color:#ffd700;font-size:15px}
 .lb-name{color:#bcbce6;margin-left:8px}
+.lb-rec{color:#9aa0b5;font-size:.92em;margin-left:6px}
 .lb-empty{color:#666}
 .lb-claim{margin-top:12px;padding-top:10px;border-top:1px solid rgba(255,209,102,.25)}
 .lb-claim-msg{font-family:'Oswald',sans-serif;color:#ffd166;font-size:13px;margin-bottom:8px;text-align:center}
@@ -777,7 +786,7 @@ let WAR2016=new Set();   // 2015-16 Warriors, removed from the draftable pool
 let teams=[[],[]], adjusted=[[],[]], teamNames=["YOUR SQUAD","OPPONENT"];
 
 // --- tunable game constants (easy to tweak / move to a config later) ---
-const BUILD      = "v39 · actions row moved up + challenge Copy = link only · 2026-06-27";
+const BUILD      = "v41 · perfect-squads board + feud (running score) + record on win line · 2026-06-27";
 // Where a shared squad link points. This must be a page that serves THIS game's
 // HTML (it reads the ?sq= payload client-side). Until hoopsmatic.com/73-9 serves
 // this file, shared links will 404 — change this one line back to the GitHub Pages
@@ -2274,10 +2283,19 @@ function bestSquadExplanation(yoursLineup,bestLineup,yoursRec,bestRec){
    Fails silently and never blocks the results screen if LB_API is unset or down.
    ============================================================ */
 function _lbBase(){return LB_API.replace(/\/+$/,'');}
+// Stable per-device identity + display name (for the perfect-squads board).
+function playerId(){try{let id=localStorage.getItem('h99_id');if(!id){id=(crypto.randomUUID?crypto.randomUUID():String(Date.now())+Math.random().toString(16).slice(2));localStorage.setItem('h99_id',id);}return id;}catch(e){return 'anon';}}
+function playerName(){try{return localStorage.getItem('h99_name')||'';}catch(e){return '';}}
+function setPlayerName(n){try{localStorage.setItem('h99_name',n);}catch(e){}}
 function lbFmt(e){
   if(!e||e.pct==null)return '<span class="lb-empty">—</span>';
   const nm=e.name?escapeHtmlS(e.name):'anon';
-  return '<b>'+Number(e.pct).toFixed(2)+'%</b> <span class="lb-name">'+nm+'</span>';
+  const rec=e.record?' <span class="lb-rec">'+escapeHtmlS(e.record)+'</span>':'';
+  return '<b>'+Number(e.pct).toFixed(2)+'%</b>'+rec+' <span class="lb-name">'+nm+'</span>';
+}
+function lbFmtPerfect(e){
+  if(!e)return '<span class="lb-empty">—</span>';
+  return '<b>'+(e.n||0)+'</b> <span class="lb-name">'+escapeHtmlS(e.name||'anon')+'</span>';
 }
 function lbRenderBoard(panel,board){
   panel.innerHTML='<div class="lb-hdr">Best win % vs the 2015-16 Warriors</div>'+
@@ -2285,6 +2303,17 @@ function lbRenderBoard(panel,board){
       '<div class="lb-row"><span class="lb-per">Today</span><span class="lb-mark">'+lbFmt(board.day)+'</span></div>'+
       '<div class="lb-row"><span class="lb-per">This week</span><span class="lb-mark">'+lbFmt(board.week)+'</span></div>'+
       '<div class="lb-row"><span class="lb-per">All-time</span><span class="lb-mark">'+lbFmt(board.alltime)+'</span></div>'+
+    '</div>';
+}
+function lbRenderPerfect(panel,perfect){
+  if(!panel)return;
+  if(!perfect){panel.remove();return;}   // older Worker without the perfect board → hide this panel
+  const lead=l=>(l&&l.length)?l[0]:null;
+  panel.innerHTML='<div class="lb-hdr">Most best-possible squads</div>'+
+    '<div class="lb-rows">'+
+      '<div class="lb-row"><span class="lb-per">Today</span><span class="lb-mark">'+lbFmtPerfect(lead(perfect.day))+'</span></div>'+
+      '<div class="lb-row"><span class="lb-per">This week</span><span class="lb-mark">'+lbFmtPerfect(lead(perfect.week))+'</span></div>'+
+      '<div class="lb-row"><span class="lb-per">All-time</span><span class="lb-mark">'+lbFmtPerfect(lead(perfect.alltime))+'</span></div>'+
     '</div>';
 }
 let _lbBoard=null,_lbFetched=false;   // session cache so we read the board once, not per play
@@ -2302,21 +2331,23 @@ function lbShowNameForm(panel,nonce,beat){
     try{
       const r=await fetch(_lbBase()+'/name',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({nonce,name})});
       const d=await r.json();
-      if(d&&d.board){ _lbBoard=d.board; _lbSavedName=name; lbRenderBoard(panel,d.board); }
+      if(d&&d.board){ _lbApplyWin(d.board); _lbSavedName=name; setPlayerName(name); lbRenderBoard(panel,_lbBoard); }
       else note.textContent=(d&&d.error==='inappropriate')?'Keep it clean, try another name.':'Could not save that name.';
     }catch(e){ note.textContent='Network error, try again.'; }
   };
   wrap.querySelector('.lb-save').onclick=save;
   input.addEventListener('keydown',e=>{if(e.key==='Enter')save();});
 }
-async function lbInit(pct,record){
+function _lbApplyWin(w){ if(!_lbBoard)_lbBoard={}; _lbBoard.day=w.day; _lbBoard.week=w.week; _lbBoard.alltime=w.alltime; }
+async function lbInit(pct,record,isPerfect){
   if(!LB_API)return;
   const panel=document.getElementById('lbPanel');
-  if(!panel)return;
-  const unavailable=()=>{panel.innerHTML='<div class="lb-hdr">Best win % vs the 2015-16 Warriors</div><div class="lb-rows lb-loading">leaderboard unavailable right now</div>';};
+  const perfPanel=document.getElementById('lbPerfectPanel');
+  if(!panel&&!perfPanel)return;
+  const unavailable=()=>{ if(panel)panel.innerHTML='<div class="lb-hdr">Best win % vs the 2015-16 Warriors</div><div class="lb-rows lb-loading">leaderboard unavailable right now</div>'; if(perfPanel)perfPanel.remove(); };
   // Fetch the board ONCE per session (cached). Cheap, and keeps us inside the free tier.
   if(!_lbFetched){
-    panel.innerHTML='<div class="lb-hdr">Best win % vs the 2015-16 Warriors</div><div class="lb-rows lb-loading">loading…</div>';
+    if(panel)panel.innerHTML='<div class="lb-hdr">Best win % vs the 2015-16 Warriors</div><div class="lb-rows lb-loading">loading…</div>';
     try{
       const r=await fetch(_lbBase()+'/board');
       if(!r.ok)throw new Error('HTTP '+r.status);
@@ -2325,20 +2356,30 @@ async function lbInit(pct,record){
     catch(e){ console.warn('[ROULETTE] leaderboard /board fetch failed:',e); unavailable(); return; }
   }
   if(!_lbBoard){ unavailable(); return; }
-  lbRenderBoard(panel,_lbBoard);
-  // Only contact the server when this result actually beats a window we know about,
-  // so most plays cost nothing. The server re-validates and is the source of truth.
-  const beats=w=>{const e=_lbBoard[w];return !e||e.pct==null||pct>e.pct;};
-  if(beats('day')||beats('week')||beats('alltime')){
+  if(panel)lbRenderBoard(panel,_lbBoard);
+  lbRenderPerfect(perfPanel,_lbBoard.perfect);
+  // Win board: only contact the server when this result beats a window we know about.
+  if(panel){
+    const beats=w=>{const e=_lbBoard[w];return !e||e.pct==null||pct>e.pct;};
+    if(beats('day')||beats('week')||beats('alltime')){
+      try{
+        const r=await fetch(_lbBase()+'/claim',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pct:Number(pct.toFixed(2)),record:record})});
+        const d=await r.json();
+        if(d&&d.board){
+          _lbApplyWin(d.board); lbRenderBoard(panel,_lbBoard);
+          const beat=d.beat||{};
+          if((beat.day||beat.week||beat.alltime)&&d.nonce) lbShowNameForm(panel,d.nonce,beat);
+        }
+      }catch(e){ console.warn('[ROULETTE] leaderboard /claim failed:',e); }
+    }
+  }
+  // Perfect-squads board: record this best-possible game, then refresh that panel.
+  if(isPerfect&&perfPanel){
     try{
-      const r=await fetch(_lbBase()+'/claim',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pct:Number(pct.toFixed(2)),record:record})});
+      const r=await fetch(_lbBase()+'/perfect',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:playerId(),name:playerName()})});
       const d=await r.json();
-      if(d&&d.board){
-        _lbBoard=d.board; lbRenderBoard(panel,_lbBoard);
-        const beat=d.beat||{};
-        if((beat.day||beat.week||beat.alltime)&&d.nonce) lbShowNameForm(panel,d.nonce,beat);
-      }
-    }catch(e){ console.warn('[ROULETTE] leaderboard /claim failed:',e); /* board already shown from cache */ }
+      if(d&&d.perfect){ _lbBoard.perfect=d.perfect; lbRenderPerfect(perfPanel,d.perfect); }
+    }catch(e){ console.warn('[ROULETTE] leaderboard /perfect failed:',e); }
   }
 }
 // Personal tally of best-possible-squad games, kept on the device (works on the
@@ -2399,7 +2440,8 @@ function showResults(){
       html='<div class="perfect-callout">\u2605 Best possible squad! No five from your team-seasons beats it. '+tail+'</div>'+html;
     }
     if(window.__CHALLENGE__){ try{ html+=challengePanelHTML(winPctStr); }catch(e){} }
-    if(LB_API) html+='<div id="lbPanel" class="war-panel lb-panel"></div>';
+    if(LB_API) html+='<div id="lbPanel" class="war-panel lb-panel"></div>'+
+                     '<div id="lbPerfectPanel" class="war-panel lb-panel"></div>';
 
     // actions row sits between the win% area and the squad breakdown
     html+='<div class="res-actions">'+
@@ -2446,7 +2488,7 @@ function showResults(){
       }))
     };
     el.innerHTML=html;
-    try{ lbInit(war.winPct*100, yours.w+'\u2013'+yours.l); }catch(e){}
+    try{ lbInit(war.winPct*100, yours.w+'\u2013'+yours.l, samePicks); }catch(e){}
     if(samePicks){ try{ fireConfetti(); }catch(e){} }
   },40);
 }
@@ -2652,18 +2694,39 @@ function _openShareModal(durl,blob){
    the SAME engine, and run a best-of-7 head to head. All in the URL, no server.
    ============================================================ */
 let _lbSavedName='';   // set when the player names a leaderboard mark, used as the default challenger name
-function buildChallengeURL(){
+function buildChallengeURL(name,feud){
   const five=roster.filter(Boolean);
   if(!five.length)return SHARE_BASE_URL;
   const payload={
-    v:1,
-    nm:(_lbSavedName||''),
+    v:2,
+    nm:name||'',
     wp:(shareCardData?shareCardData.warPct:''),
     rec:(shareCardData?(shareCardData.w+'-'+shareCardData.l):''),
     st:lineupStrength(roster),                       // fallback strength if rebuild fails
-    p:five.map(p=>({nm:p.name,ab:p.abbr,sy:p.sy}))
+    p:five.map(p=>({nm:p.name,ab:p.abbr,sy:p.sy})),
+    f:feud||{n:0,s:{}}                               // running feud scoreboard, name -> wins
   };
   return SHARE_BASE_URL+'?ch='+_b64urlEncode(payload);
+}
+// Render a feud scoreboard "Jorge 2 · Alberto 1" from f.s (name -> wins).
+function feudStandingsHTML(f){
+  if(!f||!f.s)return '';
+  const e=Object.keys(f.s).map(k=>({name:k,n:f.s[k]})).filter(x=>x.name);
+  if(!e.length)return '';
+  e.sort((a,b)=>b.n-a.n);
+  return e.map(x=>escapeHtmlS(x.name)+' <b>'+x.n+'</b>').join(' \u00b7 ');
+}
+// Take the incoming feud and add this round's head-to-head result, attributed to
+// the entered name. Idempotent: always rebuilt from the incoming feud + one round.
+function commitFeud(name){
+  const ch=window.__CHALLENGE__, res=window.__CH_RESULT__;
+  const f=(ch&&ch.f)?{n:ch.f.n||0,s:Object.assign({},ch.f.s||{})}:{n:0,s:{}};
+  const chN=(ch&&ch.nm)?ch.nm:'Challenger';
+  const me=name||'You';
+  if(!(chN in f.s))f.s[chN]=0;
+  if(!(me in f.s))f.s[me]=0;
+  if(res){ const winner=res.youWin?me:chN; f.s[winner]=(f.s[winner]||0)+1; f.n=(f.n||0)+1; }
+  return f;
 }
 // Rebuild a lineup of strength-bearing player objects from {nm,ab,sy} using the
 // loaded data, so both squads are scored by THIS build's engine (version-proof).
@@ -2698,13 +2761,18 @@ function challengePanelHTML(friendWarPctStr){
   const chWp=escapeHtmlS(ch.wp||'\u2014');
   const recon=reconstructLineup(ch.p);
   const chStrength=recon?lineupStrength(recon):(typeof ch.st==='number'?ch.st:null);
-  let h2h='';
+  let h2h='',standings='',fireRow='';
   if(chStrength!=null){
     const r=headToHead(roster,chStrength);
+    window.__CH_RESULT__={youWin:r.youWin, challengerName:(ch.nm||'Challenger')};
     h2h = r.youWin
       ? '<div class="ch-h2h ch-win">Head to head, you take a 7-game series <b>'+r.score.you+'\u2013'+r.score.them+'</b> ('+Math.round(r.seriesPct*100)+'% of the time).</div>'
-      : '<div class="ch-h2h">'+chName+' takes a 7-game series <b>'+r.score.them+'\u2013'+r.score.you+'</b> ('+Math.round(r.seriesPct*100)+'% of the time). Rematch?</div>';
+      : '<div class="ch-h2h">'+chName+' takes a 7-game series <b>'+r.score.them+'\u2013'+r.score.you+'</b> ('+Math.round(r.seriesPct*100)+'% of the time).</div>';
+    const fs=feudStandingsHTML(ch.f);
+    if(fs) standings='<div class="ch-feud">Feud so far: '+fs+'</div>';
+    fireRow='<div class="ch-fire-row"><button class="btn ch-fire" onclick="openChallengeModal({fireBack:true})">Fire back at '+chName+'</button></div>';
   }else{
+    window.__CH_RESULT__=null;
     h2h='<div class="ch-h2h">Couldn\'t rebuild their five to simulate, so compare the Warriors marks above.</div>';
   }
   return '<div class="war-panel ch-panel">'+
@@ -2713,29 +2781,50 @@ function challengePanelHTML(friendWarPctStr){
       '<div class="ch-side"><div class="ch-who">You</div><div class="ch-wp">'+friendWarPctStr+'</div><div class="ch-sub">vs Warriors</div></div>'+
       '<div class="ch-mid">vs</div>'+
       '<div class="ch-side"><div class="ch-who">'+chName+'</div><div class="ch-wp">'+chWp+'</div><div class="ch-sub">vs Warriors</div></div>'+
-    '</div>'+h2h+'</div>';
+    '</div>'+h2h+standings+fireRow+'</div>';
 }
-function openChallengeModal(){
-  const url=buildChallengeURL();
+function openChallengeModal(opts){
+  opts=opts||{};
+  const fireBack=!!opts.fireBack;
   const ex=document.getElementById('chModal');if(ex)ex.remove();
   const ov=document.createElement('div');ov.id='chModal';ov.className='share-modal';
+  const hdr=fireBack?'Fire back':'Challenge a friend';
+  const sub=fireBack
+    ? 'Name yourself and send this back. The running score travels in the link.'
+    : 'Add your name, then send this link. They build their own five and the game pits it against yours head to head.';
   const wp=shareCardData?shareCardData.warPct:'';
-  const txt='I built a five that beats the 2015-16 Warriors '+wp+' of the time. Can you beat me in 73-9?';
   ov.innerHTML='<div class="share-box ch-box">'+
     '<button class="share-x" aria-label="Close">\u00d7</button>'+
-    '<div class="ch-modal-hdr">Challenge a friend</div>'+
-    '<div class="ch-modal-sub">Send this link. They build their own five, then the game pits it against yours head to head.</div>'+
-    '<div class="share-link"><input class="share-url" readonly value="'+escapeHtmlS(url)+'"><button class="share-copybtn" data-act="copych">Copy</button></div>'+
+    '<div class="ch-modal-hdr">'+hdr+'</div>'+
+    '<div class="ch-modal-sub">'+sub+'</div>'+
+    '<div class="ch-name-row"><input class="lb-input ch-name" maxlength="16" placeholder="Your name" autocomplete="off"></div>'+
+    '<div class="share-link"><input class="share-url" readonly><button class="share-copybtn" data-act="copych">Copy</button></div>'+
     (navigator.share?'<div class="share-btns"><button class="btn" data-act="sharech">Share</button></div>':'')+
     '<div class="share-msg"></div></div>';
   document.body.appendChild(ov);
+  const nameInput=ov.querySelector('.ch-name');
+  const urlField=ov.querySelector('.share-url');
   const msg=ov.querySelector('.share-msg');
+  nameInput.value=playerName()||_lbSavedName||'';
+  let url='';
+  const refresh=()=>{
+    const nm=nameInput.value.trim();
+    if(nm)setPlayerName(nm);
+    const feud=fireBack?commitFeud(nm):{n:0,s:{}};
+    url=buildChallengeURL(nm,feud);
+    urlField.value=url;
+  };
+  refresh();
+  nameInput.addEventListener('input',refresh);
+  const txt=fireBack
+    ? 'I fired back in our 73-9 feud. Your move.'
+    : 'I built a five that beats the 2015-16 Warriors '+wp+' of the time. Can you beat me in 73-9?';
   const close=()=>{ov.remove();document.removeEventListener('keydown',onKey);};
   const onKey=e=>{if(e.key==='Escape')close();};
   document.addEventListener('keydown',onKey);
   ov.addEventListener('click',e=>{if(e.target===ov)close();});
   ov.querySelector('.share-x').onclick=close;
-  const f=ov.querySelector('.share-url');if(f)f.onclick=()=>f.select();
+  urlField.onclick=()=>urlField.select();
   ov.querySelectorAll('[data-act]').forEach(b=>{
     b.onclick=async()=>{
       const act=b.getAttribute('data-act');
@@ -2798,7 +2887,8 @@ if(CH_PAYLOAD&&Array.isArray(CH_PAYLOAD.p)&&!window.__SHARED__){
     const intro=$("intro");
     if(intro){
       const b=document.createElement('div');b.className='ch-banner';
-      b.innerHTML='<b>'+nm+'</b> challenged you'+(rec?(' (went '+rec+')'):'')+(wp?(', beat the Warriors '+wp):'')+'. Build a five that beats them.';
+      const fs=(CH_PAYLOAD.f&&CH_PAYLOAD.f.s)?feudStandingsHTML(CH_PAYLOAD.f):'';
+      b.innerHTML='<b>'+nm+'</b> challenged you'+(rec?(' (went '+rec+')'):'')+(wp?(', beat the Warriors '+wp):'')+'. Build a five that beats them.'+(fs?'<div class="ch-banner-feud">Feud so far: '+fs+'</div>':'');
       intro.insertBefore(b,intro.firstChild);
     }
   }catch(e){}
