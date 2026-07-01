@@ -4,6 +4,15 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>73-9 · HoopsMatic</title>
+<meta name="description" content="Spin five team-seasons, sign one player from each, and build a budget squad. Then find out how often it would beat the 2015-16 Warriors.">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="HoopsMatic">
+<meta property="og:title" content="73-9 · Can your squad beat the 2015-16 Warriors?">
+<meta property="og:description" content="Spin five team-seasons, sign one player from each within a $120M cap, and simulate an 82-game season. See your win% against the greatest regular-season team ever.">
+<meta property="og:url" content="https://hoopsmatic.com/73-9-game">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="73-9 · Can your squad beat the 2015-16 Warriors?">
+<meta name="twitter:description" content="Spin five team-seasons, sign one player from each within a $120M cap, and simulate an 82-game season. See your win% against the greatest regular-season team ever.">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎰</text></svg>">
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
@@ -75,6 +84,13 @@ body{background:linear-gradient(160deg,#1a1a3e 0%,#0a0a1a 55%,#050510 100%);back
 .ch-h2h{font-family:'Oswald',sans-serif;font-size:14px;line-height:1.4;color:#e6d2c8;margin-top:8px}
 .ch-h2h b{color:#ff9a4d;font-weight:700}
 .ch-h2h.ch-win b{color:#ffd700}
+.ch-h2h.ch-series-done{margin-top:10px;font-family:'Oswald',sans-serif;font-weight:700;font-size:16px;letter-spacing:.4px;text-transform:uppercase;color:#e6d2c8}
+.ch-h2h.ch-series-done.ch-win{color:#ffd700}
+.ch-target{font-size:11px;color:#9a8074;text-transform:none;letter-spacing:0;font-weight:400}
+.ch-badge{display:inline-block;font-family:'Oswald',sans-serif;font-weight:700;font-size:13px;letter-spacing:.3px;color:#1a1206;background:linear-gradient(135deg,#ffe08a,#ffc24d);border-radius:8px;padding:4px 10px}
+.ch-record{font-size:12px;color:#bcbce6;margin-left:6px}
+.ch-inbox{background:linear-gradient(160deg,rgba(30,60,42,.5),rgba(10,20,12,.5));border-color:#4dff9a55;color:#bfffd9}
+.ch-inbox b{color:#7dffb0}
 .ch-feud{font-family:'Oswald',sans-serif;font-size:13px;letter-spacing:.3px;color:#ffd9bf;margin-top:8px}
 .ch-feud b{color:#fff;font-weight:800}
 .ch-fire-row{margin-top:12px}
@@ -786,7 +802,7 @@ let WAR2016=new Set();   // 2015-16 Warriors, removed from the draftable pool
 let teams=[[],[]], adjusted=[[],[]], teamNames=["YOUR SQUAD","OPPONENT"];
 
 // --- tunable game constants (easy to tweak / move to a config later) ---
-const BUILD      = "v41 · perfect-squads board + feud (running score) + record on win line · 2026-06-27";
+const BUILD      = "v43 · feud = real games to 4, mailbox check, career badge · 2026-06-29";
 // Where a shared squad link points. This must be a page that serves THIS game's
 // HTML (it reads the ?sq= payload client-side). Until hoopsmatic.com/73-9 serves
 // this file, shared links will 404 — change this one line back to the GitHub Pages
@@ -2688,27 +2704,39 @@ function _openShareModal(durl,blob){
 // re-roll the 82-game gauntlet against the same two squads (variance flavor)
 
 /* ============================================================
-   FRIEND CHALLENGE — a challenge link (?ch=) encodes the challenger's five,
-   their Warriors win% and record. The friend plays their own game; at results
-   we rebuild the challenger's five from the live data, score both fives with
-   the SAME engine, and run a best-of-7 head to head. All in the URL, no server.
+   FRIEND CHALLENGE / FEUD — a link (?ch=) carries the challenger's five, their
+   Warriors win%, and the running series score. Each Challenge/Fire-back exchange
+   plays ONE real game, decided by a coin flip weighted by each squad's strength
+   (the favorite can still lose a single game, same as real basketball). First to
+   4 wins takes the series.
+   The score also gets a best-effort mirror on the Worker (keyed by a feud id
+   that travels through every link), so a "did they respond?" check can run next
+   time you open the game, and a decided series updates your career feud record
+   (win/loss + badge). Everything here fails soft: if the Worker is unreachable
+   the link-carried score still works, you just don't get the mailbox ping or
+   the badge update.
    ============================================================ */
 let _lbSavedName='';   // set when the player names a leaderboard mark, used as the default challenger name
+
+function genId(){
+  try{ const u=crypto.randomUUID?crypto.randomUUID():(String(Date.now())+Math.random().toString(16).slice(2)); return u.replace(/-/g,'').slice(0,16); }
+  catch(e){ return String(Date.now())+Math.random().toString(16).slice(2); }
+}
 function buildChallengeURL(name,feud){
   const five=roster.filter(Boolean);
   if(!five.length)return SHARE_BASE_URL;
   const payload={
-    v:2,
+    v:3,
     nm:name||'',
     wp:(shareCardData?shareCardData.warPct:''),
     rec:(shareCardData?(shareCardData.w+'-'+shareCardData.l):''),
     st:lineupStrength(roster),                       // fallback strength if rebuild fails
     p:five.map(p=>({nm:p.name,ab:p.abbr,sy:p.sy})),
-    f:feud||{n:0,s:{}}                               // running feud scoreboard, name -> wins
+    f:feud||{id:genId(),n:0,s:{},done:false,winner:null}   // running series score, first to 4
   };
   return SHARE_BASE_URL+'?ch='+_b64urlEncode(payload);
 }
-// Render a feud scoreboard "Jorge 2 · Alberto 1" from f.s (name -> wins).
+// Render a series score "Jorge 2 · Alberto 1" from f.s (name -> games won).
 function feudStandingsHTML(f){
   if(!f||!f.s)return '';
   const e=Object.keys(f.s).map(k=>({name:k,n:f.s[k]})).filter(x=>x.name);
@@ -2716,17 +2744,94 @@ function feudStandingsHTML(f){
   e.sort((a,b)=>b.n-a.n);
   return e.map(x=>escapeHtmlS(x.name)+' <b>'+x.n+'</b>').join(' \u00b7 ');
 }
-// Take the incoming feud and add this round's head-to-head result, attributed to
-// the entered name. Idempotent: always rebuilt from the incoming feud + one round.
-function commitFeud(name){
-  const ch=window.__CHALLENGE__, res=window.__CH_RESULT__;
-  const f=(ch&&ch.f)?{n:ch.f.n||0,s:Object.assign({},ch.f.s||{})}:{n:0,s:{}};
-  const chN=(ch&&ch.nm)?ch.nm:'Challenger';
-  const me=name||'You';
-  if(!(chN in f.s))f.s[chN]=0;
-  if(!(me in f.s))f.s[me]=0;
-  if(res){ const winner=res.youWin?me:chN; f.s[winner]=(f.s[winner]||0)+1; f.n=(f.n||0)+1; }
+// One simulated game: a coin flip weighted by each squad's strength, not a
+// guaranteed win for the favorite.
+function playSeriesGame(myLineup,chStrength){
+  const fs=lineupStrength(myLineup);
+  const p=Math.max(0.03,Math.min(0.97,winProb(fs,chStrength)));
+  return { youWin: Math.random()<p, prob:p };
+}
+// Fold this round's winner into the incoming series score. Pure: returns a new
+// feud object, marks done + winner once someone reaches 4.
+function advanceFeud(incoming,winnerName){
+  const f={ id:(incoming&&incoming.id)||genId(), n:((incoming&&incoming.n)||0)+1,
+            s:Object.assign({},(incoming&&incoming.s)||{}), done:false, winner:null };
+  f.s[winnerName]=(f.s[winnerName]||0)+1;
+  for(const k in f.s){ if(f.s[k]>=4){ f.done=true; f.winner=k; } }
   return f;
+}
+// ---- local "known feuds" list, so the mailbox check knows what to poll ----
+function _knownFeuds(){ try{ return JSON.parse(localStorage.getItem('h99_feuds')||'[]'); }catch(e){ return []; } }
+function _saveKnownFeuds(list){ try{ localStorage.setItem('h99_feuds',JSON.stringify(list.slice(-20))); }catch(e){} }
+function trackFeudLocally(f,oppName){
+  if(!f||!f.id)return;
+  const list=_knownFeuds().filter(x=>x.id!==f.id);
+  list.push({id:f.id,opp:oppName||'',score:f.s||{},done:!!f.done,ts:Date.now()});
+  _saveKnownFeuds(list);
+}
+// Best-effort mirror of the current score onto the Worker. Fire-and-forget: a
+// failure here never blocks or breaks the local game.
+function syncFeudToWorker(f,names){
+  if(!LB_API||!f||!f.id)return;
+  try{
+    fetch(_lbBase()+'/feud',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({id:f.id,names:names||Object.keys(f.s||{}),score:f.s||{},done:!!f.done,winner:f.winner||null})
+    }).catch(()=>{});
+  }catch(e){}
+}
+// ---- career feud record (self-reported once per decided series) ----
+function _reportedFeuds(){ try{ return JSON.parse(localStorage.getItem('h99_career_reported')||'[]'); }catch(e){ return []; } }
+function _markFeudReported(id){ try{ const l=_reportedFeuds(); if(!l.includes(id)){ l.push(id); localStorage.setItem('h99_career_reported',JSON.stringify(l.slice(-100))); } }catch(e){} }
+async function reportCareerResult(feudId,result){
+  if(!LB_API||!feudId)return null;
+  if(_reportedFeuds().includes(feudId))return null;   // already counted this series
+  _markFeudReported(feudId);
+  try{
+    const r=await fetch(_lbBase()+'/career',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({id:playerId(),name:playerName(),result:result})});
+    const d=await r.json();
+    return (d&&d.career)?d.career:null;
+  }catch(e){ return null; }
+}
+function badgeHTML(b){
+  if(!b||!b.tier||b.tier==='Rookie')return '';
+  return '<span class="ch-badge">'+(b.emoji||'')+' '+escapeHtmlS(b.tier)+'</span>';
+}
+// ---- mailbox check: on load, see if any tracked feud's score changed ----
+async function checkFeudInbox(){
+  if(!LB_API)return;
+  const known=_knownFeuds().filter(f=>!f.done);
+  if(!known.length)return;
+  try{
+    const ids=known.map(f=>f.id).join(',');
+    const r=await fetch(_lbBase()+'/feud?ids='+encodeURIComponent(ids));
+    if(!r.ok)return;
+    const d=await r.json();
+    const feuds=(d&&d.feuds)||{};
+    const updates=[],merged=_knownFeuds();
+    for(const f of known){
+      const live=feuds[f.id]; if(!live)continue;
+      if(JSON.stringify(f.score||{})!==JSON.stringify(live.score||{}) || (live.done&&!f.done)){
+        updates.push({opp:f.opp,live});
+        const idx=merged.findIndex(x=>x.id===f.id);
+        if(idx>=0)merged[idx]={id:f.id,opp:f.opp,score:live.score,done:!!live.done,ts:Date.now()};
+      }
+    }
+    if(updates.length){ _saveKnownFeuds(merged); showFeudInboxBanner(updates); }
+  }catch(e){ console.warn('[ROULETTE] feud inbox check failed:',e); }
+}
+function showFeudInboxBanner(updates){
+  const intro=$("intro"); if(!intro)return;
+  const lines=updates.map(u=>{
+    const nm=escapeHtmlS(u.opp||'your opponent');
+    const sc=feudStandingsHTML({s:u.live.score});
+    return u.live.done
+      ? ('Your series with <b>'+nm+'</b> is decided: '+sc+'. Ask them to send the recap link!')
+      : ('<b>'+nm+'</b> played a game. Series now '+sc+'. Grab their latest link to keep going.');
+  });
+  const b=document.createElement('div');b.className='ch-banner ch-inbox';
+  b.innerHTML=lines.join('<br>');
+  intro.insertBefore(b,intro.firstChild);
 }
 // Rebuild a lineup of strength-bearing player objects from {nm,ab,sy} using the
 // loaded data, so both squads are scored by THIS build's engine (version-proof).
@@ -2742,19 +2847,6 @@ function reconstructLineup(players){
   }
   return allocateSlots(picks);
 }
-// Best-of-7 from the single-game win probability. Deterministic: same two squads
-// always give the same verdict and the same most-likely scoreline.
-function headToHead(friendLineup,chStrength){
-  const fs=lineupStrength(friendLineup);
-  const p=Math.max(0.001,Math.min(0.999,winProb(fs,chStrength)));  // friend's single-game win prob
-  const C=[1,4,10,20];   // C(3+k,k) for k=0..3
-  let youSeries=0,themSeries=0;const youSc=[],themSc=[];
-  for(let k=0;k<4;k++){const pr=C[k]*Math.pow(p,4)*Math.pow(1-p,k);youSeries+=pr;youSc.push({you:4,them:k,pr});}
-  for(let k=0;k<4;k++){const pr=C[k]*Math.pow(1-p,4)*Math.pow(p,k);themSeries+=pr;themSc.push({you:k,them:4,pr});}
-  const youWin=youSeries>=themSeries;
-  const pool=(youWin?youSc:themSc).sort((a,b)=>b.pr-a.pr);
-  return {youWin,score:pool[0],seriesPct:(youWin?youSeries:themSeries)};
-}
 function challengePanelHTML(friendWarPctStr){
   const ch=window.__CHALLENGE__;if(!ch)return '';
   const chName=ch.nm?escapeHtmlS(ch.nm):'Challenger';
@@ -2762,17 +2854,31 @@ function challengePanelHTML(friendWarPctStr){
   const recon=reconstructLineup(ch.p);
   const chStrength=recon?lineupStrength(recon):(typeof ch.st==='number'?ch.st:null);
   let h2h='',standings='',fireRow='';
+  window.__CH_FEUD__=null;
   if(chStrength!=null){
-    const r=headToHead(roster,chStrength);
-    window.__CH_RESULT__={youWin:r.youWin, challengerName:(ch.nm||'Challenger')};
-    h2h = r.youWin
-      ? '<div class="ch-h2h ch-win">Head to head, you take a 7-game series <b>'+r.score.you+'\u2013'+r.score.them+'</b> ('+Math.round(r.seriesPct*100)+'% of the time).</div>'
-      : '<div class="ch-h2h">'+chName+' takes a 7-game series <b>'+r.score.them+'\u2013'+r.score.you+'</b> ('+Math.round(r.seriesPct*100)+'% of the time).</div>';
-    const fs=feudStandingsHTML(ch.f);
-    if(fs) standings='<div class="ch-feud">Feud so far: '+fs+'</div>';
-    fireRow='<div class="ch-fire-row"><button class="btn ch-fire" onclick="openChallengeModal({fireBack:true})">Fire back at '+chName+'</button></div>';
+    const me=playerName()||_lbSavedName||'You';
+    const g=playSeriesGame(roster,chStrength);
+    const f=advanceFeud(ch.f,g.youWin?me:(ch.nm||'Challenger'));
+    window.__CH_FEUD__=f;
+    trackFeudLocally(f,ch.nm||'Challenger');
+    syncFeudToWorker(f);
+    h2h = g.youWin
+      ? '<div class="ch-h2h ch-win">You won this game ('+Math.round(g.prob*100)+'% chance).</div>'
+      : '<div class="ch-h2h">'+chName+' won this game (you had a '+Math.round(g.prob*100)+'% chance).</div>';
+    standings='<div class="ch-feud">Series: '+feudStandingsHTML(f)+' <span class="ch-target">(first to 4)</span></div>';
+    if(f.done){
+      const iWon=f.winner===me;
+      h2h+='<div class="ch-h2h ch-series-done '+(iWon?'ch-win':'')+'">'+(iWon?'You won the series!':(chName+' won the series.'))+'</div>';
+      reportCareerResult(f.id,iWon?'win':'loss').then(car=>{
+        if(!car)return;
+        const el=document.getElementById('chBadge'); if(el)el.innerHTML=badgeHTML(car.badge)+' <span class="ch-record">'+car.w+'-'+car.l+' series</span>';
+      });
+      fireRow='<div class="ch-fire-row"><span id="chBadge"></span></div>'+
+              '<div class="ch-fire-row"><button class="btn ch-fire" onclick="openChallengeModal({fireBack:true,newSeries:true})">Start a new series with '+chName+'</button></div>';
+    }else{
+      fireRow='<div class="ch-fire-row"><button class="btn ch-fire" onclick="openChallengeModal({fireBack:true})">Fire back at '+chName+'</button></div>';
+    }
   }else{
-    window.__CH_RESULT__=null;
     h2h='<div class="ch-h2h">Couldn\'t rebuild their five to simulate, so compare the Warriors marks above.</div>';
   }
   return '<div class="war-panel ch-panel">'+
@@ -2785,13 +2891,13 @@ function challengePanelHTML(friendWarPctStr){
 }
 function openChallengeModal(opts){
   opts=opts||{};
-  const fireBack=!!opts.fireBack;
+  const fireBack=!!opts.fireBack, newSeries=!!opts.newSeries;
   const ex=document.getElementById('chModal');if(ex)ex.remove();
   const ov=document.createElement('div');ov.id='chModal';ov.className='share-modal';
-  const hdr=fireBack?'Fire back':'Challenge a friend';
+  const hdr=fireBack?(newSeries?'New series':'Fire back'):'Challenge a friend';
   const sub=fireBack
-    ? 'Name yourself and send this back. The running score travels in the link.'
-    : 'Add your name, then send this link. They build their own five and the game pits it against yours head to head.';
+    ? (newSeries?'Rematch, starting 0-0. Send this to keep the feud going.':'Send this back. Each round is one real game, first to 4 wins the series.')
+    : 'Add your name, then send this link. Each round is one real game (win probability, not a guarantee); first to 4 takes the series.';
   const wp=shareCardData?shareCardData.warPct:'';
   ov.innerHTML='<div class="share-box ch-box">'+
     '<button class="share-x" aria-label="Close">\u00d7</button>'+
@@ -2805,20 +2911,25 @@ function openChallengeModal(opts){
   const nameInput=ov.querySelector('.ch-name');
   const urlField=ov.querySelector('.share-url');
   const msg=ov.querySelector('.share-msg');
-  nameInput.value=playerName()||_lbSavedName||'';
+  const knownName=playerName()||_lbSavedName||'';
+  nameInput.value=knownName;
   let url='';
+  const feudBase=newSeries?{id:genId(),n:0,s:{},done:false,winner:null}
+                :fireBack?(window.__CH_FEUD__||null)
+                :{id:genId(),n:0,s:{},done:false,winner:null};
   const refresh=()=>{
     const nm=nameInput.value.trim();
     if(nm)setPlayerName(nm);
-    const feud=fireBack?commitFeud(nm):{n:0,s:{}};
-    url=buildChallengeURL(nm,feud);
+    url=buildChallengeURL(nm,feudBase);
     urlField.value=url;
+    if(feudBase)trackFeudLocally(feudBase,window.__CHALLENGE__&&window.__CHALLENGE__.nm);
   };
   refresh();
   nameInput.addEventListener('input',refresh);
+  const chName=(window.__CHALLENGE__&&window.__CHALLENGE__.nm)?window.__CHALLENGE__.nm:'';
   const txt=fireBack
-    ? 'I fired back in our 73-9 feud. Your move.'
-    : 'I built a five that beats the 2015-16 Warriors '+wp+' of the time. Can you beat me in 73-9?';
+    ? ('Series is '+feudStandingsHTML(feudBase)+'. Your move'+(chName?(', '+chName):'')+'.')
+    : 'I built a five that beats the 2015-16 Warriors '+wp+' of the time. Can you beat me in 73-9? First to 4 games wins the series.';
   const close=()=>{ov.remove();document.removeEventListener('keydown',onKey);};
   const onKey=e=>{if(e.key==='Escape')close();};
   document.addEventListener('keydown',onKey);
@@ -2832,6 +2943,11 @@ function openChallengeModal(opts){
       else if(act==='sharech'){ try{ await navigator.share({title:'73-9 challenge',text:txt,url:url}); }catch(e){ if(!(e&&e.name==='AbortError'))msg.textContent='Share unavailable. Use Copy.'; } }
     };
   });
+  // Low friction: if we already know the player's name, the link is ready
+  // immediately and gets auto-copied, so returning players are one tap from done.
+  if(knownName&&navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(url).then(()=>{msg.textContent='Link copied, ready to send.';}).catch(()=>{});
+  }
 }
 
 /* ============================================================
@@ -2884,14 +3000,19 @@ if(CH_PAYLOAD&&Array.isArray(CH_PAYLOAD.p)&&!window.__SHARED__){
     const nm=CH_PAYLOAD.nm?escapeHtmlS(CH_PAYLOAD.nm):'A 73-9 challenger';
     const wp=escapeHtmlS(CH_PAYLOAD.wp||'');
     const rec=escapeHtmlS(CH_PAYLOAD.rec||'');
+    if(CH_PAYLOAD.f&&CH_PAYLOAD.f.id)trackFeudLocally(CH_PAYLOAD.f,CH_PAYLOAD.nm||'Challenger');
     const intro=$("intro");
     if(intro){
       const b=document.createElement('div');b.className='ch-banner';
       const fs=(CH_PAYLOAD.f&&CH_PAYLOAD.f.s)?feudStandingsHTML(CH_PAYLOAD.f):'';
-      b.innerHTML='<b>'+nm+'</b> challenged you'+(rec?(' (went '+rec+')'):'')+(wp?(', beat the Warriors '+wp):'')+'. Build a five that beats them.'+(fs?'<div class="ch-banner-feud">Feud so far: '+fs+'</div>':'');
+      b.innerHTML='<b>'+nm+'</b> challenged you'+(rec?(' (went '+rec+')'):'')+(wp?(', beat the Warriors '+wp):'')+'. Build a five that beats them.'+(fs?'<div class="ch-banner-feud">Series so far: '+fs+' (first to 4)</div>':'');
       intro.insertBefore(b,intro.firstChild);
     }
   }catch(e){}
+}else if(!window.__SHARED__){
+  // Normal entry (not opening a specific challenge link): quietly check whether
+  // any feud you're part of has moved since you last saw it.
+  try{ checkFeudInbox(); }catch(e){}
 }
 
 /* ============================================================
