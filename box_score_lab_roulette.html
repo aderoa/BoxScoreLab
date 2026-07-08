@@ -89,14 +89,22 @@ body{background:linear-gradient(160deg,#1a1a3e 0%,#0a0a1a 55%,#050510 100%);back
 .ch-target{font-size:11px;color:#9a8074;text-transform:none;letter-spacing:0;font-weight:400}
 .ch-badge{display:inline-block;font-family:'Oswald',sans-serif;font-weight:700;font-size:13px;letter-spacing:.3px;color:#1a1206;background:linear-gradient(135deg,#ffe08a,#ffc24d);border-radius:8px;padding:4px 10px}
 .ch-record{font-size:12px;color:#bcbce6;margin-left:6px}
-.ch-inbox{background:linear-gradient(160deg,rgba(30,60,42,.5),rgba(10,20,12,.5));border-color:#4dff9a55;color:#bfffd9}
+.ch-inbox{background:linear-gradient(160deg,rgba(30,60,42,.6),rgba(10,20,12,.6));border:2px solid #4dff9a;color:#bfffd9;box-shadow:0 0 24px rgba(77,255,154,.25)}
 .ch-inbox b{color:#7dffb0}
-.ch-inbox div+div{margin-top:8px}
-.ch-continue{margin-left:8px;padding:6px 12px;font-size:12px;background:linear-gradient(135deg,#4dff9a,#2ed67a);border:none;color:#06170c}
+.ch-inbox div+div{margin-top:10px}
+.ch-inbox-line{line-height:1.5}
+.ch-inbox-tag{display:inline-block;font-family:'Oswald',sans-serif;font-weight:800;font-size:11px;letter-spacing:1px;text-transform:uppercase;color:#06170c;background:#4dff9a;border-radius:6px;padding:2px 8px;margin-right:8px;vertical-align:middle}
+.ch-continue{margin-left:8px;padding:8px 16px;font-size:13px;background:linear-gradient(135deg,#4dff9a,#2ed67a);border:none;color:#06170c;font-weight:700}
 .ch-feud{font-family:'Oswald',sans-serif;font-size:13px;letter-spacing:.3px;color:#ffd9bf;margin-top:8px}
 .ch-feud b{color:#fff;font-weight:800}
 .ch-fire-row{margin-top:12px}
+.ch-fire-row-low{margin-top:4px}
 .ch-fire{background:linear-gradient(135deg,#ff9a4d,#ff7a59);border:none;color:#1a0d06}
+.ch-fire-link{font-size:12px;color:#9a8074;text-decoration:underline;cursor:pointer}
+.ch-fire-link:hover{color:#ff9a4d}
+.ch-done-note{font-size:12px;color:#8a9a8a;line-height:1.4}
+.ch-banner-name{margin-top:10px}
+.ch-banner-name-input{width:100%;box-sizing:border-box}
 .ch-banner-feud{margin-top:6px;font-size:13px;color:#ffd9bf}
 .ch-banner-feud b{color:#fff;font-weight:800}
 .ch-name-row{margin-bottom:10px}
@@ -806,7 +814,7 @@ let WAR2016=new Set();   // 2015-16 Warriors, removed from the draftable pool
 let teams=[[],[]], adjusted=[[],[]], teamNames=["YOUR SQUAD","OPPONENT"];
 
 // --- tunable game constants (easy to tweak / move to a config later) ---
-const BUILD      = "v45 · score visible in fire-back modal + clarify link is optional · 2026-07-07";
+const BUILD      = "v46 · stable series identity + name-before-playing + boards moved to bottom · 2026-07-08";
 // Where a shared squad link points. This must be a page that serves THIS game's
 // HTML (it reads the ?sq= payload client-side). Until hoopsmatic.com/73-9 serves
 // this file, shared links will 404 — change this one line back to the GitHub Pages
@@ -2463,8 +2471,6 @@ function showResults(){
       html='<div class="perfect-callout">\u2605 Best possible squad! No five from your team-seasons beats it. '+tail+'</div>'+html;
     }
     if(window.__CHALLENGE__){ try{ html+=challengePanelHTML(winPctStr); }catch(e){} }
-    if(LB_API) html+='<div id="lbPanel" class="war-panel lb-panel"></div>'+
-                     '<div id="lbPerfectPanel" class="war-panel lb-panel"></div>';
 
     // actions row sits between the win% area and the squad breakdown
     html+='<div class="res-actions">'+
@@ -2493,6 +2499,10 @@ function showResults(){
              || '<div class="opt-note">The best-performing lineup we found from the exact five team-seasons you drew, within '+fmtM(BUDGET)+'. We simulated your picks against many affordable alternatives over the same schedule — this one won the most.</div>'))+
         '</div>';
     }
+
+    // leaderboards last: this is community/reference info, not the result itself
+    if(LB_API) html+='<div id="lbPanel" class="war-panel lb-panel"></div>'+
+                     '<div id="lbPerfectPanel" class="war-panel lb-panel"></div>';
 
     // snapshot what we just rendered so the share card draws from a stable copy
     shareCardData={
@@ -2841,9 +2851,11 @@ function showFeudInboxBanner(updates){
   const lines=updates.map(u=>{
     const nm=escapeHtmlS(u.opp||'your opponent');
     const sc=feudStandingsHTML({s:u.live.score});
-    if(u.live.done) return '<div>Your series with <b>'+nm+'</b> is decided: '+sc+'.</div>';
+    if(u.live.done) return '<div class="ch-inbox-line"><div class="ch-inbox-tag">Series over</div>Your series with <b>'+nm+'</b> is decided: '+sc+'.</div>';
     const canContinue=u.live.last&&Array.isArray(u.live.last.p)&&u.live.last.p.length;
-    return '<div><b>'+nm+'</b> played a game. Series now '+sc+'.'+
+    return '<div class="ch-inbox-line">'+
+      (canContinue?'<div class="ch-inbox-tag">Your turn</div>':'<div class="ch-inbox-tag">Update</div>')+
+      '<b>'+nm+'</b> played a game. Series now '+sc+'.'+
       (canContinue?' <button class="btn ch-continue" onclick="continueFeud(\''+escapeHtmlS(u.live.id)+'\')">Play your next game</button>'
                   :' Grab their latest link to keep going.')+
       '</div>';
@@ -2866,6 +2878,18 @@ function reconstructLineup(players){
   }
   return allocateSlots(picks);
 }
+// The name this device plays under in a given series. Once a round has been
+// played, that name is already a key in ch.f.s (everything but the challenger's
+// own name), so later rounds reuse it instead of re-deriving from whatever
+// playerName() happens to be right now — that drift is what let "Jorge S" and
+// "Player-7E51" show up as two different people in the same series.
+function myFeudName(ch){
+  const chN=ch.nm||'Challenger';
+  const keys=(ch.f&&ch.f.s)?Object.keys(ch.f.s).filter(k=>k!==chN):[];
+  if(keys.length===1)return keys[0];
+  if(keys.length>1)return keys.reduce((a,b)=>(ch.f.s[b]>ch.f.s[a]?b:a)); // corrupted feud from before this fix: best guess
+  return displayName();   // first round of a fresh series, no identity recorded yet
+}
 function challengePanelHTML(friendWarPctStr){
   const ch=window.__CHALLENGE__;if(!ch)return '';
   const chName=ch.nm?escapeHtmlS(ch.nm):'Challenger';
@@ -2875,7 +2899,7 @@ function challengePanelHTML(friendWarPctStr){
   let h2h='',standings='',fireRow='';
   window.__CH_FEUD__=null;
   if(chStrength!=null){
-    const me=displayName();
+    const me=myFeudName(ch);
     const chN=ch.nm||'Challenger';
     const seeded={id:(ch.f&&ch.f.id)||genId(), n:(ch.f&&ch.f.n)||0, s:Object.assign({},(ch.f&&ch.f.s)||{}), done:false, winner:null};
     if(!(me in seeded.s))seeded.s[me]=0;
@@ -2900,7 +2924,8 @@ function challengePanelHTML(friendWarPctStr){
       fireRow='<div class="ch-fire-row"><span id="chBadge"></span></div>'+
               '<div class="ch-fire-row"><button class="btn ch-fire" onclick="openChallengeModal({fireBack:true,newSeries:true})">Start a new series with '+chName+'</button></div>';
     }else{
-      fireRow='<div class="ch-fire-row"><button class="btn ch-fire" onclick="openChallengeModal({fireBack:true})">Fire back at '+chName+'</button></div>';
+      fireRow='<div class="ch-done-note">'+chName+'\'ll see this next time they open the game on their own. If you don\'t want to wait, send a nudge:</div>'+
+              '<div class="ch-fire-row ch-fire-row-low"><a href="javascript:void(0)" class="ch-fire-link" onclick="openChallengeModal({fireBack:true})">Send a reminder link \u2192</a></div>';
     }
   }else{
     h2h='<div class="ch-h2h">Couldn\'t rebuild their five to simulate, so compare the Warriors marks above.</div>';
@@ -3033,8 +3058,12 @@ if(CH_PAYLOAD&&Array.isArray(CH_PAYLOAD.p)&&!window.__SHARED__){
     if(intro){
       const b=document.createElement('div');b.className='ch-banner';
       const fs=(CH_PAYLOAD.f&&CH_PAYLOAD.f.s)?feudStandingsHTML(CH_PAYLOAD.f):'';
-      b.innerHTML='<b>'+nm+'</b> challenged you'+(rec?(' (went '+rec+')'):'')+(wp?(', beat the Warriors '+wp):'')+'. Build a five that beats them.'+(fs?'<div class="ch-banner-feud">Series so far: '+fs+' (first to 4)</div>':'');
+      const existingName=playerName();
+      b.innerHTML='<b>'+nm+'</b> challenged you'+(rec?(' (went '+rec+')'):'')+(wp?(', beat the Warriors '+wp):'')+'. Build a five that beats them.'+(fs?'<div class="ch-banner-feud">Series so far: '+fs+' (first to 4)</div>':'')+
+        (existingName?'':'<div class="ch-banner-name"><input class="lb-input ch-banner-name-input" maxlength="16" placeholder="Your name (so the series shows who\'s who)" autocomplete="off"></div>');
       intro.insertBefore(b,intro.firstChild);
+      const ni=b.querySelector('.ch-banner-name-input');
+      if(ni)ni.addEventListener('change',()=>{const v=ni.value.trim();if(v)setPlayerName(v);});
     }
   }catch(e){}
 }else if(!window.__SHARED__){
