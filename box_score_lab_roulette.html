@@ -814,7 +814,7 @@ let WAR2016=new Set();   // 2015-16 Warriors, removed from the draftable pool
 let teams=[[],[]], adjusted=[[],[]], teamNames=["YOUR SQUAD","OPPONENT"];
 
 // --- tunable game constants (easy to tweak / move to a config later) ---
-const BUILD      = "v46 · stable series identity + name-before-playing + boards moved to bottom · 2026-07-08";
+const BUILD      = "v47 · head-to-head odds scaled to match Warriors-% intuition · 2026-07-08";
 // Where a shared squad link points. This must be a page that serves THIS game's
 // HTML (it reads the ?sq= payload client-side). Until hoopsmatic.com/73-9 serves
 // this file, shared links will 404 — change this one line back to the GitHub Pages
@@ -2762,10 +2762,18 @@ function feudStandingsHTML(f){
   return e.map(x=>escapeHtmlS(x.name)+' <b>'+x.n+'</b>').join(' \u00b7 ');
 }
 // One simulated game: a coin flip weighted by each squad's strength, not a
-// guaranteed win for the favorite.
+// guaranteed win for the favorite. HEAD2HEAD_SCALE amplifies the raw strength
+// gap partway toward how the Warriors matchup reads (WALL_GAP_SCALE=3.3), so a
+// squad with a clearly better Warriors win% also reads as clearly favored here,
+// instead of two very different Warriors-% squads landing near a coin flip.
+// Kept well below 3.3 on purpose: that scale is tuned to make beating the
+// greatest team ever rare, and reusing it here would make ordinary head-to-head
+// games nearly deterministic, killing the upset potential of a real game.
+const HEAD2HEAD_SCALE=1.7;
 function playSeriesGame(myLineup,chStrength){
   const fs=lineupStrength(myLineup);
-  const p=Math.max(0.03,Math.min(0.97,winProb(fs,chStrength)));
+  const margin=(fs-chStrength)*HEAD2HEAD_SCALE;
+  const p=Math.max(0.03,Math.min(0.97,normCdf(margin/GAME_SD)));
   return { youWin: Math.random()<p, prob:p };
 }
 // Fold this round's winner into the incoming series score. Pure: returns a new
