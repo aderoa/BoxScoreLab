@@ -113,6 +113,8 @@ body{background:linear-gradient(160deg,#1a1a3e 0%,#0a0a1a 55%,#050510 100%);back
 .ch-modal-hdr{font-family:'Oswald',sans-serif;font-weight:700;letter-spacing:1px;text-transform:uppercase;font-size:16px;color:#ff9a4d;margin:2px 0 4px}
 .ch-modal-sub{font-size:13px;color:#bcbce6;margin-bottom:12px;line-height:1.4}
 .ch-modal-score{font-family:'Oswald',sans-serif;font-size:14px;letter-spacing:.3px;color:#ffd9bf;margin:2px 0 10px}
+.ch-active-warn{font-size:12px;line-height:1.5;color:#ffcf8a;background:rgba(255,159,64,.1);border:1px solid rgba(255,159,64,.35);border-radius:8px;padding:8px 10px;margin:2px 0 10px}
+.ch-active-warn b{color:#fff}
 .ch-modal-score b{color:#fff;font-weight:800}
 .perfect-callout{margin:0 0 14px;padding:14px 18px;border-radius:14px;text-align:center;font-family:'Oswald',sans-serif;font-size:15px;line-height:1.4;color:#1a1206;background:linear-gradient(135deg,#ffe08a,#ffc24d);border:1px solid #ffd166;box-shadow:0 6px 22px rgba(255,193,77,.25);font-weight:600}
 .perfect-callout b{font-weight:800}
@@ -814,7 +816,7 @@ let WAR2016=new Set();   // 2015-16 Warriors, removed from the draftable pool
 let teams=[[],[]], adjusted=[[],[]], teamNames=["YOUR SQUAD","OPPONENT"];
 
 // --- tunable game constants (easy to tweak / move to a config later) ---
-const BUILD      = "v50 · mailbox always offers Play when a squad is pending, less friction · 2026-07-08";
+const BUILD      = "v51 · fix challenger identity mismatch + warn before starting a duplicate series + drop inaccurate roster note · 2026-07-08";
 // Where a shared squad link points. This must be a page that serves THIS game's
 // HTML (it reads the ?sq= payload client-side). Until hoopsmatic.com/73-9 serves
 // this file, shared links will 404 — change this one line back to the GitHub Pages
@@ -2120,7 +2122,6 @@ function lineupNotes(lineup){
     'Star-and-scrubs build, one big contract with role players around it.',
     'Top-heavy books, one salary eats the budget and the rest are bargains.',
     'A superstar and his supporting cast, by the numbers.',
-    'One max, four minimums. Boom or bust.',
     'Most of the money on one man, the rest is value hunting.'
   ]));
   else if(maxCost>0&&share<=0.27)N(_pickN([
@@ -3042,10 +3043,19 @@ function openChallengeModal(opts){
                 :'Each round is one real game, first to 4 wins the series. Sending this link is optional, your opponent will be prompted automatically next time they open the game too.')
     : 'Add your name, then send this link. Each round is one real game (win probability, not a guarantee); first to 4 takes the series.';
   const wp=shareCardData?shareCardData.warPct:'';
+  // "Challenge a friend" always starts a BRAND NEW series — it has no way to know
+  // you're already mid-series with someone. Warn if that looks likely, since
+  // clicking it instead of continuing is the easiest way to end up with two
+  // separate one-off games instead of one real series.
+  let activeWarning='';
+  if(!fireBack){
+    const active=_knownFeuds().find(x=>!x.done&&x.opp);
+    if(active)activeWarning='<div class="ch-active-warn">You already have an active series with <b>'+escapeHtmlS(active.opp)+'</b> ('+feudStandingsHTML(active)+'). This starts a brand new one instead of continuing it \u2014 close this and use Play Again / the mailbox banner to keep that series going.</div>';
+  }
   ov.innerHTML='<div class="share-box ch-box">'+
     '<button class="share-x" aria-label="Close">\u00d7</button>'+
     '<div class="ch-modal-hdr">'+hdr+'</div>'+
-    scoreLine+
+    scoreLine+activeWarning+
     '<div class="ch-modal-sub">'+sub+'</div>'+
     '<div class="ch-name-row"><input class="lb-input ch-name" maxlength="16" placeholder="Your name" autocomplete="off"></div>'+
     '<div class="share-link"><input class="share-url" readonly><button class="share-copybtn" data-act="copych">Copy</button></div>'+
@@ -3064,7 +3074,7 @@ function openChallengeModal(opts){
     if(nm)setPlayerName(nm);
     url=buildChallengeURL(nm,feudBase);
     urlField.value=url;
-    if(feudBase)trackFeudLocally(feudBase,window.__CHALLENGE__&&window.__CHALLENGE__.nm,nm||playerName()||null);
+    if(feudBase)trackFeudLocally(feudBase,window.__CHALLENGE__&&window.__CHALLENGE__.nm,nm||playerName()||displayName());
     // Round 1 (or a fresh rematch) has no Worker record yet — submit my squad
     // as pending now, the same way every later round does, so when the other
     // side plays there's a real entry to resolve against and the score
