@@ -814,7 +814,7 @@ let WAR2016=new Set();   // 2015-16 Warriors, removed from the draftable pool
 let teams=[[],[]], adjusted=[[],[]], teamNames=["YOUR SQUAD","OPPONENT"];
 
 // --- tunable game constants (easy to tweak / move to a config later) ---
-const BUILD      = "v48 · feud rounds: submit-and-resolve, a squad can only decide one round · 2026-07-08";
+const BUILD      = "v49 · fix: round 1 now actually persists on the Worker (was silently resetting) · 2026-07-08";
 // Where a shared squad link points. This must be a page that serves THIS game's
 // HTML (it reads the ?sq= payload client-side). Until hoopsmatic.com/73-9 serves
 // this file, shared links will 404 — change this one line back to the GitHub Pages
@@ -2932,37 +2932,22 @@ async function resolveChallengeRound(friendWarPctStr){
   const five=roster.filter(Boolean);
   const myWp=friendWarPctStr, myRec=(shareCardData?(shareCardData.w+'-'+shareCardData.l):'');
   const myP=five.map(p=>({nm:p.name,ab:p.abbr,sy:p.sy}));
-
-  if(!ch.f||!ch.f.id){
-    // Round 1: no feud id yet, so the link's own squad IS the thing to beat.
-    const recon=reconstructLineup(ch.p);
-    const chStrength=recon?lineupStrength(recon):(typeof ch.st==='number'?ch.st:null);
-    if(chStrength==null)return {mode:'error'};
-    const me=displayName();
-    const seeded={id:genId(),n:0,s:{},done:false,winner:null};
-    seeded.s[me]=0; seeded.s[chN]=0;
-    const g=playSeriesGame(roster,chStrength);
-    const f=advanceFeud(seeded,g.youWin?me:chN);
-    trackFeudLocally(f,chN,me);
-    syncFeudResolve(f,[me,chN]);
-    if(!f.done)syncFeudSubmit(f.id,[me,chN],{name:me,wp:myWp,rec:myRec,st:lineupStrength(roster),p:myP});
-    window.__CH_FEUD__=f;
-    return {mode:'resolved',me,chName:chN,g,f};
-  }
+  // Older links from before this fix may lack a feud id entirely — give them one
+  // so the rest of this function has something consistent to work with.
+  const feudId=(ch.f&&ch.f.id)||genId();
 
   const me=myFeudName(ch);
   let live=null;
   if(LB_API){
     try{
-      const r=await fetch(_lbBase()+'/feud?ids='+encodeURIComponent(ch.f.id));
-      if(r.ok){ const d=await r.json(); live=(d&&d.feuds&&d.feuds[ch.f.id])||null; }
+      const r=await fetch(_lbBase()+'/feud?ids='+encodeURIComponent(feudId));
+      if(r.ok){ const d=await r.json(); live=(d&&d.feuds&&d.feuds[feudId])||null; }
     }catch(e){ console.warn('[ROULETTE] feud status fetch failed:',e); }
   }
-  // Worker unreachable: fall back to resolving against the link's own snapshot
-  // (best-effort — this is exactly the old behavior, only used when we truly
-  // can't confirm the live state).
+  // No Worker record yet (round 1 on an older link, or the Worker's unreachable):
+  // fall back to the squad baked into the link itself as the thing to beat.
   if(!live){
-    live={ id:ch.f.id, score:ch.f.s||{}, done:!!ch.f.done, winner:ch.f.winner||null,
+    live={ id:feudId, score:(ch.f&&ch.f.s)||{}, done:!!(ch.f&&ch.f.done), winner:(ch.f&&ch.f.winner)||null,
            pending: ch.p?{name:chN,wp:ch.wp,rec:ch.rec,st:ch.st,p:ch.p}:null };
   }
 
@@ -3068,12 +3053,22 @@ function openChallengeModal(opts){
   const knownName=playerName()||_lbSavedName||'';
   nameInput.value=knownName;
   let url='';
+  const isFreshFeud = !fireBack || newSeries;   // a feud id nothing has been submitted for yet
   const refresh=()=>{
     const nm=nameInput.value.trim();
     if(nm)setPlayerName(nm);
     url=buildChallengeURL(nm,feudBase);
     urlField.value=url;
     if(feudBase)trackFeudLocally(feudBase,window.__CHALLENGE__&&window.__CHALLENGE__.nm,nm||playerName()||null);
+    // Round 1 (or a fresh rematch) has no Worker record yet — submit my squad
+    // as pending now, the same way every later round does, so when the other
+    // side plays there's a real entry to resolve against and the score
+    // actually persists server-side from the very first round.
+    if(isFreshFeud&&feudBase){
+      const myName=nm||playerName()||displayName();
+      const five=roster.filter(Boolean);
+      syncFeudSubmit(feudBase.id,[myName],{name:myName,wp:wp,rec:(shareCardData?(shareCardData.w+'-'+shareCardData.l):''),st:lineupStrength(roster),p:five.map(p=>({nm:p.name,ab:p.abbr,sy:p.sy}))});
+    }
   };
   refresh();
   nameInput.addEventListener('input',refresh);
