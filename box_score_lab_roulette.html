@@ -816,7 +816,7 @@ let WAR2016=new Set();   // 2015-16 Warriors, removed from the draftable pool
 let teams=[[],[]], adjusted=[[],[]], teamNames=["YOUR SQUAD","OPPONENT"];
 
 // --- tunable game constants (easy to tweak / move to a config later) ---
-const BUILD      = "v51 · fix challenger identity mismatch + warn before starting a duplicate series + drop inaccurate roster note · 2026-07-08";
+const BUILD      = "v52 · live-sync series: round resolves when both squads are in; ask-each-time for casual games · 2026-07-09";
 // Where a shared squad link points. This must be a page that serves THIS game's
 // HTML (it reads the ?sq= payload client-side). Until hoopsmatic.com/73-9 serves
 // this file, shared links will 404 — change this one line back to the GitHub Pages
@@ -2472,6 +2472,16 @@ function showResults(){
       html='<div class="perfect-callout">\u2605 Best possible squad! No five from your team-seasons beats it. '+tail+'</div>'+html;
     }
     if(window.__CHALLENGE__) html+='<div id="chPanel" class="war-panel ch-panel"><div class="war-hdr">Friend challenge</div><div class="ch-h2h lb-loading">Checking the latest round\u2026</div></div>';
+    else{
+      // Ask-each-time: this game didn't come through a series path, but if a
+      // series is active, offer to count this five toward it (or keep it casual).
+      const _act=(LB_API? _knownFeuds().find(x=>!x.done&&x.opp) : null);
+      if(_act) html+='<div id="chAskPanel" class="war-panel ch-panel">'+
+        '<div class="war-hdr">Friend challenge</div>'+
+        '<div class="ch-h2h">You have an active series with <b>'+escapeHtmlS(_act.opp)+'</b> ('+feudStandingsHTML({s:_act.score})+'). Count this five as your next series game?</div>'+
+        '<div class="ch-fire-row"><button class="btn ch-fire" onclick="attachSeriesGame(\''+escapeHtmlS(_act.id)+'\')">Count it toward the series</button> '+
+        '<button class="btn ghost" onclick="dismissSeriesAsk()">Just a casual game</button></div></div>';
+    }
 
     // actions row sits between the win% area and the squad breakdown
     html+='<div class="res-actions">'+
@@ -2522,6 +2532,7 @@ function showResults(){
       }))
     };
     el.innerHTML=html;
+    window.__LAST_WP__=winPctStr;
     if(window.__CHALLENGE__){ try{ renderChallengePanel(winPctStr); }catch(e){} }
     try{ lbInit(war.winPct*100, yours.w+'\u2013'+yours.l, samePicks); }catch(e){}
     if(samePicks){ try{ fireConfetti(); }catch(e){} }
@@ -2802,22 +2813,13 @@ function trackFeudLocally(f,oppName,myName){
   if(idx>=0)list[idx]=entry; else list.push(entry);
   _saveKnownFeuds(list);
 }
-// Best-effort mirror onto the Worker. Fire-and-forget: a failure here never
-// blocks or breaks the local game, it just means the mailbox check and the
-// opponent's "continue without a link" path won't have fresh data.
-function syncFeudResolve(f,names){
-  if(!LB_API||!f||!f.id)return;
-  try{
-    fetch(_lbBase()+'/feud/resolve',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({id:f.id,names:names||Object.keys(f.s||{}),score:f.s||{},done:!!f.done,winner:f.winner||null})
-    }).catch(()=>{});
-  }catch(e){}
-}
-function syncFeudSubmit(id,names,squad){
-  if(!LB_API||!id)return;
+// Best-effort put of my squad into the feud's pending slot (used when creating
+// a challenge, before the opponent even exists on the Worker). Fire-and-forget.
+function syncFeudSubmit(id,name,names,squad){
+  if(!LB_API||!id||!name)return;
   try{
     fetch(_lbBase()+'/feud/submit',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({id,names,squad})
+      body:JSON.stringify({id,name,names,squad})
     }).catch(()=>{});
   }catch(e){}
 }
@@ -2839,12 +2841,27 @@ function badgeHTML(b){
   if(!b||!b.tier||b.tier==='Rookie')return '';
   return '<span class="ch-badge">'+(b.emoji||'')+' '+escapeHtmlS(b.tier)+'</span>';
 }
-// ---- mailbox check: on load, see if someone's fresh squad is waiting on ME ----
+// ---- ask-each-time: attach an already-played casual game to the active series ----
+function attachSeriesGame(id){
+  const known=_knownFeuds().find(x=>x.id===id); if(!known)return;
+  window.__CHALLENGE__={ nm:known.opp||'Challenger', wp:'', rec:'', st:null, p:null,
+    f:{ id:id, n:0, s:known.score||{}, done:false, winner:null } };
+  const ask=document.getElementById('chAskPanel');
+  if(ask){ ask.id='chPanel'; ask.innerHTML='<div class="war-hdr">Friend challenge</div><div class="ch-h2h lb-loading">Submitting this five to the series\u2026</div>'; }
+  try{ renderChallengePanel(window.__LAST_WP__||''); }catch(e){}
+}
+function dismissSeriesAsk(){
+  const ask=document.getElementById('chAskPanel'); if(ask)ask.remove();
+}
+// ---- mailbox check: on load, surface series updates and offer the next game ----
 window.__FEUD_CONTINUE__={};   // id -> live feud doc, so the banner's button can act without re-serializing HTML
 function continueFeud(id){
-  const live=window.__FEUD_CONTINUE__[id]; if(!live||!live.pending)return;
-  window.__CHALLENGE__={ nm:live.pending.name, wp:live.pending.wp, rec:live.pending.rec, st:live.pending.st, p:live.pending.p,
-    f:{ id:live.id, n:0, s:live.score||{}, done:!!live.done, winner:live.winner||null } };
+  const live=window.__FEUD_CONTINUE__[id];
+  const known=_knownFeuds().find(x=>x.id===id);
+  if(!live&&!known)return;
+  const opp=(known&&known.opp)||'Challenger';
+  window.__CHALLENGE__={ nm:opp, wp:'', rec:'', st:null, p:null,
+    f:{ id:id, n:(live&&live.n)||0, s:(live&&live.score)||(known&&known.score)||{}, done:false, winner:null } };
   const b=document.getElementById('feudInboxBanner'); if(b)b.remove();
   startGame();
 }
@@ -2861,17 +2878,16 @@ async function checkFeudInbox(){
     const updates=[],merged=_knownFeuds();
     for(const f of known){
       const live=feuds[f.id]; if(!live)continue;
-      // "Your turn" means someone ELSE's fresh squad is pending, waiting on me.
-      // Offer Play whenever a fresh squad is sitting there, even if we don't
-      // yet have high confidence in our own established name for this feud —
-      // resolveChallengeRound re-checks this safely before scoring, so the
-      // worst case is a wasted click, not a wrong result. Only withhold the
-      // button when we're SURE the pending squad is our own.
-      const theirTurn = !!(live.pending && (!f.myName || live.pending.name!==f.myName));
+      // pending is now a per-player map. It's the opponent's move only if MY
+      // squad is the one sitting in it; it's my move if theirs is (or if the
+      // round just resolved and nobody has drafted the next one yet).
+      const pnames=Object.keys(live.pending||{});
+      const mineIn = !!(f.myName && pnames.includes(f.myName));
+      const theirsIn = pnames.some(n=>!f.myName||n!==f.myName);
       const scoreChanged = JSON.stringify(f.score||{})!==JSON.stringify(live.score||{});
       const justFinished = !!(live.done && !f.done);
-      if(theirTurn||scoreChanged||justFinished){
-        updates.push({opp:f.opp,live,canPlay:theirTurn});
+      if(theirsIn||scoreChanged||justFinished){
+        updates.push({opp:f.opp,live,canPlay:!live.done&&!mineIn,waitingOnThem:!live.done&&mineIn&&!theirsIn});
         window.__FEUD_CONTINUE__[f.id]=live;
         const idx=merged.findIndex(x=>x.id===f.id);
         if(idx>=0)merged[idx]=Object.assign({},merged[idx],{score:live.score,done:!!live.done});
@@ -2886,11 +2902,11 @@ function showFeudInboxBanner(updates){
     const nm=escapeHtmlS(u.opp||'your opponent');
     const sc=feudStandingsHTML({s:u.live.score});
     if(u.live.done) return '<div class="ch-inbox-line"><div class="ch-inbox-tag">Series over</div>Your series with <b>'+nm+'</b> is decided: '+sc+'.</div>';
+    if(u.waitingOnThem) return '<div class="ch-inbox-line"><div class="ch-inbox-tag">Update</div>Series with <b>'+nm+'</b> now '+sc+'. Your squad is already in for the next round, the game plays out when they draft.</div>';
     return '<div class="ch-inbox-line">'+
-      (u.canPlay?'<div class="ch-inbox-tag">Your turn</div>':'<div class="ch-inbox-tag">Update</div>')+
-      '<b>'+nm+'</b> '+(u.canPlay?'is waiting on you. ':'played a game. ')+'Series now '+sc+'.'+
-      (u.canPlay?' <button class="btn ch-continue" onclick="continueFeud(\''+escapeHtmlS(u.live.id)+'\')">Play your next game</button>'
-                :' Their next squad isn\'t ready yet, check back or ask them to fire back.')+
+      '<div class="ch-inbox-tag">Your move</div>'+
+      'Series with <b>'+nm+'</b> now '+sc+'.'+
+      ' <button class="btn ch-continue" onclick="continueFeud(\''+escapeHtmlS(u.live.id)+'\')">Draft your next five</button>'+
       '</div>';
   });
   const b=document.createElement('div');b.id='feudInboxBanner';b.className='ch-banner ch-inbox';
@@ -2923,74 +2939,75 @@ function myFeudName(ch){
   if(keys.length>1)return keys.reduce((a,b)=>(ch.f.s[b]>ch.f.s[a]?b:a)); // corrupted feud from before this fix: best guess
   return displayName();   // first round of a fresh series, no identity recorded yet
 }
-// A squad can only ever decide ONE round. Round 1 resolves directly against the
-// challenge link's own squad (the challenger actively drafted that when they
-// sent it). Every round after that checks the Worker for a live "pending"
-// squad — a fresh draft someone submitted that hasn't been matched yet:
-//   - pending exists and belongs to someone ELSE  -> RESOLVE this round against
-//     it, then my own fresh draft becomes the new pending for whoever's next.
-//   - no pending, or the pending is already mine  -> I can't resolve anything
-//     yet; my draft just becomes/replaces the pending, and I wait.
-// This is what stops one static squad from deciding more than one round.
-async function resolveChallengeRound(friendWarPctStr){
+// LIVE-SYNC series: each side drafts whenever they want. Submitting my squad
+// puts it in the feud's pending slot for my name; if the opponent's squad is
+// already sitting there, the Worker hands it back and THIS client simulates the
+// round and commits it (guarded by expectN so two clients racing can't
+// double-count). Otherwise I'm simply in and waiting. Nobody is ever blocked
+// from drafting, and no squad can ever decide more than one round.
+async function submitSeriesRound(friendWarPctStr){
   const ch=window.__CHALLENGE__; if(!ch)return null;
   const chN=ch.nm||'Challenger';
-  const five=roster.filter(Boolean);
-  const myWp=friendWarPctStr, myRec=(shareCardData?(shareCardData.w+'-'+shareCardData.l):'');
-  const myP=five.map(p=>({nm:p.name,ab:p.abbr,sy:p.sy}));
-  // Older links from before this fix may lack a feud id entirely — give them one
-  // so the rest of this function has something consistent to work with.
   const feudId=(ch.f&&ch.f.id)||genId();
-
   const me=myFeudName(ch);
-  let live=null;
-  if(LB_API){
-    try{
-      const r=await fetch(_lbBase()+'/feud?ids='+encodeURIComponent(feudId));
-      if(r.ok){ const d=await r.json(); live=(d&&d.feuds&&d.feuds[feudId])||null; }
-    }catch(e){ console.warn('[ROULETTE] feud status fetch failed:',e); }
+  if(!LB_API)return {mode:'offline'};
+  const five=roster.filter(Boolean);
+  const squad={name:me,wp:friendWarPctStr,rec:(shareCardData?(shareCardData.w+'-'+shareCardData.l):''),st:lineupStrength(roster),p:five.map(p=>({nm:p.name,ab:p.abbr,sy:p.sy}))};
+  let sub=null;
+  try{
+    const r=await fetch(_lbBase()+'/feud/submit',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({id:feudId,name:me,names:[me,chN],squad})});
+    sub=await r.json();
+  }catch(e){ console.warn('[ROULETTE] feud submit failed:',e); return {mode:'offline'}; }
+  if(!sub||!sub.feud)return {mode:'error'};
+  const liveF={id:feudId,s:sub.feud.score||{},done:!!sub.feud.done,winner:sub.feud.winner||null};
+  trackFeudLocally(liveF,chN,me);
+  if(!sub.ready){
+    window.__CH_FEUD__=liveF;
+    return {mode:'waiting',me,chName:chN,f:liveF};
   }
-  // No Worker record yet (round 1 on an older link, or the Worker's unreachable):
-  // fall back to the squad baked into the link itself as the thing to beat.
-  if(!live){
-    live={ id:feudId, score:(ch.f&&ch.f.s)||{}, done:!!(ch.f&&ch.f.done), winner:(ch.f&&ch.f.winner)||null,
-           pending: ch.p?{name:chN,wp:ch.wp,rec:ch.rec,st:ch.st,p:ch.p}:null };
-  }
-
-  if(live.pending&&live.pending.name&&live.pending.name!==me){
-    const recon=reconstructLineup(live.pending.p);
-    const chStrength=recon?lineupStrength(recon):(typeof live.pending.st==='number'?live.pending.st:null);
-    if(chStrength==null)return {mode:'error'};
-    const seeded={id:live.id,n:0,s:Object.assign({},live.score||{}),done:false,winner:null};
-    if(!(me in seeded.s))seeded.s[me]=0;
-    if(!(live.pending.name in seeded.s))seeded.s[live.pending.name]=0;
-    const g=playSeriesGame(roster,chStrength);
-    const f=advanceFeud(seeded,g.youWin?me:live.pending.name);
-    trackFeudLocally(f,live.pending.name,me);
-    syncFeudResolve(f,[me,live.pending.name]);
-    if(!f.done)syncFeudSubmit(f.id,[me,live.pending.name],{name:me,wp:myWp,rec:myRec,st:lineupStrength(roster),p:myP});
-    window.__CH_FEUD__=f;
-    return {mode:'resolved',me,chName:live.pending.name,g,f};
-  }
-
-  // Nothing fresh to resolve against — my draft just becomes the pending entry.
-  const waitFeud={id:live.id,s:live.score||{},done:!!live.done,winner:live.winner||null};
-  trackFeudLocally(waitFeud,chN,me);
-  syncFeudSubmit(live.id,[me,chN],{name:me,wp:myWp,rec:myRec,st:lineupStrength(roster),p:myP});
-  window.__CH_FEUD__=waitFeud;
-  return {mode:'waiting',me,chName:chN,f:waitFeud};
+  // Opponent's squad is in too — this client simulates and commits the round.
+  const opp=sub.opponentSquad;
+  const recon=reconstructLineup(opp.p);
+  const oppStrength=recon?lineupStrength(recon):(typeof opp.st==='number'?opp.st:null);
+  if(oppStrength==null)return {mode:'error'};
+  const g=playSeriesGame(roster,oppStrength);
+  const seeded={id:feudId,n:0,s:Object.assign({},sub.feud.score||{}),done:false,winner:null};
+  if(!(me in seeded.s))seeded.s[me]=0;
+  if(!(opp.name in seeded.s))seeded.s[opp.name]=0;
+  const f=advanceFeud(seeded,g.youWin?me:opp.name);
+  try{
+    const r=await fetch(_lbBase()+'/feud/resolve',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({id:feudId,expectN:(sub.feud.n||0),names:[me,opp.name],score:f.s,done:f.done,winner:f.winner,consumed:[me,opp.name]})});
+    const d=await r.json();
+    if(d&&d.error==='stale'&&d.feud){
+      // Someone else committed this round a split second before us. Show the
+      // authoritative state instead of our uncommitted simulation.
+      const raced={id:feudId,s:d.feud.score||{},done:!!d.feud.done,winner:d.feud.winner||null};
+      trackFeudLocally(raced,opp.name,me);
+      window.__CH_FEUD__=raced;
+      return {mode:'raced',me,chName:opp.name,f:raced};
+    }
+  }catch(e){ console.warn('[ROULETTE] feud resolve failed:',e); }
+  trackFeudLocally(f,opp.name,me);
+  window.__CH_FEUD__=f;
+  return {mode:'resolved',me,chName:opp.name,g,f};
 }
 // Renders asynchronously into #chPanel (placed synchronously by showResults),
-// since resolving now needs a round trip to the Worker to check what's pending.
+// since the round needs a Worker round-trip to submit and possibly resolve.
 async function renderChallengePanel(friendWarPctStr){
   const panel=document.getElementById('chPanel'); if(!panel)return;
   const ch=window.__CHALLENGE__; if(!ch){panel.remove();return;}
   const chWp=escapeHtmlS(ch.wp||'\u2014');
   let result=null;
-  try{ result=await resolveChallengeRound(friendWarPctStr); }
+  try{ result=await submitSeriesRound(friendWarPctStr); }
   catch(e){ console.warn('[ROULETTE] challenge round failed:',e); }
   if(!result||result.mode==='error'){
-    panel.innerHTML='<div class="war-hdr">Friend challenge</div><div class="ch-h2h">Couldn\'t rebuild their five to simulate, so compare the Warriors marks above.</div>';
+    panel.innerHTML='<div class="war-hdr">Friend challenge</div><div class="ch-h2h">Couldn\'t process this round, so it wasn\'t counted. Try again after your next game.</div>';
+    return;
+  }
+  if(result.mode==='offline'){
+    panel.innerHTML='<div class="war-hdr">Friend challenge</div><div class="ch-h2h">Couldn\'t reach the series server, so this game wasn\'t counted toward the series. Play again when the connection is back.</div>';
     return;
   }
   const chNameEsc=escapeHtmlS(result.chName);
@@ -3002,8 +3019,15 @@ async function renderChallengePanel(friendWarPctStr){
   if(result.mode==='waiting'){
     const fs=(result.f.s&&Object.keys(result.f.s).length)?('<div class="ch-feud">Series so far: '+feudStandingsHTML(result.f)+' <span class="ch-target">(first to 4)</span></div>'):'';
     panel.innerHTML='<div class="war-hdr">Friend challenge</div>'+vsRow+
-      '<div class="ch-h2h">Your squad is in. Waiting on <b>'+chNameEsc+'</b> to draft theirs for this round.</div>'+fs+
+      '<div class="ch-h2h">Your squad is in for this round. The game will play out the moment <b>'+chNameEsc+'</b> drafts theirs.</div>'+fs+
       '<div class="ch-fire-row ch-fire-row-low"><a href="javascript:void(0)" class="ch-fire-link" onclick="openChallengeModal({fireBack:true})">Send a reminder link \u2192</a></div>';
+    return;
+  }
+  if(result.mode==='raced'){
+    const f=result.f;
+    panel.innerHTML='<div class="war-hdr">Friend challenge</div>'+vsRow+
+      '<div class="ch-h2h">This round resolved on '+chNameEsc+'\'s side a moment before yours.</div>'+
+      '<div class="ch-feud">Series: '+feudStandingsHTML(f)+' <span class="ch-target">(first to 4)</span></div>';
     return;
   }
   const {me,g,f}=result;
@@ -3022,7 +3046,7 @@ async function renderChallengePanel(friendWarPctStr){
     fireRow='<div class="ch-fire-row"><span id="chBadge"></span></div>'+
             '<div class="ch-fire-row"><button class="btn ch-fire" onclick="openChallengeModal({fireBack:true,newSeries:true})">Start a new series with '+chNameEsc+'</button></div>';
   }else{
-    fireRow='<div class="ch-done-note">Your squad is now waiting on '+chNameEsc+'. They\'ll see it next time they open the game on their own.</div>'+
+    fireRow='<div class="ch-done-note">Result is saved. '+chNameEsc+' will see it next time they open the game; you can also draft your next squad for round '+((f.n||0)+1)+' any time.</div>'+
             '<div class="ch-fire-row ch-fire-row-low"><a href="javascript:void(0)" class="ch-fire-link" onclick="openChallengeModal({fireBack:true})">Send a reminder link \u2192</a></div>';
   }
   panel.innerHTML='<div class="war-hdr">Friend challenge</div>'+vsRow+h2h+standings+fireRow;
@@ -3050,7 +3074,7 @@ function openChallengeModal(opts){
   let activeWarning='';
   if(!fireBack){
     const active=_knownFeuds().find(x=>!x.done&&x.opp);
-    if(active)activeWarning='<div class="ch-active-warn">You already have an active series with <b>'+escapeHtmlS(active.opp)+'</b> ('+feudStandingsHTML(active)+'). This starts a brand new one instead of continuing it \u2014 close this and use Play Again / the mailbox banner to keep that series going.</div>';
+    if(active)activeWarning='<div class="ch-active-warn">You already have an active series with <b>'+escapeHtmlS(active.opp)+'</b> ('+feudStandingsHTML({s:active.score})+'). This starts a brand new one instead of continuing it \u2014 close this and use Play Again / the mailbox banner to keep that series going.</div>';
   }
   ov.innerHTML='<div class="share-box ch-box">'+
     '<button class="share-x" aria-label="Close">\u00d7</button>'+
@@ -3082,7 +3106,7 @@ function openChallengeModal(opts){
     if(isFreshFeud&&feudBase){
       const myName=nm||playerName()||displayName();
       const five=roster.filter(Boolean);
-      syncFeudSubmit(feudBase.id,[myName],{name:myName,wp:wp,rec:(shareCardData?(shareCardData.w+'-'+shareCardData.l):''),st:lineupStrength(roster),p:five.map(p=>({nm:p.name,ab:p.abbr,sy:p.sy}))});
+      syncFeudSubmit(feudBase.id,myName,[myName],{name:myName,wp:wp,rec:(shareCardData?(shareCardData.w+'-'+shareCardData.l):''),st:lineupStrength(roster),p:five.map(p=>({nm:p.name,ab:p.abbr,sy:p.sy}))});
     }
   };
   refresh();
