@@ -814,7 +814,7 @@ let WAR2016=new Set();   // 2015-16 Warriors, removed from the draftable pool
 let teams=[[],[]], adjusted=[[],[]], teamNames=["YOUR SQUAD","OPPONENT"];
 
 // --- tunable game constants (easy to tweak / move to a config later) ---
-const BUILD      = "v49 · fix: round 1 now actually persists on the Worker (was silently resetting) · 2026-07-08";
+const BUILD      = "v50 · mailbox always offers Play when a squad is pending, less friction · 2026-07-08";
 // Where a shared squad link points. This must be a page that serves THIS game's
 // HTML (it reads the ?sq= payload client-side). Until hoopsmatic.com/73-9 serves
 // this file, shared links will 404 — change this one line back to the GitHub Pages
@@ -2861,7 +2861,12 @@ async function checkFeudInbox(){
     for(const f of known){
       const live=feuds[f.id]; if(!live)continue;
       // "Your turn" means someone ELSE's fresh squad is pending, waiting on me.
-      const theirTurn = !!(live.pending && f.myName && live.pending.name!==f.myName);
+      // Offer Play whenever a fresh squad is sitting there, even if we don't
+      // yet have high confidence in our own established name for this feud —
+      // resolveChallengeRound re-checks this safely before scoring, so the
+      // worst case is a wasted click, not a wrong result. Only withhold the
+      // button when we're SURE the pending squad is our own.
+      const theirTurn = !!(live.pending && (!f.myName || live.pending.name!==f.myName));
       const scoreChanged = JSON.stringify(f.score||{})!==JSON.stringify(live.score||{});
       const justFinished = !!(live.done && !f.done);
       if(theirTurn||scoreChanged||justFinished){
@@ -2884,7 +2889,7 @@ function showFeudInboxBanner(updates){
       (u.canPlay?'<div class="ch-inbox-tag">Your turn</div>':'<div class="ch-inbox-tag">Update</div>')+
       '<b>'+nm+'</b> '+(u.canPlay?'is waiting on you. ':'played a game. ')+'Series now '+sc+'.'+
       (u.canPlay?' <button class="btn ch-continue" onclick="continueFeud(\''+escapeHtmlS(u.live.id)+'\')">Play your next game</button>'
-                :' Grab their latest link to keep going.')+
+                :' Their next squad isn\'t ready yet, check back or ask them to fire back.')+
       '</div>';
   });
   const b=document.createElement('div');b.id='feudInboxBanner';b.className='ch-banner ch-inbox';
