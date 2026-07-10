@@ -816,7 +816,7 @@ let WAR2016=new Set();   // 2015-16 Warriors, removed from the draftable pool
 let teams=[[],[]], adjusted=[[],[]], teamNames=["YOUR SQUAD","OPPONENT"];
 
 // --- tunable game constants (easy to tweak / move to a config later) ---
-const BUILD      = "v54 · $100M cap, two-name display cap, one banner per challenger, clearer copy · 2026-07-10";
+const BUILD      = "v55 · series intent before drafting, name-gated boards, 0-0 display · 2026-07-10";
 // Where a shared squad link points. This must be a page that serves THIS game's
 // HTML (it reads the ?sq= payload client-side). Until hoopsmatic.com/73-9 serves
 // this file, shared links will 404 — change this one line back to the GitHub Pages
@@ -1085,10 +1085,19 @@ function rosterCount(){return roster.filter(Boolean).length;}
 function playAgain(){
   // Replay should jump straight back into the action: reset, then auto-spin the
   // first wheel (the very first game of a session still starts on a manual Spin).
+  // Each new game re-declares its intent (series vs casual), so clear both flags.
+  window.__CHALLENGE__=null; window.__CASUAL_GAME__=false;
   startGame();
   setTimeout(()=>{ if(!spinning && rosterCount()===0) spin(); },350);
 }
 function startGame(){
+  // Anti-cherry-pick: if a series is live, the series/casual choice happens HERE,
+  // before a single team is drawn. Choosing after seeing your five (the old flow)
+  // let you draft unlimited squads and attach only your best one to the series.
+  if(!window.__CHALLENGE__ && !window.__CASUAL_GAME__ && LB_API){
+    const act=_knownFeuds().filter(x=>!x.done&&x.opp).sort((a,b)=>(b.ts||0)-(a.ts||0))[0]||null;
+    if(act){ showSeriesIntentModal(act); return; }
+  }
   remaining=BUDGET; roster=[null,null,null,null,null]; rolledGroups=[]; pickedNames=new Set(); pickedPositions=new Set(); usedKeys=new Set();
   currentGroup=null; spinning=false;
   $("intro").classList.add("hidden");
@@ -2355,23 +2364,23 @@ function lbRenderPerfect(panel,perfect){
     '</div>';
 }
 let _lbBoard=null,_lbFetched=false;   // session cache so we read the board once, not per play
-function lbShowNameForm(panel,nonce,beat){
-  const which=(beat.alltime?'all-time':(beat.week?'week':'day'));
+// A record only goes on the board WITH a name. If the player hasn't named
+// themselves yet, the mark is held locally and this form claims it on save.
+function lbShowClaimGate(panel,onSave){
   const wrap=document.createElement('div');wrap.className='lb-claim';
-  wrap.innerHTML='<div class="lb-claim-msg">You set the best mark of the '+which+'! Add your name to the board:</div>'+
-    '<div class="lb-claim-row"><input class="lb-input" maxlength="16" placeholder="Your name" autocomplete="off"><button class="btn lb-save">Save</button></div>'+
+  wrap.innerHTML='<div class="lb-claim-msg">You beat the board! Records need a name behind them \u2014 add yours to claim it:</div>'+
+    '<div class="lb-claim-row"><input class="lb-input" maxlength="16" placeholder="Your name" autocomplete="off"><button class="btn lb-save">Claim it</button></div>'+
     '<div class="lb-claim-note"></div>';
   panel.appendChild(wrap);
   const input=wrap.querySelector('.lb-input'),note=wrap.querySelector('.lb-claim-note');
   const save=async()=>{
     const name=input.value.trim();
     if(!name){note.textContent='Type a name first.';return;}
-    try{
-      const r=await fetch(_lbBase()+'/name',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({nonce,name})});
-      const d=await r.json();
-      if(d&&d.board){ _lbApplyWin(d.board); _lbSavedName=name; setPlayerName(name); lbRenderBoard(panel,_lbBoard); }
-      else note.textContent=(d&&d.error==='inappropriate')?'Keep it clean, try another name.':'Could not save that name.';
-    }catch(e){ note.textContent='Network error, try again.'; }
+    setPlayerName(name);_lbSavedName=name;
+    note.textContent='Claiming\u2026';
+    const ok=await onSave(name);
+    if(ok)wrap.remove();
+    else note.textContent='Could not claim (name may be inappropriate, or the mark was just beaten).';
   };
   wrap.querySelector('.lb-save').onclick=save;
   input.addEventListener('keydown',e=>{if(e.key==='Enter')save();});
@@ -2396,28 +2405,38 @@ async function lbInit(pct,record,isPerfect){
   if(!_lbBoard){ unavailable(); return; }
   if(panel)lbRenderBoard(panel,_lbBoard);
   lbRenderPerfect(perfPanel,_lbBoard.perfect);
-  // Win board: only contact the server when this result beats a window we know about.
+  // Win board: only contact the server when this result beats a window we know
+  // about, and only ever WITH a name attached — anonymous marks don't register.
   if(panel){
     const beats=w=>{const e=_lbBoard[w];return !e||e.pct==null||pct>e.pct;};
     if(beats('day')||beats('week')||beats('alltime')){
-      try{
-        const r=await fetch(_lbBase()+'/claim',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pct:Number(pct.toFixed(2)),record:record})});
-        const d=await r.json();
-        if(d&&d.board){
-          _lbApplyWin(d.board); lbRenderBoard(panel,_lbBoard);
-          const beat=d.beat||{};
-          if((beat.day||beat.week||beat.alltime)&&d.nonce) lbShowNameForm(panel,d.nonce,beat);
-        }
-      }catch(e){ console.warn('[ROULETTE] leaderboard /claim failed:',e); }
+      const doClaim=async(nm)=>{
+        try{
+          const r=await fetch(_lbBase()+'/claim',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pct:Number(pct.toFixed(2)),record:record,name:nm})});
+          const d=await r.json();
+          if(d&&d.board){ _lbApplyWin(d.board); lbRenderBoard(panel,_lbBoard); return !d.error; }
+        }catch(e){ console.warn('[ROULETTE] leaderboard /claim failed:',e); }
+        return false;
+      };
+      const nm=playerName();
+      if(nm) await doClaim(nm);
+      else lbShowClaimGate(panel,doClaim);
     }
   }
-  // Perfect-squads board: record this best-possible game, then refresh that panel.
+  // Perfect-squads board: also name-gated. No name, no register.
   if(isPerfect&&perfPanel){
-    try{
-      const r=await fetch(_lbBase()+'/perfect',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:playerId(),name:playerName()})});
-      const d=await r.json();
-      if(d&&d.perfect){ _lbBoard.perfect=d.perfect; lbRenderPerfect(perfPanel,d.perfect); }
-    }catch(e){ console.warn('[ROULETTE] leaderboard /perfect failed:',e); }
+    const nm=playerName();
+    if(!nm){
+      const foot=document.createElement('div');foot.className='lb-claim-msg';
+      foot.textContent='Best-possible squad! Set a name (claim any record above) to appear on this board.';
+      perfPanel.appendChild(foot);
+    }else{
+      try{
+        const r=await fetch(_lbBase()+'/perfect',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:playerId(),name:nm})});
+        const d=await r.json();
+        if(d&&d.perfect){ _lbBoard.perfect=d.perfect; lbRenderPerfect(perfPanel,d.perfect); }
+      }catch(e){ console.warn('[ROULETTE] leaderboard /perfect failed:',e); }
+    }
   }
 }
 // Personal tally of best-possible-squad games, kept on the device (works on the
@@ -2478,16 +2497,8 @@ function showResults(){
       html='<div class="perfect-callout">\u2605 Best possible squad! No five from your team-seasons beats it. '+tail+'</div>'+html;
     }
     if(window.__CHALLENGE__) html+='<div id="chPanel" class="war-panel ch-panel"><div class="war-hdr">Friend challenge</div><div class="ch-h2h lb-loading">Checking the latest round\u2026</div></div>';
-    else{
-      // Ask-each-time: this game didn't come through a series path, but if a
-      // series is active, offer to count this five toward it (or keep it casual).
-      const _act=(LB_API? _knownFeuds().filter(x=>!x.done&&x.opp).sort((a,b)=>(b.ts||0)-(a.ts||0))[0]||null : null);
-      if(_act) html+='<div id="chAskPanel" class="war-panel ch-panel">'+
-        '<div class="war-hdr">Friend challenge</div>'+
-        '<div class="ch-h2h">You have an active series with <b>'+escapeHtmlS(_act.opp)+'</b> ('+feudStandingsHTML({s:_act.score})+'). Count this five as your next series game?</div>'+
-        '<div class="ch-fire-row"><button class="btn ch-fire" onclick="attachSeriesGame(\''+escapeHtmlS(_act.id)+'\')">Count it toward the series</button> '+
-        '<button class="btn ghost" onclick="dismissSeriesAsk()">Just a casual game</button></div></div>';
-    }
+    // (series-vs-casual is declared BEFORE drafting, in startGame, so a finished
+    // casual game can never be retroactively attached to a series)
 
     // actions row sits between the win% area and the squad breakdown
     html+='<div class="res-actions">'+
@@ -2850,17 +2861,26 @@ function badgeHTML(b){
   if(!b||!b.tier||b.tier==='Rookie')return '';
   return '<span class="ch-badge">'+(b.emoji||'')+' '+escapeHtmlS(b.tier)+'</span>';
 }
-// ---- ask-each-time: attach an already-played casual game to the active series ----
-function attachSeriesGame(id){
-  const known=_knownFeuds().find(x=>x.id===id); if(!known)return;
-  window.__CHALLENGE__={ nm:known.opp||'Challenger', wp:'', rec:'', st:null, p:null,
-    f:{ id:id, n:0, s:known.score||{}, done:false, winner:null } };
-  const ask=document.getElementById('chAskPanel');
-  if(ask){ ask.id='chPanel'; ask.innerHTML='<div class="war-hdr">Friend challenge</div><div class="ch-h2h lb-loading">Submitting this five to the series\u2026</div>'; }
-  try{ renderChallengePanel(window.__LAST_WP__||''); }catch(e){}
-}
-function dismissSeriesAsk(){
-  const ask=document.getElementById('chAskPanel'); if(ask)ask.remove();
+// ---- pre-draft intent: declare series vs casual BEFORE seeing any players ----
+function showSeriesIntentModal(act){
+  const ex=document.getElementById('chIntent');if(ex)ex.remove();
+  const ov=document.createElement('div');ov.id='chIntent';ov.className='share-modal';
+  const sc=feudStandingsHTML({s:act.score})||'0-0';
+  ov.innerHTML='<div class="share-box ch-box">'+
+    '<div class="ch-modal-hdr">Series game?</div>'+
+    '<div class="ch-modal-sub">You have a live series with <b>'+escapeHtmlS(act.opp)+'</b> ('+sc+', first to 4). Decide before you draft \u2014 this five is locked to your choice.</div>'+
+    '<div class="ch-fire-row"><button class="btn ch-fire" id="ciSeries">Play for the series</button> '+
+    '<button class="btn ghost" id="ciCasual">Casual game</button></div></div>';
+  document.body.appendChild(ov);
+  const go=()=>{ov.remove();startGame();};
+  ov.querySelector('#ciSeries').onclick=()=>{
+    window.__CHALLENGE__={ nm:act.opp||'Challenger', wp:'', rec:'', st:null, p:null,
+      f:{ id:act.id, n:0, s:act.score||{}, done:false, winner:null } };
+    go();
+  };
+  ov.querySelector('#ciCasual').onclick=()=>{ window.__CASUAL_GAME__=true; go(); };
+  // clicking outside = casual (safe default: never touches the series)
+  ov.addEventListener('click',e=>{if(e.target===ov){window.__CASUAL_GAME__=true;go();}});
 }
 // ---- mailbox check: on load, surface series updates and offer the next game ----
 window.__FEUD_CONTINUE__={};   // id -> live feud doc, so the banner's button can act without re-serializing HTML
@@ -2909,7 +2929,7 @@ function showFeudInboxBanner(updates){
   const intro=$("intro"); if(!intro)return;
   const lines=updates.map(u=>{
     const nm=escapeHtmlS(u.opp||'your opponent');
-    const sc=feudStandingsHTML({s:u.live.score});
+    const sc=feudStandingsHTML({s:u.live.score})||'0-0';
     if(u.live.done) return '<div class="ch-inbox-line"><div class="ch-inbox-tag">Series over</div>Your series with <b>'+nm+'</b> is decided: '+sc+'.</div>';
     if(u.waitingOnThem) return '<div class="ch-inbox-line"><div class="ch-inbox-tag">Update</div>Series with <b>'+nm+'</b> now '+sc+'. Your squad is already in for the next round, the game plays out when they draft.</div>';
     return '<div class="ch-inbox-line">'+
@@ -3057,7 +3077,7 @@ async function renderChallengePanel(friendWarPctStr){
       '<div class="ch-side"><div class="ch-who">'+chNameEsc+'</div><div class="ch-wp">'+chWp+'</div><div class="ch-sub">vs Warriors</div></div>'+
     '</div>';
   if(result.mode==='waiting'){
-    const fs=(result.f.s&&Object.keys(result.f.s).length)?('<div class="ch-feud">Series so far: '+feudStandingsHTML(result.f)+' <span class="ch-target">(first to 4)</span></div>'):'';
+    const fs='<div class="ch-feud">Series so far: '+(feudStandingsHTML(result.f)||'0-0')+' <span class="ch-target">(first to 4)</span></div>';
     panel.innerHTML='<div class="war-hdr">Friend challenge</div>'+vsRow+
       '<div class="ch-h2h">Your squad is in for this round. The game will play out the moment <b>'+chNameEsc+'</b> drafts theirs.</div>'+fs+
       '<div class="ch-fire-row ch-fire-row-low"><a href="javascript:void(0)" class="ch-fire-link" onclick="openChallengeModal({fireBack:true})">Send a reminder link \u2192</a></div>';
@@ -3114,7 +3134,7 @@ function openChallengeModal(opts){
   let activeWarning='';
   if(!fireBack){
     const active=_knownFeuds().filter(x=>!x.done&&x.opp).sort((a,b)=>(b.ts||0)-(a.ts||0))[0]||null;
-    if(active)activeWarning='<div class="ch-active-warn">You already have an active series with <b>'+escapeHtmlS(active.opp)+'</b> ('+feudStandingsHTML({s:active.score})+'). This starts a brand new one instead of continuing it \u2014 close this and use Play Again / the mailbox banner to keep that series going.</div>';
+    if(active)activeWarning='<div class="ch-active-warn">You already have an active series with <b>'+escapeHtmlS(active.opp)+'</b> ('+(feudStandingsHTML({s:active.score})||'0-0')+'). This starts a brand new one instead of continuing it \u2014 close this and use Play Again / the mailbox banner to keep that series going.</div>';
   }
   ov.innerHTML='<div class="share-box ch-box">'+
     '<button class="share-x" aria-label="Close">\u00d7</button>'+
@@ -3232,7 +3252,7 @@ if(CH_PAYLOAD&&Array.isArray(CH_PAYLOAD.p)&&!window.__SHARED__){
     const intro=$("intro");
     if(intro){
       const b=document.createElement('div');b.className='ch-banner';
-      const fs=(CH_PAYLOAD.f&&CH_PAYLOAD.f.s)?feudStandingsHTML(CH_PAYLOAD.f):'';
+      const fs=(CH_PAYLOAD.f&&CH_PAYLOAD.f.id)?(feudStandingsHTML(CH_PAYLOAD.f)||'0-0'):'';
       const existingName=playerName();
       b.innerHTML='<b>'+nm+'</b> challenged you.'+(rec||wp?(' Their five'+(rec?(' went <b>'+rec+'</b>'):'')+(rec&&wp?' and':'')+(wp?(' beats the 2015-16 Warriors <b>'+wp+'</b> of the time'):'')+'.'):'')+' Draft a five that does better.'+(fs?'<div class="ch-banner-feud">Series so far: '+fs+' (first to 4)</div>':'')+
         (existingName?'':'<div class="ch-banner-name"><input class="lb-input ch-banner-name-input" maxlength="16" placeholder="Your name (so the series shows who\'s who)" autocomplete="off"></div>');
