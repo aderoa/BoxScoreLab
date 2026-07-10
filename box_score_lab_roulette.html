@@ -8,11 +8,11 @@
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="HoopsMatic">
 <meta property="og:title" content="73-9 · Can your squad beat the 2015-16 Warriors?">
-<meta property="og:description" content="Spin five team-seasons, sign one player from each within a $120M cap, and simulate an 82-game season. See your win% against the greatest regular-season team ever.">
+<meta property="og:description" content="Spin five team-seasons, sign one player from each within a $100M cap, and simulate an 82-game season. See your win% against the greatest regular-season team ever.">
 <meta property="og:url" content="https://hoopsmatic.com/73-9-game">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="73-9 · Can your squad beat the 2015-16 Warriors?">
-<meta name="twitter:description" content="Spin five team-seasons, sign one player from each within a $120M cap, and simulate an 82-game season. See your win% against the greatest regular-season team ever.">
+<meta name="twitter:description" content="Spin five team-seasons, sign one player from each within a $100M cap, and simulate an 82-game season. See your win% against the greatest regular-season team ever.">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎰</text></svg>">
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
@@ -338,7 +338,7 @@ body{background:linear-gradient(160deg,#1a1a3e 0%,#0a0a1a 55%,#050510 100%);back
   <div id="intro" class="hidden">
     <div class="logo-main">73-9</div>
     <div class="subtitle">Build a five that beats the 2015-16 Warriors</div>
-    <div class="budget-hero">Your bankroll<span class="big" id="introBudget">$120.0M</span></div>
+    <div class="budget-hero">Your bankroll<span class="big" id="introBudget">$100.0M</span></div>
     <div class="rules">
       <div><span class="num">1</span>The wheel spins to a random <b>team-season</b> (1990 to today).</div>
       <div><span class="num">2</span>Sign <b>one player</b> from it. Each costs what their deal would be worth at the <b>2026 cap</b>.</div>
@@ -357,7 +357,7 @@ body{background:linear-gradient(160deg,#1a1a3e 0%,#0a0a1a 55%,#050510 100%);back
         <div class="hud-title">73-9</div>
         <div class="slot-dots" id="slotDots"></div>
       </div>
-      <div class="cap-pill" id="capPill"><span class="lab">Remaining</span>$120.0M</div>
+      <div class="cap-pill" id="capPill"><span class="lab">Remaining</span>$100.0M</div>
     </div>
 
     <div class="strip" id="strip"></div>
@@ -816,7 +816,7 @@ let WAR2016=new Set();   // 2015-16 Warriors, removed from the draftable pool
 let teams=[[],[]], adjusted=[[],[]], teamNames=["YOUR SQUAD","OPPONENT"];
 
 // --- tunable game constants (easy to tweak / move to a config later) ---
-const BUILD      = "v53 · realistic margins + series locked to two identities · 2026-07-10";
+const BUILD      = "v54 · $100M cap, two-name display cap, one banner per challenger, clearer copy · 2026-07-10";
 // Where a shared squad link points. This must be a page that serves THIS game's
 // HTML (it reads the ?sq= payload client-side). Until hoopsmatic.com/73-9 serves
 // this file, shared links will 404 — change this one line back to the GitHub Pages
@@ -841,7 +841,7 @@ function shareText(){
   return 'My team beat the 2015-16 Warriors '+wp+' of the time. Think you can build a squad that does better?';
 }
 const CAP_2026   = 165_000_000;   // 2026-27 projected NBA salary cap ($165M, ESPN/Shams Mar 2026)
-const BUDGET     = 120_000_000;   // bankroll
+const BUDGET     = 100_000_000;   // bankroll
 const SLOTS      = 5;             // signings
 const SEASON_GAMES = 82;          // games simulated for the record
 
@@ -2773,11 +2773,14 @@ function buildChallengeURL(name,feud){
   return SHARE_BASE_URL+'?ch='+_b64urlEncode(payload);
 }
 // Render a series score "Jorge 2 · Alberto 1" from f.s (name -> games won).
+// A series has exactly two participants; feuds corrupted before the identity
+// lock may carry ghost names, so display is capped at the top two.
 function feudStandingsHTML(f){
   if(!f||!f.s)return '';
-  const e=Object.keys(f.s).map(k=>({name:k,n:f.s[k]})).filter(x=>x.name);
+  let e=Object.keys(f.s).map(k=>({name:k,n:f.s[k]})).filter(x=>x.name);
   if(!e.length)return '';
   e.sort((a,b)=>b.n-a.n);
+  e=e.slice(0,2);
   return e.map(x=>escapeHtmlS(x.name)+' <b>'+x.n+'</b>').join(' \u00b7 ');
 }
 // One simulated game: a coin flip weighted by each squad's strength, not a
@@ -2871,9 +2874,9 @@ function continueFeud(id){
   const b=document.getElementById('feudInboxBanner'); if(b)b.remove();
   startGame();
 }
-async function checkFeudInbox(){
+async function checkFeudInbox(excludeId){
   if(!LB_API)return;
-  const known=_knownFeuds().filter(f=>!f.done);
+  const known=_knownFeuds().filter(f=>!f.done&&f.id!==excludeId);
   if(!known.length)return;
   try{
     const ids=known.map(f=>f.id).join(',');
@@ -3126,7 +3129,10 @@ function openChallengeModal(opts){
   const nameInput=ov.querySelector('.ch-name');
   const urlField=ov.querySelector('.share-url');
   const msg=ov.querySelector('.share-msg');
-  const knownName=playerName()||_lbSavedName||'';
+  let knownName=playerName()||_lbSavedName||'';
+  // Sanity guard: your name can't be your current opponent's name. If the saved
+  // name somehow matches them (test sessions, shared devices), start blank.
+  if(knownName&&window.__CHALLENGE__&&window.__CHALLENGE__.nm&&knownName===window.__CHALLENGE__.nm)knownName='';
   nameInput.value=knownName;
   let url='';
   const isFreshFeud = !fireBack || newSeries;   // a feud id nothing has been submitted for yet
@@ -3228,13 +3234,16 @@ if(CH_PAYLOAD&&Array.isArray(CH_PAYLOAD.p)&&!window.__SHARED__){
       const b=document.createElement('div');b.className='ch-banner';
       const fs=(CH_PAYLOAD.f&&CH_PAYLOAD.f.s)?feudStandingsHTML(CH_PAYLOAD.f):'';
       const existingName=playerName();
-      b.innerHTML='<b>'+nm+'</b> challenged you'+(rec?(' (went '+rec+')'):'')+(wp?(', beat the Warriors '+wp):'')+'. Build a five that beats them.'+(fs?'<div class="ch-banner-feud">Series so far: '+fs+' (first to 4)</div>':'')+
+      b.innerHTML='<b>'+nm+'</b> challenged you.'+(rec||wp?(' Their five'+(rec?(' went <b>'+rec+'</b>'):'')+(rec&&wp?' and':'')+(wp?(' beats the 2015-16 Warriors <b>'+wp+'</b> of the time'):'')+'.'):'')+' Draft a five that does better.'+(fs?'<div class="ch-banner-feud">Series so far: '+fs+' (first to 4)</div>':'')+
         (existingName?'':'<div class="ch-banner-name"><input class="lb-input ch-banner-name-input" maxlength="16" placeholder="Your name (so the series shows who\'s who)" autocomplete="off"></div>');
       intro.insertBefore(b,intro.firstChild);
       const ni=b.querySelector('.ch-banner-name-input');
       if(ni)ni.addEventListener('change',()=>{const v=ni.value.trim();if(v){setPlayerName(v);if(CH_PAYLOAD.f&&CH_PAYLOAD.f.id)setFeudMyName(CH_PAYLOAD.f.id,v);}});
     }
   }catch(e){}
+  // Other active series still get their own banner line, one per challenger,
+  // so being challenged by two people shows two separate lines (never merged).
+  try{ checkFeudInbox((CH_PAYLOAD.f&&CH_PAYLOAD.f.id)||null); }catch(e){}
 }else if(!window.__SHARED__){
   // Normal entry (not opening a specific challenge link): quietly check whether
   // any feud you're part of has moved since you last saw it.
