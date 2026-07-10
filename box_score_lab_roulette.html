@@ -816,7 +816,7 @@ let WAR2016=new Set();   // 2015-16 Warriors, removed from the draftable pool
 let teams=[[],[]], adjusted=[[],[]], teamNames=["YOUR SQUAD","OPPONENT"];
 
 // --- tunable game constants (easy to tweak / move to a config later) ---
-const BUILD      = "v52 · live-sync series: round resolves when both squads are in; ask-each-time for casual games · 2026-07-09";
+const BUILD      = "v53 · realistic margins + series locked to two identities · 2026-07-10";
 // Where a shared squad link points. This must be a page that serves THIS game's
 // HTML (it reads the ?sq= payload client-side). Until hoopsmatic.com/73-9 serves
 // this file, shared links will 404 — change this one line back to the GitHub Pages
@@ -1876,9 +1876,15 @@ function warriorsBar(){
 // was — scaling never changes the sign, so it stays a ~1-in-1000 feat. Display-only:
 // GAME_SD and the season sim are untouched. Raise it to make the Warriors tougher.
 const WALL_GAP_SCALE=3.3;
+// The 3.3 stretch keeps the WIN% properly punishing, but displayed as a
+// points margin it produces absurd blowouts (-26 avg for a sub-.500 team).
+// DISPLAY_GAP_SCALE maps the same gap to believable NBA numbers for display
+// only: a median team reads ~-12, a bad one ~-15, an elite one stays positive.
+// Sign is identical to the win% margin, so "cracked the wall" never disagrees.
+const DISPLAY_GAP_SCALE=1.9;
 function vsWarriors(lineup){
-  const margin=(lineupStrength(lineup)-warriorsBar())*WALL_GAP_SCALE;   // scaled per-game differential (yours minus theirs)
-  return {winPct:normCdf(margin/GAME_SD),margin};
+  const gap=lineupStrength(lineup)-warriorsBar();   // raw per-game differential (yours minus theirs)
+  return {winPct:normCdf(gap*WALL_GAP_SCALE/GAME_SD),margin:gap*DISPLAY_GAP_SCALE};
 }
 // Their five in the recognizable Death Lineup order (Green as the small-ball 5).
 // Any unexpected pick falls to the end, ordered by height.
@@ -2475,7 +2481,7 @@ function showResults(){
     else{
       // Ask-each-time: this game didn't come through a series path, but if a
       // series is active, offer to count this five toward it (or keep it casual).
-      const _act=(LB_API? _knownFeuds().find(x=>!x.done&&x.opp) : null);
+      const _act=(LB_API? _knownFeuds().filter(x=>!x.done&&x.opp).sort((a,b)=>(b.ts||0)-(a.ts||0))[0]||null : null);
       if(_act) html+='<div id="chAskPanel" class="war-panel ch-panel">'+
         '<div class="war-hdr">Friend challenge</div>'+
         '<div class="ch-h2h">You have an active series with <b>'+escapeHtmlS(_act.opp)+'</b> ('+feudStandingsHTML({s:_act.score})+'). Count this five as your next series game?</div>'+
@@ -2934,10 +2940,23 @@ function myFeudName(ch){
   const known=(ch.f&&ch.f.id)?_knownFeuds().find(x=>x.id===ch.f.id):null;
   if(known&&known.myName)return known.myName;
   const chN=ch.nm||'Challenger';
-  const keys=(ch.f&&ch.f.s)?Object.keys(ch.f.s).filter(k=>k!==chN):[];
-  if(keys.length===1)return keys[0];
-  if(keys.length>1)return keys.reduce((a,b)=>(ch.f.s[b]>ch.f.s[a]?b:a)); // corrupted feud from before this fix: best guess
+  // Derive from the score keys of whichever record we have (link payload or
+  // local cache): whoever isn't the opponent must be me.
+  const scoreSources=[(ch.f&&ch.f.s)||null,(known&&known.score)||null];
+  for(const s of scoreSources){
+    if(!s)continue;
+    const keys=Object.keys(s).filter(k=>k!==chN);
+    if(keys.length===1){ if(known)setFeudMyName(ch.f.id,keys[0]); return keys[0]; }
+    if(keys.length>1)return keys.reduce((a,b)=>(s[b]>s[a]?b:a)); // corrupted pre-fix feud: best guess
+  }
   return displayName();   // first round of a fresh series, no identity recorded yet
+}
+// Lock in (or read) my established name for a specific feud. Once set, mid-series
+// renames never change it — that drift is what created three-name series.
+function setFeudMyName(id,name){
+  if(!id||!name)return;
+  const l=_knownFeuds();const i=l.findIndex(x=>x.id===id);
+  if(i>=0&&!l[i].myName){ l[i].myName=name; _saveKnownFeuds(l); }
 }
 // LIVE-SYNC series: each side drafts whenever they want. Submitting my squad
 // puts it in the feud's pending slot for my name; if the opponent's squad is
@@ -2949,8 +2968,26 @@ async function submitSeriesRound(friendWarPctStr){
   const ch=window.__CHALLENGE__; if(!ch)return null;
   const chN=ch.nm||'Challenger';
   const feudId=(ch.f&&ch.f.id)||genId();
-  const me=myFeudName(ch);
+  let me=myFeudName(ch);
   if(!LB_API)return {mode:'offline'};
+  // Identity guard: check the authoritative score BEFORE submitting. A series
+  // has exactly two participants; if the live score already names two and I'm
+  // not one of them, one of them IS me under my earlier name (rename mid-series,
+  // cleared localStorage, second device). Adopt it instead of injecting a third.
+  try{
+    const r0=await fetch(_lbBase()+'/feud?ids='+encodeURIComponent(feudId));
+    if(r0.ok){
+      const d0=await r0.json();
+      const live0=(d0&&d0.feuds&&d0.feuds[feudId])||null;
+      if(live0&&live0.score){
+        const parts=Object.keys(live0.score);
+        if(parts.length>=2&&!parts.includes(me)){
+          const adopted=parts.find(k=>k!==chN);
+          if(adopted){ me=adopted; setFeudMyName(feudId,adopted); }
+        }
+      }
+    }
+  }catch(e){ /* pre-check is best-effort; submit still safe without it */ }
   const five=roster.filter(Boolean);
   const squad={name:me,wp:friendWarPctStr,rec:(shareCardData?(shareCardData.w+'-'+shareCardData.l):''),st:lineupStrength(roster),p:five.map(p=>({nm:p.name,ab:p.abbr,sy:p.sy}))};
   let sub=null;
@@ -3073,7 +3110,7 @@ function openChallengeModal(opts){
   // separate one-off games instead of one real series.
   let activeWarning='';
   if(!fireBack){
-    const active=_knownFeuds().find(x=>!x.done&&x.opp);
+    const active=_knownFeuds().filter(x=>!x.done&&x.opp).sort((a,b)=>(b.ts||0)-(a.ts||0))[0]||null;
     if(active)activeWarning='<div class="ch-active-warn">You already have an active series with <b>'+escapeHtmlS(active.opp)+'</b> ('+feudStandingsHTML({s:active.score})+'). This starts a brand new one instead of continuing it \u2014 close this and use Play Again / the mailbox banner to keep that series going.</div>';
   }
   ov.innerHTML='<div class="share-box ch-box">'+
@@ -3195,7 +3232,7 @@ if(CH_PAYLOAD&&Array.isArray(CH_PAYLOAD.p)&&!window.__SHARED__){
         (existingName?'':'<div class="ch-banner-name"><input class="lb-input ch-banner-name-input" maxlength="16" placeholder="Your name (so the series shows who\'s who)" autocomplete="off"></div>');
       intro.insertBefore(b,intro.firstChild);
       const ni=b.querySelector('.ch-banner-name-input');
-      if(ni)ni.addEventListener('change',()=>{const v=ni.value.trim();if(v)setPlayerName(v);});
+      if(ni)ni.addEventListener('change',()=>{const v=ni.value.trim();if(v){setPlayerName(v);if(CH_PAYLOAD.f&&CH_PAYLOAD.f.id)setFeudMyName(CH_PAYLOAD.f.id,v);}});
     }
   }catch(e){}
 }else if(!window.__SHARED__){
