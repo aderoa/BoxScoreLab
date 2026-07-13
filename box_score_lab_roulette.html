@@ -830,7 +830,7 @@ let WAR2016=new Set();   // 2015-16 Warriors, removed from the draftable pool
 let teams=[[],[]], adjusted=[[],[]], teamNames=["YOUR SQUAD","OPPONENT"];
 
 // --- tunable game constants (easy to tweak / move to a config later) ---
-const BUILD      = "v60 · Warriors win% softened per real playtesting, share card top/footer reworked · 2026-07-13";
+const BUILD      = "v61 · share card: brand mark reads as the game name, not a record · 2026-07-13";
 // Where a shared squad link points. This must be a page that serves THIS game's
 // HTML (it reads the ?sq= payload client-side). Until hoopsmatic.com/73-9 serves
 // this file, shared links will 404 — change this one line back to the GitHub Pages
@@ -2638,23 +2638,25 @@ function buildShareCardCanvas(d){
   const grd=ctx.createLinearGradient(W/2-320,0,W/2+320,0);
   grd.addColorStop(0,'#ff6b35');grd.addColorStop(0.5,'#ffd700');grd.addColorStop(1,'#ff6b35');
   _ls(ctx,'2px');ctx.fillStyle=grd;ctx.font='700 116px Oswald, sans-serif';
-  ctx.fillText('73-9',W/2,182);
-  // hero: win% vs the 2015-16 Warriors (the headline number)
+  ctx.fillText('73-9 GAME',W/2,182);
+  // hero: win% vs the 2015-16 Warriors (the headline number). Extra gap here on
+  // purpose — "73-9 GAME" is the product's name, not this player's record, and
+  // crowding it against the stats made it read like a season line.
   _ls(ctx,'4px');ctx.fillStyle='#ffd84d';ctx.font='700 30px Oswald, sans-serif';
-  ctx.fillText('VS THE 2015-16 WARRIORS',W/2,232);
+  ctx.fillText('VS THE 2015-16 WARRIORS',W/2,257);
   _ls(ctx,'0px');ctx.fillStyle='#fff';_fit(ctx,d.warPct,W-200,'700',150,'Oswald, sans-serif',86);
-  ctx.fillText(d.warPct,W/2,362);
+  ctx.fillText(d.warPct,W/2,387);
   _ls(ctx,'2px');ctx.fillStyle='#dcdcf7';ctx.font='700 24px Oswald, sans-serif';
-  ctx.fillText('OF GAMES WON  \u00b7  '+d.warSub,W/2,402);_ls(ctx,'0px');
+  ctx.fillText('OF GAMES WON  \u00b7  '+d.warSub,W/2,427);_ls(ctx,'0px');
   // season summary (secondary)
   ctx.fillStyle='#d4d4f2';ctx.font='700 23px JetBrains Mono, monospace';
-  ctx.fillText('MY SEASON  '+d.w+' \u2013 '+d.l+'  \u00b7  '+d.gradeT,W/2,470);
+  ctx.fillText('MY SEASON  '+d.w+' \u2013 '+d.l+'  \u00b7  '+d.gradeT,W/2,495);
   ctx.fillStyle='#b6b6de';ctx.font='700 21px JetBrains Mono, monospace';
-  ctx.fillText(d.ppg+' \u2013 '+d.oppg+' PPG  \u00b7  '+d.spent+' spent',W/2,502);
+  ctx.fillText(d.ppg+' \u2013 '+d.oppg+' PPG  \u00b7  '+d.spent+' spent',W/2,527);
   // player rows
   const tileH=108,gap=14,lx=72,rx=W-72,chipW=88,chipH=54;
   const nameMaxW=(rx-160)-(lx+chipW+30);
-  let ty=570;
+  let ty=595;
   d.players.forEach(p=>{
     ctx.fillStyle='rgba(255,255,255,0.03)';_rr(ctx,48,ty,W-96,tileH,16);ctx.fill();
     const midY=ty+tileH/2;
