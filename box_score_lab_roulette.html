@@ -1,18 +1,24 @@
 <!DOCTYPE html>
+<!-- © HoopsMatic / Jorge Sierra. All rights reserved. Not licensed for reuse,
+     redistribution, or derivative deployments without permission. -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>73-9 · HoopsMatic</title>
-<meta name="description" content="Spin five team-seasons, sign one player from each, and build a budget squad. Then find out how often it would beat the 2015-16 Warriors.">
+<title>73-9 Game: Can you beat the 2015-16 Warriors?</title>
+<meta name="description" content="You have $100 million to put together a squad to try to beat the best regular-season team ever.">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="HoopsMatic">
-<meta property="og:title" content="73-9 · Can your squad beat the 2015-16 Warriors?">
-<meta property="og:description" content="Spin five team-seasons, sign one player from each within a $100M cap, and simulate an 82-game season. See your win% against the greatest regular-season team ever.">
+<meta property="og:title" content="73-9 Game: Can you beat the 2015-16 Warriors?">
+<meta property="og:description" content="You have $100 million to put together a squad to try to beat the best regular-season team ever.">
+<meta property="og:image" content="https://hoopsmatic.com/73-9-game/og-73-9.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
 <meta property="og:url" content="https://hoopsmatic.com/73-9-game">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="73-9 · Can your squad beat the 2015-16 Warriors?">
-<meta name="twitter:description" content="Spin five team-seasons, sign one player from each within a $100M cap, and simulate an 82-game season. See your win% against the greatest regular-season team ever.">
+<meta name="twitter:title" content="73-9 Game: Can you beat the 2015-16 Warriors?">
+<meta name="twitter:description" content="You have $100 million to put together a squad to try to beat the best regular-season team ever.">
+<meta name="twitter:image" content="https://hoopsmatic.com/73-9-game/og-73-9.png">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎰</text></svg>">
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
@@ -94,6 +100,12 @@ body{background:linear-gradient(160deg,#1a1a3e 0%,#0a0a1a 55%,#050510 100%);back
 .ch-inbox div+div{margin-top:10px}
 .ch-inbox-line{line-height:1.5}
 .ch-inbox-tag{display:inline-block;font-family:'Oswald',sans-serif;font-weight:800;font-size:11px;letter-spacing:1px;text-transform:uppercase;color:#06170c;background:#4dff9a;border-radius:6px;padding:2px 8px;margin-right:8px;vertical-align:middle}
+.ch-inbox-line{position:relative;padding-right:26px}
+.ch-inbox-x{position:absolute;top:0;right:0;background:none;border:none;color:#7dffb0;opacity:.6;font-size:16px;line-height:1;cursor:pointer;padding:2px 4px}
+.ch-inbox-x:hover{opacity:1}
+.ch-inbox-clear{margin-top:10px;text-align:center;font-size:12px}
+.ch-inbox-clear a{color:#7dffb0;text-decoration:underline;cursor:pointer}
+.ch-inbox-clear a:hover{color:#fff}
 .ch-continue{margin-left:8px;padding:8px 16px;font-size:13px;background:linear-gradient(135deg,#4dff9a,#2ed67a);border:none;color:#06170c;font-weight:700}
 .ch-feud{font-family:'Oswald',sans-serif;font-size:13px;letter-spacing:.3px;color:#ffd9bf;margin-top:8px}
 .ch-feud b{color:#fff;font-weight:800}
@@ -134,6 +146,8 @@ body{background:linear-gradient(160deg,#1a1a3e 0%,#0a0a1a 55%,#050510 100%);back
 .lb-empty{color:#666}
 .lb-claim{margin-top:12px;padding-top:10px;border-top:1px solid rgba(255,209,102,.25)}
 .lb-claim-msg{font-family:'Oswald',sans-serif;color:#ffd166;font-size:13px;margin-bottom:8px;text-align:center}
+.lb-rank{margin-top:10px;padding-top:10px;border-top:1px solid #ffffff14;font-family:'Oswald',sans-serif;font-size:13px;color:#bcbce6;text-align:center}
+.lb-rank b{color:#ffd700}
 .lb-claim-row{display:flex;gap:8px;justify-content:center}
 .lb-input{flex:0 1 200px;min-width:0;background:#0f0f24;border:1px solid #2a2a52;border-radius:8px;color:#fff;font-family:'JetBrains Mono',monospace;font-size:13px;padding:8px 10px}
 .lb-save{flex:0 0 auto}
@@ -816,7 +830,7 @@ let WAR2016=new Set();   // 2015-16 Warriors, removed from the draftable pool
 let teams=[[],[]], adjusted=[[],[]], teamNames=["YOUR SQUAD","OPPONENT"];
 
 // --- tunable game constants (easy to tweak / move to a config later) ---
-const BUILD      = "v55 · series intent before drafting, name-gated boards, 0-0 display · 2026-07-10";
+const BUILD      = "v58 · leaderboard ranking, recalibrated Warriors wall (search-aware) · 2026-07-13";
 // Where a shared squad link points. This must be a page that serves THIS game's
 // HTML (it reads the ?sq= payload client-side). Until hoopsmatic.com/73-9 serves
 // this file, shared links will 404 — change this one line back to the GitHub Pages
@@ -1833,7 +1847,14 @@ function findBestSquad(gauntlet){
    so only about 1 in 1000 drawn teams can win the matchup.
    ============================================================ */
 let _warFive=null,_warBar=null;
-const WARRIORS_Z=3.09;   // 99.9th percentile z. Raise to make the wall harder, lower to ease it.
+// WARRIORS_Z used to be calibrated for a single RANDOM draw (99.9th percentile,
+// z=3.09). But "best squad you could've signed" doesn't draw once — it SEARCHES
+// ~181 candidates (1 knapsack-optimal + 140 weighted + 40 random) and keeps the
+// strongest. The chance that at least one of 181 tries clears a 1-in-1000 single-
+// draw bar isn't 1-in-1000, it's ~1-(0.999)^181 ≈ 16.6%. That's what let a first
+// session turn up a 60% best-squad. z=4.40 is the threshold at which the SEARCH
+// itself — not just a single draw — only clears it 1-in-1000 times.
+const WARRIORS_Z=4.40;   // calibrated against the ~181-candidate best-squad search, not a lone draw
 function warriorsFive(){
   if(_warFive)return _warFive;
   const wf=winFactor('GSW',2016);
@@ -1873,24 +1894,23 @@ function warriorsBar(){
   const real=lineupStrength(warriorsFive());
   if(!n){_warBar=real;return _warBar;}
   const mu=sum/n,sd=Math.sqrt(Math.max(0,sum2/n-mu*mu));
-  // the wall is the harder of (99.9th-pct drawn team, the Warriors' own five), so it is
-  // never weaker than the real team and beating it stays a ~1-in-1000 feat.
+  // the wall is the harder of (search-calibrated drawn-team bar, the Warriors' own
+  // five), so it is never weaker than the real team, and beating it — even via the
+  // best-squad SEARCH, not just a lone draw — stays a genuine ~1-in-1000 feat.
   _warBar=Math.max(mu+WARRIORS_Z*sd,real);
   return _warBar;
 }
-// The raw strength model compresses team quality (a median team sits only ~6.5 pts
-// below the 99.9th-pct wall), which over-credits weak teams. WALL_GAP_SCALE stretches
-// the gap to a realistic NBA spread so a roughly average team lands ~11 pts/game short
-// and wins ~18%, while keeping the beat-the-wall threshold (margin>0) exactly where it
-// was — scaling never changes the sign, so it stays a ~1-in-1000 feat. Display-only:
+// The raw strength model compresses team quality. WALL_GAP_SCALE stretches the gap
+// to a realistic win% curve around the (now much tougher) wall. Display-only:
 // GAME_SD and the season sim are untouched. Raise it to make the Warriors tougher.
 const WALL_GAP_SCALE=3.3;
-// The 3.3 stretch keeps the WIN% properly punishing, but displayed as a
-// points margin it produces absurd blowouts (-26 avg for a sub-.500 team).
-// DISPLAY_GAP_SCALE maps the same gap to believable NBA numbers for display
-// only: a median team reads ~-12, a bad one ~-15, an elite one stays positive.
+// Displayed points margin uses a GENTLER stretch than the win% curve. WARRIORS_Z
+// moving out (above) pushed every team's raw gap further negative, which would
+// otherwise read as unrealistically blown-out margins for an ordinary team;
+// DISPLAY_GAP_SCALE is tuned down to compensate so a mediocre team still reads
+// like a real, believable NBA final margin rather than a cartoon blowout.
 // Sign is identical to the win% margin, so "cracked the wall" never disagrees.
-const DISPLAY_GAP_SCALE=1.9;
+const DISPLAY_GAP_SCALE=1.3;
 function vsWarriors(lineup){
   const gap=lineupStrength(lineup)-warriorsBar();   // raw per-game differential (yours minus theirs)
   return {winPct:normCdf(gap*WALL_GAP_SCALE/GAME_SD),margin:gap*DISPLAY_GAP_SCALE};
@@ -2344,6 +2364,18 @@ function lbFmtPerfect(e){
   if(!e)return '<span class="lb-empty">—</span>';
   return '<b>'+(e.n||0)+'</b> <span class="lb-name">'+escapeHtmlS(e.name||'anon')+'</span>';
 }
+function lbShowRank(panel,rank){
+  const parts=[];
+  const label={day:'Today',week:'This week',alltime:'All-time'};
+  for(const w of ['day','week','alltime']){
+    const r=rank&&rank[w];
+    if(r)parts.push(label[w]+': <b>#'+r.rank+'</b> of '+r.of);
+  }
+  if(!parts.length)return;
+  const wrap=document.createElement('div');wrap.className='lb-rank';
+  wrap.innerHTML='Where you rank \u2014 '+parts.join(' \u00b7 ');
+  panel.appendChild(wrap);
+}
 function lbRenderBoard(panel,board){
   panel.innerHTML='<div class="lb-hdr">Best win % vs the 2015-16 Warriors</div>'+
     '<div class="lb-rows">'+
@@ -2405,22 +2437,33 @@ async function lbInit(pct,record,isPerfect){
   if(!_lbBoard){ unavailable(); return; }
   if(panel)lbRenderBoard(panel,_lbBoard);
   lbRenderPerfect(perfPanel,_lbBoard.perfect);
-  // Win board: only contact the server when this result beats a window we know
-  // about, and only ever WITH a name attached — anonymous marks don't register.
+  // Win board: submit named players' results every time (the server compares
+  // against THEIR OWN stored best per window, not the global #1, so a genuine
+  // personal improvement registers and ranks even when it isn't the outright
+  // leader). Unnamed players are only prompted to name themselves when this
+  // result would actually top a window — asking after every single game would
+  // be noisy for someone who hasn't opted into the leaderboard at all.
   if(panel){
-    const beats=w=>{const e=_lbBoard[w];return !e||e.pct==null||pct>e.pct;};
-    if(beats('day')||beats('week')||beats('alltime')){
-      const doClaim=async(nm)=>{
-        try{
-          const r=await fetch(_lbBase()+'/claim',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pct:Number(pct.toFixed(2)),record:record,name:nm})});
-          const d=await r.json();
-          if(d&&d.board){ _lbApplyWin(d.board); lbRenderBoard(panel,_lbBoard); return !d.error; }
-        }catch(e){ console.warn('[ROULETTE] leaderboard /claim failed:',e); }
-        return false;
-      };
-      const nm=playerName();
-      if(nm) await doClaim(nm);
-      else lbShowClaimGate(panel,doClaim);
+    const doClaim=async(nmVal)=>{
+      try{
+        const r=await fetch(_lbBase()+'/claim',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pct:Number(pct.toFixed(2)),record:record,name:nmVal,id:playerId()})});
+        return await r.json();
+      }catch(e){ console.warn('[ROULETTE] leaderboard /claim failed:',e); return null; }
+    };
+    const applyResult=(d)=>{
+      if(!d||!d.board)return false;
+      _lbApplyWin(d.board); lbRenderBoard(panel,_lbBoard);
+      if(d.beat&&(d.beat.day||d.beat.week||d.beat.alltime))lbShowRank(panel,d.rank);
+      return !d.error;
+    };
+    const nm=playerName();
+    if(nm){
+      applyResult(await doClaim(nm));
+    }else{
+      const beatsTop=w=>{const e=_lbBoard[w];return !e||e.pct==null||pct>e.pct;};
+      if(beatsTop('day')||beatsTop('week')||beatsTop('alltime')){
+        lbShowClaimGate(panel, async(typedName)=>applyResult(await doClaim(typedName)));
+      }
     }
   }
   // Perfect-squads board: also name-gated. No name, no register.
@@ -2434,7 +2477,7 @@ async function lbInit(pct,record,isPerfect){
       try{
         const r=await fetch(_lbBase()+'/perfect',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:playerId(),name:nm})});
         const d=await r.json();
-        if(d&&d.perfect){ _lbBoard.perfect=d.perfect; lbRenderPerfect(perfPanel,d.perfect); }
+        if(d&&d.perfect){ _lbBoard.perfect=d.perfect; lbRenderPerfect(perfPanel,d.perfect); if(d.rank)lbShowRank(perfPanel,d.rank); }
       }catch(e){ console.warn('[ROULETTE] leaderboard /perfect failed:',e); }
     }
   }
@@ -2925,21 +2968,34 @@ async function checkFeudInbox(excludeId){
     if(updates.length){ _saveKnownFeuds(merged); showFeudInboxBanner(updates); }
   }catch(e){ console.warn('[ROULETTE] feud inbox check failed:',e); }
 }
+function dismissFeudLine(id){
+  _saveKnownFeuds(_knownFeuds().filter(x=>x.id!==id));
+  const el=document.getElementById('chInboxLine-'+id); if(el)el.remove();
+  const banner=document.getElementById('feudInboxBanner');
+  if(banner&&!banner.querySelector('.ch-inbox-line'))banner.remove();
+}
+function clearAllFeudLines(){
+  _saveKnownFeuds([]);
+  const b=document.getElementById('feudInboxBanner'); if(b)b.remove();
+}
 function showFeudInboxBanner(updates){
   const intro=$("intro"); if(!intro)return;
   const lines=updates.map(u=>{
     const nm=escapeHtmlS(u.opp||'your opponent');
     const sc=feudStandingsHTML({s:u.live.score})||'0-0';
-    if(u.live.done) return '<div class="ch-inbox-line"><div class="ch-inbox-tag">Series over</div>Your series with <b>'+nm+'</b> is decided: '+sc+'.</div>';
-    if(u.waitingOnThem) return '<div class="ch-inbox-line"><div class="ch-inbox-tag">Update</div>Series with <b>'+nm+'</b> now '+sc+'. Your squad is already in for the next round, the game plays out when they draft.</div>';
-    return '<div class="ch-inbox-line">'+
+    const idEsc=escapeHtmlS(u.live.id);
+    const dismiss='<button class="ch-inbox-x" title="Remove from this list" onclick="dismissFeudLine(\''+idEsc+'\')">\u00d7</button>';
+    if(u.live.done) return '<div class="ch-inbox-line" id="chInboxLine-'+idEsc+'"><div class="ch-inbox-tag">Series over</div>Your series with <b>'+nm+'</b> is decided: '+sc+'.'+dismiss+'</div>';
+    if(u.waitingOnThem) return '<div class="ch-inbox-line" id="chInboxLine-'+idEsc+'"><div class="ch-inbox-tag">Update</div>Series with <b>'+nm+'</b> now '+sc+'. Your squad is already in for the next round, the game plays out when they draft.'+dismiss+'</div>';
+    return '<div class="ch-inbox-line" id="chInboxLine-'+idEsc+'">'+
       '<div class="ch-inbox-tag">Your move</div>'+
       'Series with <b>'+nm+'</b> now '+sc+'.'+
-      ' <button class="btn ch-continue" onclick="continueFeud(\''+escapeHtmlS(u.live.id)+'\')">Draft your next five</button>'+
+      ' <button class="btn ch-continue" onclick="continueFeud(\''+idEsc+'\')">Draft your next five</button>'+dismiss+
       '</div>';
   });
   const b=document.createElement('div');b.id='feudInboxBanner';b.className='ch-banner ch-inbox';
-  b.innerHTML=lines.join('');
+  const clearAll=updates.length>1?'<div class="ch-inbox-clear"><a href="javascript:void(0)" onclick="clearAllFeudLines()">Clear all challenges</a></div>':'';
+  b.innerHTML=lines.join('')+clearAll;
   intro.insertBefore(b,intro.firstChild);
 }
 // Rebuild a lineup of strength-bearing player objects from {nm,ab,sy} using the
@@ -3271,6 +3327,56 @@ if(CH_PAYLOAD&&Array.isArray(CH_PAYLOAD.p)&&!window.__SHARED__){
 }
 
 /* ============================================================
+   REPEAT-VISIT CACHE — the parsed data.bin (post-decompress, post-JSON.parse)
+   is stored in IndexedDB keyed by the file's own Last-Modified/ETag. On the
+   NEXT load, a single lightweight HEAD request tells us if that version is
+   still current; if so we skip the ~11-17MB download, the inflate, and the
+   JSON.parse entirely and load the parsed object straight from IndexedDB.
+   When Alberto's data rebuild changes the file, the version no longer
+   matches and we transparently fall back to a full fetch (then re-cache).
+   Every step here is wrapped so a storage failure (Safari private mode,
+   quota, disabled IndexedDB) just silently skips caching — the existing
+   fetch/decompress/parse path is completely unchanged and still runs.
+   ============================================================ */
+function idbOpen(){
+  return new Promise((resolve,reject)=>{
+    if(!window.indexedDB){reject(new Error('no indexedDB'));return;}
+    const req=indexedDB.open('h99cache',1);
+    req.onupgradeneeded=()=>{ try{req.result.createObjectStore('files');}catch(e){} };
+    req.onsuccess=()=>resolve(req.result);
+    req.onerror=()=>reject(req.error);
+  });
+}
+async function idbGet(key){
+  try{
+    const db=await idbOpen();
+    return await new Promise((resolve,reject)=>{
+      const rq=db.transaction('files','readonly').objectStore('files').get(key);
+      rq.onsuccess=()=>resolve(rq.result||null);
+      rq.onerror=()=>reject(rq.error);
+    });
+  }catch(e){ return null; }
+}
+async function idbSet(key,val){
+  try{
+    const db=await idbOpen();
+    await new Promise((resolve,reject)=>{
+      const tx=db.transaction('files','readwrite');
+      tx.objectStore('files').put(val,key);
+      tx.oncomplete=()=>resolve();
+      tx.onerror=()=>reject(tx.error);
+    });
+  }catch(e){ /* best-effort — caching just doesn't happen this time */ }
+}
+async function fileVersion(url){
+  try{
+    const r=await fetch(url,{method:'HEAD',cache:'no-store'});
+    if(!r.ok)return null;
+    return r.headers.get('etag')||r.headers.get('last-modified')||null;
+  }catch(e){ return null; }
+}
+
+/* ============================================================
    BOOT / DATA LOADING (mirrors the salary variant's loader)
    ============================================================ */
 (async function(){
@@ -3289,7 +3395,21 @@ if(CH_PAYLOAD&&Array.isArray(CH_PAYLOAD.p)&&!window.__SHARED__){
     const recPromise=fetch("records.json");
     const accPromise=fetch("accolades.json");
     const posPromise=fetch("positions.json");
+    // Fired in parallel with everything above — a HEAD request is a few bytes,
+    // so this costs nothing even when it turns out we need the full download too.
+    const dataVerPromise=fileVersion("data.bin");
 
+    let raw=null;
+    const dataVer=await dataVerPromise;
+    if(dataVer){
+      const cached=await idbGet('data.bin');
+      if(cached&&cached.ver===dataVer&&cached.raw){
+        label.textContent="Loading cached data...";fill.style.width="90%";
+        raw=cached.raw;
+      }
+    }
+
+    if(!raw){
     const resp=await fetch("data.bin");
     if(!resp.ok)throw new Error("HTTP "+resp.status+" — make sure data.bin is in the same folder");
     const reader=resp.body.getReader();
@@ -3328,7 +3448,10 @@ if(CH_PAYLOAD&&Array.isArray(CH_PAYLOAD.p)&&!window.__SHARED__){
       decompressed=pako.inflate(compressed,{to:'string'});
     }
     label.textContent="Parsing...";fill.style.width="92%";
-    const raw=JSON.parse(decompressed);
+    raw=JSON.parse(decompressed);
+    if(dataVer)idbSet('data.bin',{ver:dataVer,raw});   // cache for next visit; best-effort, never blocks
+    }
+
     TEAMS=raw.t;POS=raw.p;playerIndex=raw.d;playerNames=Object.keys(playerIndex).sort();
 
     label.textContent="Loading bio data...";fill.style.width="95%";
