@@ -830,7 +830,7 @@ let WAR2016=new Set();   // 2015-16 Warriors, removed from the draftable pool
 let teams=[[],[]], adjusted=[[],[]], teamNames=["YOUR SQUAD","OPPONENT"];
 
 // --- tunable game constants (easy to tweak / move to a config later) ---
-const BUILD      = "v58 · leaderboard ranking, recalibrated Warriors wall (search-aware) · 2026-07-13";
+const BUILD      = "v59 · share card: brighter/bolder small text, full URL in header · 2026-07-13";
 // Where a shared squad link points. This must be a page that serves THIS game's
 // HTML (it reads the ?sq= payload client-side). Until hoopsmatic.com/73-9 serves
 // this file, shared links will 404 — change this one line back to the GitHub Pages
@@ -2634,19 +2634,19 @@ function buildShareCardCanvas(d){
   grd.addColorStop(0,'#ff6b35');grd.addColorStop(0.5,'#ffd700');grd.addColorStop(1,'#ff6b35');
   _ls(ctx,'2px');ctx.fillStyle=grd;ctx.font='700 100px Oswald, sans-serif';
   ctx.fillText('73-9',W/2,170);
-  _ls(ctx,'6px');ctx.fillStyle='#9494be';ctx.font='600 22px Oswald, sans-serif';
-  ctx.fillText('HOOPSMATIC.COM',W/2,206);
+  _ls(ctx,'3px');ctx.fillStyle='#c2c2ec';ctx.font='700 22px Oswald, sans-serif';
+  ctx.fillText('HOOPSMATIC.COM/73-9-GAME',W/2,206);
   // hero: win% vs the 2015-16 Warriors (the headline number)
   _ls(ctx,'4px');ctx.fillStyle='#ffd84d';ctx.font='700 30px Oswald, sans-serif';
   ctx.fillText('VS THE 2015-16 WARRIORS',W/2,262);
   _ls(ctx,'0px');ctx.fillStyle='#fff';_fit(ctx,d.warPct,W-200,'700',150,'Oswald, sans-serif',86);
   ctx.fillText(d.warPct,W/2,392);
-  _ls(ctx,'2px');ctx.fillStyle='#c6c6ec';ctx.font='600 24px Oswald, sans-serif';
+  _ls(ctx,'2px');ctx.fillStyle='#dcdcf7';ctx.font='700 24px Oswald, sans-serif';
   ctx.fillText('OF GAMES WON  \u00b7  '+d.warSub,W/2,432);_ls(ctx,'0px');
   // season summary (secondary)
-  ctx.fillStyle='#bcbce0';ctx.font='600 23px JetBrains Mono, monospace';
+  ctx.fillStyle='#d4d4f2';ctx.font='700 23px JetBrains Mono, monospace';
   ctx.fillText('MY SEASON  '+d.w+' \u2013 '+d.l+'  \u00b7  '+d.gradeT,W/2,500);
-  ctx.fillStyle='#9a9ac8';ctx.font='500 21px JetBrains Mono, monospace';
+  ctx.fillStyle='#b6b6de';ctx.font='700 21px JetBrains Mono, monospace';
   ctx.fillText(d.ppg+' \u2013 '+d.oppg+' PPG  \u00b7  '+d.spent+' spent',W/2,532);
   // player rows
   const tileH=108,gap=14,lx=72,rx=W-72,chipW=88,chipH=54;
@@ -2665,7 +2665,7 @@ function buildShareCardCanvas(d){
     ctx.textAlign='left';ctx.textBaseline='alphabetic';
     ctx.fillStyle='#ffffff';_fit(ctx,p.name,nameMaxW,'600',40,'Oswald, sans-serif',26);
     ctx.fillText(p.name,tx,midY-4);
-    ctx.fillStyle='#a8a8d0';ctx.font='500 23px JetBrains Mono, monospace';
+    ctx.fillStyle='#c2c2e4';ctx.font='700 23px JetBrains Mono, monospace';
     // team in gray, season highlighted so 2000-01 vs 2004-05 reads at a glance
     const _sep='  \u00b7  ';
     const _seasonW=ctx.measureText(p.season).width;
@@ -2681,7 +2681,7 @@ function buildShareCardCanvas(d){
     ty+=tileH+gap;
   });
   // footer
-  ctx.textAlign='center';ctx.fillStyle='#8e8eb6';ctx.font='600 24px Oswald, sans-serif';
+  ctx.textAlign='center';ctx.fillStyle='#aeaed4';ctx.font='700 24px Oswald, sans-serif';
   _ls(ctx,'2px');ctx.fillText('SPIN YOUR OWN FIVE AT HOOPSMATIC.COM',W/2,H-72);_ls(ctx,'0px');
   return cv;
 }
