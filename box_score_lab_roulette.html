@@ -830,7 +830,7 @@ let WAR2016=new Set();   // 2015-16 Warriors, removed from the draftable pool
 let teams=[[],[]], adjusted=[[],[]], teamNames=["YOUR SQUAD","OPPONENT"];
 
 // --- tunable game constants (easy to tweak / move to a config later) ---
-const BUILD      = "v62 · fix: win-board rank now shows every game, not just fresh records · 2026-07-13";
+const BUILD      = "v64 · fix: series draft now survives a browser refresh · 2026-07-13";
 // Where a shared squad link points. This must be a page that serves THIS game's
 // HTML (it reads the ?sq= payload client-side). Until hoopsmatic.com/73-9 serves
 // this file, shared links will 404 — change this one line back to the GitHub Pages
@@ -1101,6 +1101,7 @@ function playAgain(){
   // first wheel (the very first game of a session still starts on a manual Spin).
   // Each new game re-declares its intent (series vs casual), so clear both flags.
   window.__CHALLENGE__=null; window.__CASUAL_GAME__=false;
+  _clearActiveChallenge();
   startGame();
   setTimeout(()=>{ if(!spinning && rosterCount()===0) spin(); },350);
 }
@@ -1915,7 +1916,16 @@ const WALL_GAP_SCALE=1.5;
 // DISPLAY_GAP_SCALE is tuned down to compensate so a mediocre team still reads
 // like a real, believable NBA final margin rather than a cartoon blowout.
 // Sign is identical to the win% margin, so "cracked the wall" never disagrees.
-const DISPLAY_GAP_SCALE=1.3;
+// Second round of playtesting (5 more results): win% held up — two clean
+// confirmations (7.17% and 19.10%) proved WALL_GAP_SCALE=1.5 is right, and the
+// one disagreement (wanted 24% instead of 14.73%) would have broken both of
+// those anchors if chased, so it's left alone; that disagreement also came
+// bundled with "the season record undersells this roster," a different system.
+// Margin got flagged three separate times as reading too severe (once at the
+// SAME number, -16.5, that got approved in another result — the real ceiling
+// sits right around there), so DISPLAY_GAP_SCALE comes down again to pull
+// typical bad-team margins clearly under that line.
+const DISPLAY_GAP_SCALE=1.1;
 function vsWarriors(lineup){
   const gap=lineupStrength(lineup)-warriorsBar();   // raw per-game differential (yours minus theirs)
   return {winPct:normCdf(gap*WALL_GAP_SCALE/GAME_SD),margin:gap*DISPLAY_GAP_SCALE};
@@ -2910,6 +2920,14 @@ function badgeHTML(b){
   return '<span class="ch-badge">'+(b.emoji||'')+' '+escapeHtmlS(b.tier)+'</span>';
 }
 // ---- pre-draft intent: declare series vs casual BEFORE seeing any players ----
+// Refreshing the browser mid-draft used to lose the fact you were playing a
+// series game, since window.__CHALLENGE__ was only ever a plain JS variable.
+// These persist it across a reload; cleared once the round is actually
+// consumed (played) or a fresh game is explicitly started.
+const _ACTIVE_CH_KEY='h99_active_challenge';
+function _saveActiveChallenge(){ try{ if(window.__CHALLENGE__)localStorage.setItem(_ACTIVE_CH_KEY,JSON.stringify(window.__CHALLENGE__)); }catch(e){} }
+function _loadActiveChallenge(){ try{ const raw=localStorage.getItem(_ACTIVE_CH_KEY); return raw?JSON.parse(raw):null; }catch(e){ return null; } }
+function _clearActiveChallenge(){ try{ localStorage.removeItem(_ACTIVE_CH_KEY); }catch(e){} }
 function showSeriesIntentModal(act){
   const ex=document.getElementById('chIntent');if(ex)ex.remove();
   const ov=document.createElement('div');ov.id='chIntent';ov.className='share-modal';
@@ -2924,6 +2942,7 @@ function showSeriesIntentModal(act){
   ov.querySelector('#ciSeries').onclick=()=>{
     window.__CHALLENGE__={ nm:act.opp||'Challenger', wp:'', rec:'', st:null, p:null,
       f:{ id:act.id, n:0, s:act.score||{}, done:false, winner:null } };
+    _saveActiveChallenge();
     go();
   };
   ov.querySelector('#ciCasual').onclick=()=>{ window.__CASUAL_GAME__=true; go(); };
@@ -2939,6 +2958,7 @@ function continueFeud(id){
   const opp=(known&&known.opp)||'Challenger';
   window.__CHALLENGE__={ nm:opp, wp:'', rec:'', st:null, p:null,
     f:{ id:id, n:(live&&live.n)||0, s:(live&&live.score)||(known&&known.score)||{}, done:false, winner:null } };
+  _saveActiveChallenge();
   const b=document.getElementById('feudInboxBanner'); if(b)b.remove();
   startGame();
 }
@@ -3123,6 +3143,7 @@ async function renderChallengePanel(friendWarPctStr){
   let result=null;
   try{ result=await submitSeriesRound(friendWarPctStr); }
   catch(e){ console.warn('[ROULETTE] challenge round failed:',e); }
+  _clearActiveChallenge();   // drafting is done either way; the refresh-mid-draft risk this guards against is over
   if(!result||result.mode==='error'){
     panel.innerHTML='<div class="war-hdr">Friend challenge</div><div class="ch-h2h">Couldn\'t process this round, so it wasn\'t counted. Try again after your next game.</div>';
     return;
@@ -3326,8 +3347,10 @@ if(CH_PAYLOAD&&Array.isArray(CH_PAYLOAD.p)&&!window.__SHARED__){
   // so being challenged by two people shows two separate lines (never merged).
   try{ checkFeudInbox((CH_PAYLOAD.f&&CH_PAYLOAD.f.id)||null); }catch(e){}
 }else if(!window.__SHARED__){
-  // Normal entry (not opening a specific challenge link): quietly check whether
-  // any feud you're part of has moved since you last saw it.
+  // Normal entry (not opening a specific challenge link): first, restore a
+  // mid-draft series if the browser was refreshed while one was in progress.
+  try{ const restored=_loadActiveChallenge(); if(restored)window.__CHALLENGE__=restored; }catch(e){}
+  // Then quietly check whether any feud you're part of has moved since you last saw it.
   try{ checkFeudInbox(); }catch(e){}
 }
 
