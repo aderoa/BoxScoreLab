@@ -830,7 +830,7 @@ let WAR2016=new Set();   // 2015-16 Warriors, removed from the draftable pool
 let teams=[[],[]], adjusted=[[],[]], teamNames=["YOUR SQUAD","OPPONENT"];
 
 // --- tunable game constants (easy to tweak / move to a config later) ---
-const BUILD      = "v61 · share card: brand mark reads as the game name, not a record · 2026-07-13";
+const BUILD      = "v62 · fix: win-board rank now shows every game, not just fresh records · 2026-07-13";
 // Where a shared squad link points. This must be a page that serves THIS game's
 // HTML (it reads the ?sq= payload client-side). Until hoopsmatic.com/73-9 serves
 // this file, shared links will 404 — change this one line back to the GitHub Pages
@@ -2458,7 +2458,7 @@ async function lbInit(pct,record,isPerfect){
     const applyResult=(d)=>{
       if(!d||!d.board)return false;
       _lbApplyWin(d.board); lbRenderBoard(panel,_lbBoard);
-      if(d.beat&&(d.beat.day||d.beat.week||d.beat.alltime))lbShowRank(panel,d.rank);
+      if(d.rank)lbShowRank(panel,d.rank);
       return !d.error;
     };
     const nm=playerName();
