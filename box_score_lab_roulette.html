@@ -830,7 +830,7 @@ let WAR2016=new Set();   // 2015-16 Warriors, removed from the draftable pool
 let teams=[[],[]], adjusted=[[],[]], teamNames=["YOUR SQUAD","OPPONENT"];
 
 // --- tunable game constants (easy to tweak / move to a config later) ---
-const BUILD      = "v59 · share card: brighter/bolder small text, full URL in header · 2026-07-13";
+const BUILD      = "v60 · Warriors win% softened per real playtesting, share card top/footer reworked · 2026-07-13";
 // Where a shared squad link points. This must be a page that serves THIS game's
 // HTML (it reads the ?sq= payload client-side). Until hoopsmatic.com/73-9 serves
 // this file, shared links will 404 — change this one line back to the GitHub Pages
@@ -1900,10 +1900,15 @@ function warriorsBar(){
   _warBar=Math.max(mu+WARRIORS_Z*sd,real);
   return _warBar;
 }
-// The raw strength model compresses team quality. WALL_GAP_SCALE stretches the gap
-// to a realistic win% curve around the (now much tougher) wall. Display-only:
-// GAME_SD and the season sim are untouched. Raise it to make the Warriors tougher.
-const WALL_GAP_SCALE=3.3;
+// WALL_GAP_SCALE controls how STEEPLY win% falls off as you move below the wall.
+// It does NOT move the 50%-crossing point (that's warriorsBar/WARRIORS_Z) — so
+// tuning this can never reopen the best-squad search exploit that WARRIORS_Z was
+// raised to close. Calibrated against six real results Jorge flagged as reading
+// too harsh (e.g. a 44-38 team should feel like ~15% vs the Warriors, not ~1%);
+// 1.5 lands within a few points of four of the six, the other two were flagged
+// by Jorge himself as based on his own read of the roster rather than the shown
+// record, so they're left as looser targets rather than forced exact matches.
+const WALL_GAP_SCALE=1.5;
 // Displayed points margin uses a GENTLER stretch than the win% curve. WARRIORS_Z
 // moving out (above) pushed every team's raw gap further negative, which would
 // otherwise read as unrealistically blown-out margins for an ordinary team;
@@ -2632,26 +2637,24 @@ function buildShareCardCanvas(d){
   // header (gradient) + site
   const grd=ctx.createLinearGradient(W/2-320,0,W/2+320,0);
   grd.addColorStop(0,'#ff6b35');grd.addColorStop(0.5,'#ffd700');grd.addColorStop(1,'#ff6b35');
-  _ls(ctx,'2px');ctx.fillStyle=grd;ctx.font='700 100px Oswald, sans-serif';
-  ctx.fillText('73-9',W/2,170);
-  _ls(ctx,'3px');ctx.fillStyle='#c2c2ec';ctx.font='700 22px Oswald, sans-serif';
-  ctx.fillText('HOOPSMATIC.COM/73-9-GAME',W/2,206);
+  _ls(ctx,'2px');ctx.fillStyle=grd;ctx.font='700 116px Oswald, sans-serif';
+  ctx.fillText('73-9',W/2,182);
   // hero: win% vs the 2015-16 Warriors (the headline number)
   _ls(ctx,'4px');ctx.fillStyle='#ffd84d';ctx.font='700 30px Oswald, sans-serif';
-  ctx.fillText('VS THE 2015-16 WARRIORS',W/2,262);
+  ctx.fillText('VS THE 2015-16 WARRIORS',W/2,232);
   _ls(ctx,'0px');ctx.fillStyle='#fff';_fit(ctx,d.warPct,W-200,'700',150,'Oswald, sans-serif',86);
-  ctx.fillText(d.warPct,W/2,392);
+  ctx.fillText(d.warPct,W/2,362);
   _ls(ctx,'2px');ctx.fillStyle='#dcdcf7';ctx.font='700 24px Oswald, sans-serif';
-  ctx.fillText('OF GAMES WON  \u00b7  '+d.warSub,W/2,432);_ls(ctx,'0px');
+  ctx.fillText('OF GAMES WON  \u00b7  '+d.warSub,W/2,402);_ls(ctx,'0px');
   // season summary (secondary)
   ctx.fillStyle='#d4d4f2';ctx.font='700 23px JetBrains Mono, monospace';
-  ctx.fillText('MY SEASON  '+d.w+' \u2013 '+d.l+'  \u00b7  '+d.gradeT,W/2,500);
+  ctx.fillText('MY SEASON  '+d.w+' \u2013 '+d.l+'  \u00b7  '+d.gradeT,W/2,470);
   ctx.fillStyle='#b6b6de';ctx.font='700 21px JetBrains Mono, monospace';
-  ctx.fillText(d.ppg+' \u2013 '+d.oppg+' PPG  \u00b7  '+d.spent+' spent',W/2,532);
+  ctx.fillText(d.ppg+' \u2013 '+d.oppg+' PPG  \u00b7  '+d.spent+' spent',W/2,502);
   // player rows
   const tileH=108,gap=14,lx=72,rx=W-72,chipW=88,chipH=54;
   const nameMaxW=(rx-160)-(lx+chipW+30);
-  let ty=600;
+  let ty=570;
   d.players.forEach(p=>{
     ctx.fillStyle='rgba(255,255,255,0.03)';_rr(ctx,48,ty,W-96,tileH,16);ctx.fill();
     const midY=ty+tileH/2;
@@ -2682,7 +2685,7 @@ function buildShareCardCanvas(d){
   });
   // footer
   ctx.textAlign='center';ctx.fillStyle='#aeaed4';ctx.font='700 24px Oswald, sans-serif';
-  _ls(ctx,'2px');ctx.fillText('SPIN YOUR OWN FIVE AT HOOPSMATIC.COM',W/2,H-72);_ls(ctx,'0px');
+  _ls(ctx,'2px');ctx.fillText('SPIN YOUR OWN FIVE AT HOOPSMATIC.COM/73-9-GAME',W/2,H-72);_ls(ctx,'0px');
   return cv;
 }
 function _dataURLtoBlob(d){
