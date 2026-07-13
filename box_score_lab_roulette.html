@@ -170,6 +170,9 @@ body{background:linear-gradient(160deg,#1a1a3e 0%,#0a0a1a 55%,#050510 100%);back
 .budget-hero{font-family:'Oswald',sans-serif;font-weight:700;font-size:13px;letter-spacing:2px;color:var(--green);text-transform:uppercase;margin:18px 0 4px}
 .budget-hero .big{display:block;font-size:40px;color:#fff;letter-spacing:1px;margin-top:2px}
 .fine{font-size:11px;color:#6a6a8c;letter-spacing:.5px;margin-top:18px}
+.app-footer{font-size:11px;color:#5c5c82;text-align:center;letter-spacing:.3px;margin:36px 0 16px;padding-top:16px;border-top:1px solid #ffffff0f}
+.app-footer a{color:#8f8fc0;text-decoration:underline}
+.app-footer a:hover{color:#c2c2e8}
 
 /* ===== HUD ===== */
 .hud{display:flex;align-items:center;justify-content:space-between;gap:12px;background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:12px 16px;margin-bottom:16px;position:sticky;top:8px;z-index:20;backdrop-filter:blur(6px)}
@@ -390,6 +393,8 @@ body{background:linear-gradient(160deg,#1a1a3e 0%,#0a0a1a 55%,#050510 100%);back
 
   <!-- RESULTS -->
   <div id="results" class="hidden"></div>
+
+  <div class="app-footer">Anything wrong with the game? Email us at <a href="mailto:hoopshype@hoopshype.com">hoopshype@hoopshype.com</a></div>
 
 </div>
 
@@ -830,7 +835,7 @@ let WAR2016=new Set();   // 2015-16 Warriors, removed from the draftable pool
 let teams=[[],[]], adjusted=[[],[]], teamNames=["YOUR SQUAD","OPPONENT"];
 
 // --- tunable game constants (easy to tweak / move to a config later) ---
-const BUILD      = "v64 · fix: series draft now survives a browser refresh · 2026-07-13";
+const BUILD      = "v65 · support email footer, redesigned social card, share card polish · 2026-07-13";
 // Where a shared squad link points. This must be a page that serves THIS game's
 // HTML (it reads the ?sq= payload client-side). Until hoopsmatic.com/73-9 serves
 // this file, shared links will 404 — change this one line back to the GitHub Pages
