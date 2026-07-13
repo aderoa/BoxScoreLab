@@ -835,7 +835,7 @@ let WAR2016=new Set();   // 2015-16 Warriors, removed from the draftable pool
 let teams=[[],[]], adjusted=[[],[]], teamNames=["YOUR SQUAD","OPPONENT"];
 
 // --- tunable game constants (easy to tweak / move to a config later) ---
-const BUILD      = "v65 · support email footer, redesigned social card, share card polish · 2026-07-13";
+const BUILD      = "v66 · anonymous scores now count toward rank without appearing on the visible board · 2026-07-13";
 // Where a shared squad link points. This must be a page that serves THIS game's
 // HTML (it reads the ?sq= payload client-side). Until hoopsmatic.com/73-9 serves
 // this file, shared links will 404 — change this one line back to the GitHub Pages
@@ -2418,9 +2418,16 @@ function lbRenderPerfect(panel,perfect){
 let _lbBoard=null,_lbFetched=false;   // session cache so we read the board once, not per play
 // A record only goes on the board WITH a name. If the player hasn't named
 // themselves yet, the mark is held locally and this form claims it on save.
-function lbShowClaimGate(panel,onSave){
+function lbShowClaimGate(panel,onSave,rank){
+  let msg='Nice result! Add your name to get credit for it:';
+  if(rank){
+    const label={day:'today',week:'this week',alltime:'all-time'};
+    let best=null;
+    for(const w of ['day','week','alltime']){ if(rank[w]&&(!best||rank[w].rank<best.r)) best={r:rank[w].rank,of:rank[w].of,w}; }
+    if(best)msg='You\u2019re <b>#'+best.r+' of '+best.of+'</b> '+label[best.w]+'! Add your name to get credit for it:';
+  }
   const wrap=document.createElement('div');wrap.className='lb-claim';
-  wrap.innerHTML='<div class="lb-claim-msg">You beat the board! Records need a name behind them \u2014 add yours to claim it:</div>'+
+  wrap.innerHTML='<div class="lb-claim-msg">'+msg+'</div>'+
     '<div class="lb-claim-row"><input class="lb-input" maxlength="16" placeholder="Your name" autocomplete="off"><button class="btn lb-save">Claim it</button></div>'+
     '<div class="lb-claim-note"></div>';
   panel.appendChild(wrap);
@@ -2432,7 +2439,7 @@ function lbShowClaimGate(panel,onSave){
     note.textContent='Claiming\u2026';
     const ok=await onSave(name);
     if(ok)wrap.remove();
-    else note.textContent='Could not claim (name may be inappropriate, or the mark was just beaten).';
+    else note.textContent='Could not claim (name may be inappropriate).';
   };
   wrap.querySelector('.lb-save').onclick=save;
   input.addEventListener('keydown',e=>{if(e.key==='Enter')save();});
@@ -2457,16 +2464,17 @@ async function lbInit(pct,record,isPerfect){
   if(!_lbBoard){ unavailable(); return; }
   if(panel)lbRenderBoard(panel,_lbBoard);
   lbRenderPerfect(perfPanel,_lbBoard.perfect);
-  // Win board: submit named players' results every time (the server compares
-  // against THEIR OWN stored best per window, not the global #1, so a genuine
-  // personal improvement registers and ranks even when it isn't the outright
-  // leader). Unnamed players are only prompted to name themselves when this
-  // result would actually top a window — asking after every single game would
-  // be noisy for someone who hasn't opted into the leaderboard at all.
+  // Both boards now record EVERY game, named or not — an anonymous score still
+  // counts toward rank/percentile, it just never becomes the visible #1 (the
+  // Worker filters unnamed entries out of that specific display) and never
+  // shows a name. Unnamed players are prompted to claim credit whenever this
+  // result lands in the top 3 of ANY window — a much lower bar than literal
+  // #1, so real good results actually get attributed, without nagging every
+  // single game regardless of how it went.
   if(panel){
     const doClaim=async(nmVal)=>{
       try{
-        const r=await fetch(_lbBase()+'/claim',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pct:Number(pct.toFixed(2)),record:record,name:nmVal,id:playerId()})});
+        const r=await fetch(_lbBase()+'/claim',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pct:Number(pct.toFixed(2)),record:record,name:nmVal||'',id:playerId()})});
         return await r.json();
       }catch(e){ console.warn('[ROULETTE] leaderboard /claim failed:',e); return null; }
     };
@@ -2477,29 +2485,38 @@ async function lbInit(pct,record,isPerfect){
       return !d.error;
     };
     const nm=playerName();
-    if(nm){
-      applyResult(await doClaim(nm));
-    }else{
-      const beatsTop=w=>{const e=_lbBoard[w];return !e||e.pct==null||pct>e.pct;};
-      if(beatsTop('day')||beatsTop('week')||beatsTop('alltime')){
-        lbShowClaimGate(panel, async(typedName)=>applyResult(await doClaim(typedName)));
+    const d=await doClaim(nm||'');
+    const ok=applyResult(d);
+    if(ok&&!nm&&d&&d.rank){
+      const isTop3=w=>d.rank[w]&&d.rank[w].rank<=3;
+      if(isTop3('day')||isTop3('week')||isTop3('alltime')){
+        lbShowClaimGate(panel, async(typedName)=>applyResult(await doClaim(typedName)), d.rank);
       }
     }
   }
-  // Perfect-squads board: also name-gated. No name, no register.
+  // Perfect-squads board: same treatment — every best-possible squad is tallied
+  // regardless of naming, only the visible top-10 and personal credit need one.
   if(isPerfect&&perfPanel){
-    const nm=playerName();
-    if(!nm){
-      const foot=document.createElement('div');foot.className='lb-claim-msg';
-      foot.textContent='Best-possible squad! Set a name (claim any record above) to appear on this board.';
-      perfPanel.appendChild(foot);
-    }else{
-      try{
-        const r=await fetch(_lbBase()+'/perfect',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:playerId(),name:nm})});
-        const d=await r.json();
-        if(d&&d.perfect){ _lbBoard.perfect=d.perfect; lbRenderPerfect(perfPanel,d.perfect); if(d.rank)lbShowRank(perfPanel,d.rank); }
-      }catch(e){ console.warn('[ROULETTE] leaderboard /perfect failed:',e); }
-    }
+    try{
+      const nm=playerName();
+      const r=await fetch(_lbBase()+'/perfect',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:playerId(),name:nm||''})});
+      const d=await r.json();
+      if(d&&d.perfect){
+        _lbBoard.perfect=d.perfect; lbRenderPerfect(perfPanel,d.perfect);
+        if(d.rank)lbShowRank(perfPanel,d.rank);
+        if(!nm&&d.rank){
+          const isTop3=w=>d.rank[w]&&d.rank[w].rank<=3;
+          if(isTop3('day')||isTop3('week')||isTop3('alltime')){
+            lbShowClaimGate(perfPanel, async(typedName)=>{
+              const r2=await fetch(_lbBase()+'/perfect',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:playerId(),name:typedName})});
+              const d2=await r2.json();
+              if(d2&&d2.perfect){ _lbBoard.perfect=d2.perfect; lbRenderPerfect(perfPanel,d2.perfect); return !d2.error; }
+              return false;
+            }, d.rank);
+          }
+        }
+      }
+    }catch(e){ console.warn('[ROULETTE] leaderboard /perfect failed:',e); }
   }
 }
 // Personal tally of best-possible-squad games, kept on the device (works on the
