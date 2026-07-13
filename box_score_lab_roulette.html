@@ -835,7 +835,7 @@ let WAR2016=new Set();   // 2015-16 Warriors, removed from the draftable pool
 let teams=[[],[]], adjusted=[[],[]], teamNames=["YOUR SQUAD","OPPONENT"];
 
 // --- tunable game constants (easy to tweak / move to a config later) ---
-const BUILD      = "v66 · anonymous scores now count toward rank without appearing on the visible board · 2026-07-13";
+const BUILD      = "v67 · leaderboard ranks every play, not one slot per player · 2026-07-13";
 // Where a shared squad link points. This must be a page that serves THIS game's
 // HTML (it reads the ?sq= payload client-side). Until hoopsmatic.com/73-9 serves
 // this file, shared links will 404 — change this one line back to the GitHub Pages
@@ -2472,11 +2472,17 @@ async function lbInit(pct,record,isPerfect){
   // #1, so real good results actually get attributed, without nagging every
   // single game regardless of how it went.
   if(panel){
-    const doClaim=async(nmVal)=>{
+    const submitPlay=async(nmVal)=>{
       try{
         const r=await fetch(_lbBase()+'/claim',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pct:Number(pct.toFixed(2)),record:record,name:nmVal||'',id:playerId()})});
         return await r.json();
       }catch(e){ console.warn('[ROULETTE] leaderboard /claim failed:',e); return null; }
+    };
+    const claimName=async(ts,typedName)=>{
+      try{
+        const r=await fetch(_lbBase()+'/claim',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({claimTs:ts,name:typedName,id:playerId()})});
+        return await r.json();
+      }catch(e){ console.warn('[ROULETTE] leaderboard /claim (name) failed:',e); return null; }
     };
     const applyResult=(d)=>{
       if(!d||!d.board)return false;
@@ -2485,12 +2491,14 @@ async function lbInit(pct,record,isPerfect){
       return !d.error;
     };
     const nm=playerName();
-    const d=await doClaim(nm||'');
+    const d=await submitPlay(nm||'');
     const ok=applyResult(d);
-    if(ok&&!nm&&d&&d.rank){
+    if(ok&&!nm&&d&&d.rank&&d.ts){
       const isTop3=w=>d.rank[w]&&d.rank[w].rank<=3;
       if(isTop3('day')||isTop3('week')||isTop3('alltime')){
-        lbShowClaimGate(panel, async(typedName)=>applyResult(await doClaim(typedName)), d.rank);
+        // Claiming afterward attaches a name to THIS SAME play (by its ts) —
+        // it must not resubmit pct/record, which would count as a second game.
+        lbShowClaimGate(panel, async(typedName)=>applyResult(await claimName(d.ts,typedName)), d.rank);
       }
     }
   }
