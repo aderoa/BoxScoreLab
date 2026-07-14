@@ -849,7 +849,7 @@ let WAR2016=new Set();   // 2015-16 Warriors, removed from the draftable pool
 let teams=[[],[]], adjusted=[[],[]], teamNames=["YOUR SQUAD","OPPONENT"];
 
 // --- tunable game constants (easy to tweak / move to a config later) ---
-const BUILD      = "v80 · bench-size exclusion scoped to Warriors overlap specifically · 2026-07-15";
+const BUILD      = "v81 · best-squad search penalizes severe positional mismatches · 2026-07-15";
 // Where a shared squad link points. This must be a page that serves THIS game's
 // HTML (it reads the ?sq= payload client-side). Until hoopsmatic.com/73-9 serves
 // this file, shared links will 404 — change this one line back to the GitHub Pages
@@ -1955,6 +1955,26 @@ function avgRecord(lineup,gauntlets){
   const w82=Math.round(w/played*SEASON_GAMES);
   return {w:w82,l:SEASON_GAMES-w82,played,ppg:pf/played,oppg:pa/played};
 }
+// Selection-only penalty: how far the WORST-placed player sits from their
+// natural position. lineupBalance's own misfit penalty tops out at a small,
+// capped amount (-3.0 total) that a handful of elite RTG points can easily
+// outweigh — which is how a search over ~181 candidates could end up crowning
+// a lineup with a true center at point guard just because the combined talent
+// was high enough. This is steep on purpose and applies ONLY to which
+// candidate gets picked as "the best squad" — it does not touch
+// lineupBalance itself or the displayed win-loss record, which stays
+// consistent with how every other team's record is computed.
+const SELECTION_MISFIT_STEPS=[0, 0, 1.5, 5, 10];
+function selectionMisfitPenalty(lineup){
+  let total=0;
+  for(let i=0;i<lineup.length;i++){
+    const p=lineup[i]; if(!p)continue;
+    const slot=(typeof p.slot==='number')?p.slot:i;
+    const nat=(p.pos>=0&&p.pos<5)?p.pos:slot;
+    total+=SELECTION_MISFIT_STEPS[Math.min(4,Math.abs(slot-nat))];
+  }
+  return total;
+}
 const FINALISTS=6, EXTRA_GAUNTLETS=2;
 function findBestSquad(gauntlet){
   const seen=new Set(),cands=[];
@@ -1971,14 +1991,15 @@ function findBestSquad(gauntlet){
 
   const rosterKey=keyOf(roster);
   // DETERMINISTIC selection: a lineup's strength (talent points + balance) is
-  // luck-free, so the best squad is simply the highest-strength candidate. No
-  // simulation variance — the same picks always yield the same verdict, and a
-  // higher-rated balanced lineup can never be beaten by a lower-rated one.
+  // luck-free, so the best squad is simply the highest-strength candidate,
+  // minus the selection-only misfit penalty above. No simulation variance —
+  // the same picks always yield the same verdict, and a higher-rated
+  // balanced lineup can never be beaten by a lower-rated, badly-scattered one.
   const pool=[gauntlet];
   for(let i=0;i<EXTRA_GAUNTLETS;i++)pool.push(buildGauntlet());
   let best=null,bestStr=-Infinity,bestRec=null,yoursRec=null;
   for(const c of cands){
-    const str=lineupStrength(c);
+    const str=lineupStrength(c)-selectionMisfitPenalty(c);
     const rec=expectedRecord(c,pool);
     if(keyOf(c)===rosterKey)yoursRec=rec;
     if(str>bestStr){bestStr=str;best=c;bestRec=rec}
