@@ -839,7 +839,7 @@ let WAR2016=new Set();   // 2015-16 Warriors, removed from the draftable pool
 let teams=[[],[]], adjusted=[[],[]], teamNames=["YOUR SQUAD","OPPONENT"];
 
 // --- tunable game constants (easy to tweak / move to a config later) ---
-const BUILD      = "v70 · fix PF/Center misassignment, unaffordable-legend explainer, always-on name claim · 2026-07-14";
+const BUILD      = "v71 · unaffordable-legend explainer copy · 2026-07-14";
 // Where a shared squad link points. This must be a page that serves THIS game's
 // HTML (it reads the ?sq= payload client-side). Until hoopsmatic.com/73-9 serves
 // this file, shared links will 404 — change this one line back to the GitHub Pages
@@ -1335,7 +1335,7 @@ function renderLanded(group){
     const tooRich=avail.filter(p=>p.cost>BUDGET&&!WAR2016.has(p.name)).map(p=>p.name);
     if(tooRich.length){
       const list=tooRich.length===1?tooRich[0]:(tooRich.slice(0,-1).join(', ')+' and '+tooRich[tooRich.length-1]);
-      tooRichNote='<div class="too-rich-note">'+escapeHtmlS(list)+(tooRich.length===1?' costs':' cost')+' more than your entire $100M bankroll on '+(tooRich.length===1?'his own':'their own')+' \u2014 some seasons paid a superstar such a massive share of that year\u2019s cap that, scaled to today\u2019s money, it\u2019s bigger than your whole budget. Not a bug, just too rich to sign outright.</div>';
+      tooRichNote='<div class="too-rich-note">'+escapeHtmlS(list)+(tooRich.length===1?' costs':' cost')+' more than your entire $100 million bankroll on '+(tooRich.length===1?'his':'their')+' own. Some teams paid a superstar such a massive share of that year\u2019s cap that, scaled to today\u2019s money, it\u2019s bigger than your whole budget. Not a bug, just too rich to sign outright.</div>';
     }
   }
 
