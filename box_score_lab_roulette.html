@@ -835,7 +835,7 @@ let WAR2016=new Set();   // 2015-16 Warriors, removed from the draftable pool
 let teams=[[],[]], adjusted=[[],[]], teamNames=["YOUR SQUAD","OPPONENT"];
 
 // --- tunable game constants (easy to tweak / move to a config later) ---
-const BUILD      = "v68 · Twitter/Bluesky share text tags the right handle · 2026-07-13";
+const BUILD      = "v69 · fix infinite spin, leaderboard cap freeze, misleading claim errors, off-team players · 2026-07-14";
 // Where a shared squad link points. This must be a page that serves THIS game's
 // HTML (it reads the ?sq= payload client-side). Until hoopsmatic.com/73-9 serves
 // this file, shared links will 404 — change this one line back to the GitHub Pages
@@ -997,11 +997,26 @@ function drawOpp(pos){
   while(lo<hi){const mid=(lo+hi)>>1; if(cum[mid]<r)lo=mid+1; else hi=mid;}
   return arr[lo];
 }
+// True only if this player has at least one actual GAME for this specific
+// franchise that season — not just a salary-data association. The salary
+// feed lists whoever a team was paying that year, which includes players
+// who were traded through as pure cap filler and never played a game for
+// them (Westbrook's 2022-23 Jazz stop, etc.). Mirrors the same historical
+// franchise/relocation handling already used in resolveGroupMeta, so a
+// legitimately Seattle-era player under a modern "OKC" salary-data abbr
+// isn't wrongly excluded.
+function playedForFranchise(name,sy,abbr){
+  let lookupAbbr=abbr;
+  if(abbr==="OKC"&&sy<=2008)lookupAbbr="SEA";
+  const gs=seasonGames(name,sy);
+  return gs.some(g=>gameMatchesFranchise(g,lookupAbbr));
+}
 function buildGroups(){
   const byKey={};
   entriesByPos=[[],[],[],[],[]];
   for(const e of salaryEntries){
     const [name,sy,salary,pct,abbr]=e;
+    if(!playedForFranchise(name,sy,abbr))continue;   // paid by this team, never played for them — skip
     const key=abbr+"|"+sy;
     if(!byKey[key])byKey[key]={key,abbr,sy,players:[]};
     const prof=seasonProfile(name,sy);
@@ -1206,8 +1221,14 @@ function wireDragDrop(){
 
 /* ---- pickable pools ---- */
 function unpickedPlayers(g){return g.players.filter(p=>!pickedNames.has(normName(p.name)))}
-function groupHasAffordable(g){return unpickedPlayers(g).some(p=>p.cost<=remaining+1)}
-function groupHasUnpicked(g){return unpickedPlayers(g).length>0}
+// Must match renderLanded's anySelectable check exactly (cost AND not a locked
+// 2015-16 Warrior) — otherwise the wheel can land on a team whose only
+// "affordable" player is actually locked, bounce back to "spinning again",
+// and repeat across many/most remaining teams before it works or exhausts
+// the pool. This was reported as an effectively-infinite spin loop, most
+// often once the budget hit exactly $0.
+function groupHasAffordable(g){return unpickedPlayers(g).some(p=>p.cost<=remaining+1 && !WAR2016.has(p.name))}
+function groupHasUnpicked(g){return unpickedPlayers(g).some(p=>!WAR2016.has(p.name))}
 // one-per-position aware: a player only counts if its natural position is still open
 
 function spin(){
@@ -1222,7 +1243,19 @@ function spin(){
   // unpicked group, then simulate if truly stuck.
   let pool=GROUPS.filter(g=>!usedKeys.has(g.key)&&groupHasAffordable(g));
   if(!pool.length)pool=GROUPS.filter(g=>!usedKeys.has(g.key)&&groupHasUnpicked(g));
-  if(!pool.length){spinning=false;showResults();return}
+  if(!pool.length){
+    spinning=false;
+    if(rosterCount()<3){
+      // showResults() refuses below 3 signings — don't call it and leave the
+      // spin button dead with no explanation. Extremely rare (needs almost
+      // the whole budget gone in 1-2 picks with zero unlocked-affordable
+      // players left anywhere), but must not be a silent stuck state.
+      $("spinBtn").disabled=false;
+      $("reelHint").textContent="No affordable, unlocked players left anywhere \u2014 try dragging a cheaper pick, or sign what you can and simulate.";
+      return;
+    }
+    showResults(); return;
+  }
   const target=pool[Math.floor(Math.random()*pool.length)];
 
   // Build the reel strip: filler tiles + target near the end.
@@ -2440,9 +2473,9 @@ function lbShowClaimGate(panel,onSave,rank){
     if(!name){note.textContent='Type a name first.';return;}
     setPlayerName(name);_lbSavedName=name;
     note.textContent='Claiming\u2026';
-    const ok=await onSave(name);
-    if(ok)wrap.remove();
-    else note.textContent='Could not claim (name may be inappropriate).';
+    const result=await onSave(name);
+    if(result===true)wrap.remove();
+    else note.textContent=(typeof result==='string'?result:'Something went wrong \u2014 try again.');
   };
   wrap.querySelector('.lb-save').onclick=save;
   input.addEventListener('keydown',e=>{if(e.key==='Enter')save();});
@@ -2493,6 +2526,20 @@ async function lbInit(pct,record,isPerfect){
       if(d.rank)lbShowRank(panel,d.rank);
       return !d.error;
     };
+    // Distinguish WHY a claim failed instead of blaming it on the name by
+    // default — a network hiccup or a stale/expired play look nothing like a
+    // rejected name, and telling someone their clean name "may be
+    // inappropriate" when the real cause was unrelated is actively misleading.
+    const claimNameWithReason=async(ts,typedName)=>{
+      const d=await claimName(ts,typedName);
+      if(!d)return 'Network error \u2014 try again.';
+      if(d.error==='play not found')return 'That result expired before it could be claimed \u2014 your rank was still saved, just without a name.';
+      if(d.error==='inappropriate')return 'That name isn\u2019t allowed \u2014 try another.';
+      if(d.error==='invalid characters')return 'That name has characters we can\u2019t use \u2014 try letters and numbers.';
+      if(d.error==='empty')return 'Type a name first.';
+      if(d.error)return 'Could not claim: '+d.error;
+      return applyResult(d);
+    };
     const nm=playerName();
     const d=await submitPlay(nm||'');
     const ok=applyResult(d);
@@ -2501,7 +2548,7 @@ async function lbInit(pct,record,isPerfect){
       if(isTop3('day')||isTop3('week')||isTop3('alltime')){
         // Claiming afterward attaches a name to THIS SAME play (by its ts) —
         // it must not resubmit pct/record, which would count as a second game.
-        lbShowClaimGate(panel, async(typedName)=>applyResult(await claimName(d.ts,typedName)), d.rank);
+        lbShowClaimGate(panel, (typedName)=>claimNameWithReason(d.ts,typedName), d.rank);
       }
     }
   }
