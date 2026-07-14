@@ -46,9 +46,6 @@ body{background:linear-gradient(160deg,#1a1a3e 0%,#0a0a1a 55%,#050510 100%);back
 /* ===== Generic ===== */
 .hidden{display:none!important}
 .btn{font-family:'Oswald',sans-serif;font-weight:700;letter-spacing:2px;text-transform:uppercase;border:none;border-radius:8px;cursor:pointer;padding:14px 30px;font-size:15px;background:linear-gradient(135deg,var(--orange),var(--gold));color:#1a1006;transition:transform .12s,box-shadow .12s;box-shadow:0 6px 18px rgba(255,107,53,.25)}
-.btn-ghost{background:transparent;border:1px solid rgba(255,215,0,.3);color:#d8d8ee;box-shadow:none;padding:10px 20px;font-size:12px}
-.btn-ghost:disabled{opacity:.35;cursor:not-allowed}
-.respin-row{margin-top:14px}
 .btn.ghost{background:transparent;color:var(--orange);border:1.5px solid var(--orange);box-shadow:none}
 .res-actions{display:flex;gap:14px;justify-content:center;flex-wrap:wrap;margin:16px 0 46px}
 .share-modal{position:fixed;inset:0;z-index:10000;background:rgba(5,5,16,.82);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;padding:20px;animation:fadeIn .2s}
@@ -208,6 +205,7 @@ body{background:linear-gradient(160deg,#1a1a3e 0%,#0a0a1a 55%,#050510 100%);back
 
 /* ===== Reel ===== */
 .reel-stage{background:var(--panel2);border:1px solid var(--line);border-radius:14px;padding:18px 14px 20px;text-align:center;position:relative}
+.spin-row{display:flex;gap:10px;justify-content:center;align-items:center;flex-wrap:wrap}
 .reel-window{position:relative;height:120px;overflow:hidden;border-radius:10px;background:radial-gradient(circle at 50% 50%,#16163a,#0a0a1e);border:1px solid #26264c;margin:6px 0 16px}
 .reel-window::before,.reel-window::after{content:"";position:absolute;top:0;bottom:0;width:90px;z-index:3;pointer-events:none}
 .reel-window::before{left:0;background:linear-gradient(90deg,#0a0a1e,transparent)}
@@ -392,7 +390,10 @@ body{background:linear-gradient(160deg,#1a1a3e 0%,#0a0a1a 55%,#050510 100%);back
         <div class="reel-marker"></div>
         <div class="reel-track" id="reelTrack"></div>
       </div>
-      <button class="btn" id="spinBtn">Spin</button>
+      <div class="spin-row">
+        <button class="btn" id="spinBtn">Spin</button>
+        <button class="btn" id="respinBtn" style="display:none">Re-spin for $10M</button>
+      </div>
     </div>
 
     <div id="landed" class="landed hidden"></div>
@@ -842,7 +843,7 @@ let WAR2016=new Set();   // 2015-16 Warriors, removed from the draftable pool
 let teams=[[],[]], adjusted=[[],[]], teamNames=["YOUR SQUAD","OPPONENT"];
 
 // --- tunable game constants (easy to tweak / move to a config later) ---
-const BUILD      = "v75 · exact rank at any scale, paid re-spin option · 2026-07-14";
+const BUILD      = "v76 · re-spin raised to $10M, hidden (not disabled) when unaffordable · 2026-07-14";
 // Where a shared squad link points. This must be a page that serves THIS game's
 // HTML (it reads the ?sq= payload client-side). Until hoopsmatic.com/73-9 serves
 // this file, shared links will 404 — change this one line back to the GitHub Pages
@@ -871,7 +872,7 @@ function shareText(platform){
 }
 const CAP_2026   = 165_000_000;   // 2026-27 projected NBA salary cap ($165M, ESPN/Shams Mar 2026)
 const BUDGET     = 100_000_000;   // bankroll
-const RESPIN_COST = 5_000_000;    // real, permanent cost to give up on a landed team-season and redraw
+const RESPIN_COST = 10_000_000;   // real, permanent cost to give up on a landed team-season and redraw
 const SLOTS      = 5;             // signings
 const SEASON_GAMES = 82;          // games simulated for the record
 
@@ -1150,6 +1151,7 @@ function startGame(){
   $("results").classList.add("hidden");
   $("game").classList.remove("hidden");
   $("landed").classList.add("hidden");
+  $("respinBtn").style.display="none";
   $("spinBtn").textContent="Spin";
   $("spinBtn").disabled=false;
   $("spinBtn").onclick=spin;
@@ -1245,6 +1247,7 @@ function spin(){
   spinning=true;
   $("spinBtn").disabled=true;
   $("landed").classList.add("hidden");
+  $("respinBtn").style.display="none";
   $("reelHint").textContent="Drawing a team-season…";
 
   // Prefer team-seasons where you can still sign someone affordable; fall back to any
@@ -1348,15 +1351,20 @@ function renderLanded(group){
       '<div class="meta"><div class="yr">'+seasonStr+'</div><div class="tn">'+escapeHtmlS(m.name)+'</div></div></div>'+
     '<div class="landed-sub">Slot '+(rosterCount()+1)+' of '+SLOTS+' \u2014 sign any player</div>'+
     cards+tooRichNote+
-    (anySelectable?
-      '<div class="center respin-row"><button class="btn btn-ghost" id="respinBtn" onclick="reSpinCurrentTeam()">Re-spin \u2014 costs '+fmtM(RESPIN_COST)+'</button></div>'
-      :'<div class="center"><button class="btn" onclick="spin()">Spin again</button></div>');
+    (anySelectable?'':'<div class="center"><button class="btn" onclick="spin()">Spin again</button></div>');
   el.classList.remove("hidden");
   el.querySelectorAll('.pick-card[data-pick]').forEach(c=>{ c.onclick=()=>pickPlayer(c.dataset.key,c.dataset.name); });
   $("reelHint").textContent="Landed: "+m.name+" "+seasonStr;
   $("spinBtn").disabled=true;
   const respinBtn=$("respinBtn");
-  if(respinBtn&&remaining<RESPIN_COST){ respinBtn.disabled=true; respinBtn.title="Not enough left in your bankroll"; }
+  if(respinBtn){
+    // No visible option at all unless it's actually affordable — a disabled
+    // button inviting a click that can't work is worse than not showing it.
+    const canRespin=anySelectable&&remaining>=RESPIN_COST;
+    respinBtn.style.display=canRespin?"":"none";
+    respinBtn.textContent="Re-spin for "+fmtM(RESPIN_COST);
+    respinBtn.onclick=reSpinCurrentTeam;
+  }
   if(!anySelectable){ setTimeout(()=>{ if(!spinning && rosterCount()<SLOTS) spin(); },900); }
 }
 // Paid re-spin: give up on this landed team-season and draw a different one,
@@ -1391,6 +1399,7 @@ function pickPlayer(key,name){
   pickedNames.add(normName(p.name));
 
   $("landed").classList.add("hidden");
+  $("respinBtn").style.display="none";
   currentGroup=null;
   updateHud();
 
