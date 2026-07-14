@@ -47,7 +47,7 @@ body{background:linear-gradient(160deg,#1a1a3e 0%,#0a0a1a 55%,#050510 100%);back
 .hidden{display:none!important}
 .btn{font-family:'Oswald',sans-serif;font-weight:700;letter-spacing:2px;text-transform:uppercase;border:none;border-radius:8px;cursor:pointer;padding:14px 30px;font-size:15px;background:linear-gradient(135deg,var(--orange),var(--gold));color:#1a1006;transition:transform .12s,box-shadow .12s;box-shadow:0 6px 18px rgba(255,107,53,.25)}
 .btn.ghost{background:transparent;color:var(--orange);border:1.5px solid var(--orange);box-shadow:none}
-.res-actions{display:flex;gap:14px;justify-content:center;flex-wrap:wrap;margin:0 0 26px;position:sticky;top:8px;z-index:20;background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:12px 16px;backdrop-filter:blur(6px)}
+.res-actions{display:flex;gap:14px;justify-content:center;flex-wrap:wrap;margin:16px 0 46px}
 .share-modal{position:fixed;inset:0;z-index:10000;background:rgba(5,5,16,.82);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;padding:20px;animation:fadeIn .2s}
 .share-box{position:relative;max-width:min(92vw,440px);display:flex;flex-direction:column;align-items:center;gap:16px}
 .share-img{width:100%;max-height:52vh;object-fit:contain;border-radius:14px;box-shadow:0 18px 50px rgba(0,0,0,.6)}
@@ -181,8 +181,8 @@ body{background:linear-gradient(160deg,#1a1a3e 0%,#0a0a1a 55%,#050510 100%);back
 .hud{display:flex;align-items:center;justify-content:space-between;gap:12px;background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:12px 16px;margin-bottom:16px;position:sticky;top:8px;z-index:20;backdrop-filter:blur(6px)}
 .hud-left{display:flex;flex-direction:column;gap:3px}
 .hud-title-row{display:flex;align-items:center;gap:8px}
-.restart-btn{background:transparent;border:1px solid rgba(255,215,0,.25);color:#9a9ac4;border-radius:6px;width:22px;height:22px;line-height:1;font-size:13px;cursor:pointer;padding:0;display:flex;align-items:center;justify-content:center;transition:color .12s,border-color .12s}
-.restart-btn:hover{color:var(--gold);border-color:rgba(255,215,0,.5)}
+.restart-btn{background:transparent;border:1px solid rgba(255,215,0,.3);color:#9a9ac4;border-radius:6px;height:22px;line-height:1;font-size:10px;font-family:'Oswald',sans-serif;font-weight:700;letter-spacing:1px;text-transform:uppercase;cursor:pointer;padding:0 8px;white-space:nowrap;transition:color .12s,border-color .12s}
+.restart-btn:hover{color:var(--gold);border-color:rgba(255,215,0,.6)}
 .hud-title{font-family:'Oswald',sans-serif;font-weight:700;letter-spacing:3px;font-size:14px;background:linear-gradient(90deg,var(--orange),var(--gold));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;text-transform:uppercase}
 .slot-dots{display:flex;gap:6px}
 .slot-dots i{width:11px;height:11px;border-radius:50%;background:#2a2a4e;border:1px solid #3a3a62;display:block;transition:all .2s}
@@ -381,7 +381,7 @@ body{background:linear-gradient(160deg,#1a1a3e 0%,#0a0a1a 55%,#050510 100%);back
       <div class="hud-left">
         <div class="hud-title-row">
           <div class="hud-title">73-9</div>
-          <button class="restart-btn" onclick="confirmRestart()" title="Start over" aria-label="Start over">&#8635;</button>
+          <button class="restart-btn" onclick="confirmRestart()" title="Start over" aria-label="Start over">Start over</button>
         </div>
         <div class="slot-dots" id="slotDots"></div>
       </div>
@@ -849,7 +849,7 @@ let WAR2016=new Set();   // 2015-16 Warriors, removed from the draftable pool
 let teams=[[],[]], adjusted=[[],[]], teamNames=["YOUR SQUAD","OPPONENT"];
 
 // --- tunable game constants (easy to tweak / move to a config later) ---
-const BUILD      = "v78 · honor the column a player was actually drafted from · 2026-07-15";
+const BUILD      = "v79 · restart button text, thin-bench teams excluded, ideal-squad respects respin cost · 2026-07-15";
 // Where a shared squad link points. This must be a page that serves THIS game's
 // HTML (it reads the ?sq= payload client-side). Until hoopsmatic.com/73-9 serves
 // this file, shared links will 404 — change this one line back to the GitHub Pages
@@ -879,6 +879,11 @@ function shareText(platform){
 const CAP_2026   = 165_000_000;   // 2026-27 projected NBA salary cap ($165M, ESPN/Shams Mar 2026)
 const BUDGET     = 100_000_000;   // bankroll
 const RESPIN_COST = 10_000_000;   // real, permanent cost to give up on a landed team-season and redraw
+let respinSpent = 0;   // tracked separately from player cost so the "ideal squad" comparison and
+                        // unspent-money commentary both know the TRUE money left for players, not
+                        // the full $100M — matching against an "ideal" that could afford more than
+                        // you actually could after paying for a re-spin isn't a fair comparison.
+function effectiveBudget(){ return BUDGET - respinSpent; }
 const SLOTS      = 5;             // signings
 const SEASON_GAMES = 82;          // games simulated for the record
 
@@ -1157,7 +1162,7 @@ function startGame(){
     const act=_knownFeuds().filter(x=>!x.done&&x.opp).sort((a,b)=>(b.ts||0)-(a.ts||0))[0]||null;
     if(act){ showSeriesIntentModal(act); return; }
   }
-  remaining=BUDGET; roster=[null,null,null,null,null]; rolledGroups=[]; pickedNames=new Set(); pickedPositions=new Set(); usedKeys=new Set();
+  remaining=BUDGET; respinSpent=0; roster=[null,null,null,null,null]; rolledGroups=[]; pickedNames=new Set(); pickedPositions=new Set(); usedKeys=new Set();
   currentGroup=null; spinning=false;
   $("intro").classList.add("hidden");
   $("results").classList.add("hidden");
@@ -1257,6 +1262,16 @@ function unpickedPlayers(g){return g.players.filter(p=>!pickedNames.has(normName
 // often once the budget hit exactly $0.
 function groupHasAffordable(g){return unpickedPlayers(g).some(p=>p.cost<=remaining+1 && !WAR2016.has(p.name))}
 function groupHasUnpicked(g){return unpickedPlayers(g).some(p=>!WAR2016.has(p.name))}
+// A team-season needs a real bench to be worth landing on, not just one
+// token pickable player. The actual 2015-16 Warriors team-season (and any
+// team-season that happens to heavily overlap their locked roster) can have
+// almost its whole roster locked — technically landable under the checks
+// above, but a frustrating dead end in practice. Cached on the group since
+// WAR2016 and the roster don't change mid-game.
+function hasEnoughBench(g){
+  if(g._benchOK===undefined) g._benchOK = g.players.filter(p=>!WAR2016.has(p.name)).length>=5;
+  return g._benchOK;
+}
 // one-per-position aware: a player only counts if its natural position is still open
 
 function spin(){
@@ -1270,8 +1285,8 @@ function spin(){
 
   // Prefer team-seasons where you can still sign someone affordable; fall back to any
   // unpicked group, then simulate if truly stuck.
-  let pool=GROUPS.filter(g=>!usedKeys.has(g.key)&&groupHasAffordable(g));
-  if(!pool.length)pool=GROUPS.filter(g=>!usedKeys.has(g.key)&&groupHasUnpicked(g));
+  let pool=GROUPS.filter(g=>!usedKeys.has(g.key)&&hasEnoughBench(g)&&groupHasAffordable(g));
+  if(!pool.length)pool=GROUPS.filter(g=>!usedKeys.has(g.key)&&hasEnoughBench(g)&&groupHasUnpicked(g));
   if(!pool.length){
     spinning=false;
     if(rosterCount()<3){
@@ -1392,7 +1407,7 @@ function renderLanded(group){
 function reSpinCurrentTeam(){
   if(spinning||!currentGroup)return;
   if(remaining<RESPIN_COST)return;
-  remaining-=RESPIN_COST;
+  remaining-=RESPIN_COST; respinSpent+=RESPIN_COST;
   usedKeys.add(currentGroup.key);   // don't draw this same team-season again this game
   currentGroup=null;
   $("landed").classList.add("hidden");
@@ -1796,7 +1811,7 @@ function optimalLineup(){
   const groups=rolledGroups;
   if(!groups.length)return null;
   const optsByGi=groups.map(draftable);
-  const BU=Math.floor(BUDGET/1e5);
+  const BU=Math.floor(effectiveBudget()/1e5);
   let dp=new Float64Array(BU+1).fill(-Infinity);dp[0]=0;
   const choiceLayers=[],prevLayers=[];
   for(let gi=0;gi<groups.length;gi++){
@@ -1863,7 +1878,7 @@ function genLineup(mode){
   const mins=order.map(g=>Math.min.apply(null,draftable(g).map(p=>p.cost)));
   const suffix=new Array(order.length+1).fill(0);
   for(let i=order.length-1;i>=0;i--)suffix[i]=suffix[i+1]+mins[i];
-  let rem=BUDGET;const chosen={};const used=new Set();
+  let rem=effectiveBudget();const chosen={};const used=new Set();
   for(let i=0;i<order.length;i++){
     const g=order[i];
     const cap=rem-suffix[i+1];               // leave enough for the cheapest in remaining groups
@@ -2305,7 +2320,7 @@ function lineupNotes(lineup){
     'Spread the wealth, the money is shared across the five.',
     'No single star price tag, just a balanced ledger.'
   ]));
-  const unspent=BUDGET-spent;
+  const unspent=effectiveBudget()-spent;
   if(unspent>=12000000)N(_pickN([
     'Money left on the table, about '+fmtM(unspent)+' unspent. You could have splurged.',
     'Penny-pincher build, '+fmtM(unspent)+' still in the bank.',
@@ -2758,15 +2773,6 @@ function showResults(){
       (warFive?'<div class="war-five">their five: '+warFive+'</div>':'')+
     '</div>';
 
-    // Actions row is built separately and always goes first, sticky at the
-    // top — visible the instant results load, no scroll needed, and stays
-    // reachable the whole time you're reviewing the breakdown below it.
-    const actionsHtml='<div class="res-actions">'+
-      '<button class="btn" onclick="shareResultCard()">Share result</button>'+
-      '<button class="btn ghost" onclick="openChallengeModal()">Challenge a friend</button>'+
-      '<button class="btn ghost" onclick="playAgain()">Play again</button>'+
-      '</div>';
-
     let html='<div class="res-record">'+
       '<div class="rl">Your season</div>'+
       '<div class="rv">'+yours.w+'<span class="dash">–</span>'+yours.l+'</div>'+
@@ -2781,10 +2787,16 @@ function showResults(){
                         : 'Your first best-possible squad.';
       html='<div class="perfect-callout">\u2605 Best possible squad! No five from your team-seasons beats it. '+tail+'</div>'+html;
     }
-    html=actionsHtml+html;   // actions row ALWAYS first, regardless of the callout above
     if(window.__CHALLENGE__) html+='<div id="chPanel" class="war-panel ch-panel"><div class="war-hdr">Friend challenge</div><div class="ch-h2h lb-loading">Checking the latest round\u2026</div></div>';
     // (series-vs-casual is declared BEFORE drafting, in startGame, so a finished
     // casual game can never be retroactively attached to a series)
+
+    // actions row sits between the win% area and the squad breakdown
+    html+='<div class="res-actions">'+
+      '<button class="btn" onclick="shareResultCard()">Share result</button>'+
+      '<button class="btn ghost" onclick="openChallengeModal()">Challenge a friend</button>'+
+      '<button class="btn ghost" onclick="playAgain()">Play again</button>'+
+      '</div>';
 
     // your squad
     html+='<div class="sq yours">'+
@@ -2803,7 +2815,7 @@ function showResults(){
         (samePicks
           ? '<div class="perfect">★ Nobody from your five team-seasons sims better — flawless drafting ★</div>'
           : (bestSquadExplanation(roster,opt,yours,optRec)
-             || '<div class="opt-note">The best-performing lineup we found from the exact five team-seasons you drew, within '+fmtM(BUDGET)+'. We simulated your picks against many affordable alternatives over the same schedule — this one won the most.</div>'))+
+             || '<div class="opt-note">The best-performing lineup we found from the exact five team-seasons you drew, within '+fmtM(effectiveBudget())+'. We simulated your picks against many affordable alternatives over the same schedule — this one won the most.</div>'))+
         '</div>';
     }
 
