@@ -152,6 +152,9 @@ body{background:linear-gradient(160deg,#1a1a3e 0%,#0a0a1a 55%,#050510 100%);back
 .lb-input{flex:0 1 200px;min-width:0;background:#0f0f24;border:1px solid #2a2a52;border-radius:8px;color:#fff;font-family:'JetBrains Mono',monospace;font-size:13px;padding:8px 10px}
 .lb-save{flex:0 0 auto}
 .lb-claim-note{font-family:'JetBrains Mono',monospace;font-size:11px;color:#ff8a8a;text-align:center;margin-top:6px;min-height:14px}
+.lb-setname-link{margin-top:10px;text-align:center;font-size:12px}
+.lb-setname-link a{color:#8f8fc0;text-decoration:underline;cursor:pointer}
+.lb-setname-link a:hover{color:#c2c2e8}
 .war-note{font-family:'Oswald',sans-serif;font-size:12px;letter-spacing:.4px;color:#8a8ab8;margin-top:10px}
 .war-beat{color:#34d97a;font-weight:600}
 .war-five{font-family:'JetBrains Mono',monospace;font-size:11px;color:#6a6a98;margin-top:10px}
@@ -282,6 +285,7 @@ body{background:linear-gradient(160deg,#1a1a3e 0%,#0a0a1a 55%,#050510 100%);back
 .pick-card.flexed{border-style:dashed}
 .sq-row .pos .pos-flex{font-size:8px;color:#8ab4ff;margin-left:2px;font-weight:700;vertical-align:super}
 .none-affordable{text-align:center;padding:22px;color:var(--amber);font-family:'Oswald',sans-serif;letter-spacing:1px;font-size:14px}
+.too-rich-note{margin-top:14px;padding:10px 14px;border-radius:10px;background:rgba(255,215,0,.05);border:1px solid rgba(255,215,0,.18);color:#bcbce6;font-size:12px;line-height:1.6;text-align:center}
 .center{text-align:center;margin-top:18px}
 
 /* ===== Results ===== */
@@ -835,7 +839,7 @@ let WAR2016=new Set();   // 2015-16 Warriors, removed from the draftable pool
 let teams=[[],[]], adjusted=[[],[]], teamNames=["YOUR SQUAD","OPPONENT"];
 
 // --- tunable game constants (easy to tweak / move to a config later) ---
-const BUILD      = "v69 · fix infinite spin, leaderboard cap freeze, misleading claim errors, off-team players · 2026-07-14";
+const BUILD      = "v70 · fix PF/Center misassignment, unaffordable-legend explainer, always-on name claim · 2026-07-14";
 // Where a shared squad link points. This must be a page that serves THIS game's
 // HTML (it reads the ?sq= payload client-side). Until hoopsmatic.com/73-9 serves
 // this file, shared links will 404 — change this one line back to the GitHub Pages
@@ -1298,7 +1302,7 @@ function renderLanded(group){
   const avail=unpickedPlayers(group);
   const anySelectable=avail.some(p=>p.cost<=remaining+1 && !WAR2016.has(p.name));
 
-  let cards;
+  let cards, tooRichNote='';
   if(!anySelectable){
     cards='<div class="none-affordable">\u26a0 Nobody here fits your '+fmtM(remaining)+' \u2014 spinning again\u2026</div>';
   }else{
@@ -1324,13 +1328,22 @@ function renderLanded(group){
       colHtml+='<div class="pm-col"><div class="pm-head">'+POS_NAMES[pos]+'</div>'+cells+'</div>';
     }
     cards='<div class="pick-matrix">'+colHtml+'</div>';
+    // Some historic seasons paid a superstar such a huge share of that year's
+    // cap that scaled to today's money it exceeds the ENTIRE $100M budget on
+    // its own — not just "too expensive right now," genuinely unsignable at
+    // any point in the draft. Name them explicitly so it doesn't read as a bug.
+    const tooRich=avail.filter(p=>p.cost>BUDGET&&!WAR2016.has(p.name)).map(p=>p.name);
+    if(tooRich.length){
+      const list=tooRich.length===1?tooRich[0]:(tooRich.slice(0,-1).join(', ')+' and '+tooRich[tooRich.length-1]);
+      tooRichNote='<div class="too-rich-note">'+escapeHtmlS(list)+(tooRich.length===1?' costs':' cost')+' more than your entire $100M bankroll on '+(tooRich.length===1?'his own':'their own')+' \u2014 some seasons paid a superstar such a massive share of that year\u2019s cap that, scaled to today\u2019s money, it\u2019s bigger than your whole budget. Not a bug, just too rich to sign outright.</div>';
+    }
   }
 
   el.innerHTML=
     '<div class="landed-hdr">'+logoMarkup(m,"")+
       '<div class="meta"><div class="yr">'+seasonStr+'</div><div class="tn">'+escapeHtmlS(m.name)+'</div></div></div>'+
     '<div class="landed-sub">Slot '+(rosterCount()+1)+' of '+SLOTS+' \u2014 sign any player</div>'+
-    cards+
+    cards+tooRichNote+
     (anySelectable?'':'<div class="center"><button class="btn" onclick="spin()">Spin again</button></div>');
   el.classList.remove("hidden");
   el.querySelectorAll('.pick-card[data-pick]').forEach(c=>{ c.onclick=()=>pickPlayer(c.dataset.key,c.dataset.name); });
@@ -1612,8 +1625,14 @@ function allocateSlots(players){
   //   1. Minimize total STRETCH past career +/-1. Stretch is how many slots beyond the band a seat is,
   //      summed across players, so a forced fill goes to whoever stretches LEAST and never sends a
   //      point guard to power forward when a wing can take it. Relaxes only as far as truly required.
-  //   2. Order by height/bigness: taller in bigger slots, so a forced move sends the bigger man up.
-  //   3. Natural position as the tiebreak (keeps a no-conflict or partial roster at its natural spots).
+  //   2. Maximize natural-position matches. This MUST dominate the height tiebreak below — the actual
+  //      scoring (lineupBalance) only cares about slot-vs-natural-position distance, it never rewards
+  //      "taller player in the bigger slot" at all. Weighting height-ordering anywhere near natB let the
+  //      slot-picker sacrifice a real natural fit for an ordering preference the scorer doesn't measure,
+  //      which is exactly what silently bumped a drafted PF to Center and then docked points for it.
+  //   3. Height/bigness ordering, ONLY as a last-resort tiebreak when stretch AND natural fits are both
+  //      already tied — the genuine case being two same-position players where one has to move regardless
+  //      of which one it is, so the bigger man staying in the bigger slot is a sensible final call.
   let bestCost=Infinity,best=null;
   const cur=new Array(n).fill(-1), used=[false,false,false,false,false];
   const rec=(i)=>{
@@ -1622,7 +1641,7 @@ function allocateSlots(players){
       for(let k=0;k<n;k++){ const d=Math.abs(cur[k]-car[k])-1; if(d>0)stretch+=d; if(cur[k]===nat[k])natB++; }
       let ord=0;
       for(let a=0;a<n;a++)for(let b=a+1;b<n;b++){ if((cur[a]>cur[b])===big(a,b))ord++; }
-      const cost=1000*stretch - 5*ord - natB;
+      const cost=1000*stretch - 50*natB - ord;
       if(cost<bestCost){bestCost=cost;best=cur.slice();}
       return;
     }
@@ -2454,6 +2473,42 @@ function lbRenderPerfect(panel,perfect){
 let _lbBoard=null,_lbFetched=false;   // session cache so we read the board once, not per play
 // A record only goes on the board WITH a name. If the player hasn't named
 // themselves yet, the mark is held locally and this form claims it on save.
+// Always-available, separate from the top-3 claim gate: lets anyone opt into
+// the leaderboard on their own terms, and retroactively attaches their name
+// to EVERY anonymous play already on file for this device (both boards), not
+// just whichever single game happened to trigger a top-3 prompt. Solves both
+// "not sure where to sign up" and "I played for hours, why aren't I listed."
+function lbShowSetNameLink(){
+  const row=document.getElementById('lbSetNameRow'); if(!row)return;
+  if(playerName()){ row.innerHTML=''; return; }   // already named — nothing to add here
+  row.innerHTML='<div class="lb-setname-link"><a href="javascript:void(0)" id="lbSetNameBtn">Played anonymously so far? Set your name to appear on the leaderboard \u2192</a></div>';
+  document.getElementById('lbSetNameBtn').onclick=()=>{
+    row.innerHTML='<div class="lb-claim"><div class="lb-claim-msg">Set your name \u2014 this claims every result you\u2019ve already played today, not just this one:</div>'+
+      '<div class="lb-claim-row"><input class="lb-input" id="lbSetNameInput" maxlength="16" placeholder="Your name" autocomplete="off"><button class="btn lb-save" id="lbSetNameSave">Save</button></div>'+
+      '<div class="lb-claim-note" id="lbSetNameNote"></div></div>';
+    const input=document.getElementById('lbSetNameInput'),note=document.getElementById('lbSetNameNote');
+    const save=async()=>{
+      const name=input.value.trim();
+      if(!name){note.textContent='Type a name first.';return;}
+      note.textContent='Claiming\u2026';
+      try{
+        const [r1,r2]=await Promise.all([
+          fetch(_lbBase()+'/claim',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({claimAllForId:true,id:playerId(),name})}),
+          fetch(_lbBase()+'/perfect',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:playerId(),name,renameOnly:true})}),
+        ]);
+        const d1=await r1.json(), d2=await r2.json();
+        if(d1.error&&d1.error!=='play not found'){ note.textContent='Could not claim: '+d1.error; return; }
+        setPlayerName(name); _lbSavedName=name;
+        if(d1.board){ _lbApplyWin(d1.board); const p=document.getElementById('lbPanel'); if(p)lbRenderBoard(p,_lbBoard); }
+        if(d2&&d2.perfect){ _lbBoard.perfect=d2.perfect; const pp=document.getElementById('lbPerfectPanel'); if(pp)lbRenderPerfect(pp,d2.perfect); }
+        row.innerHTML='<div class="lb-claim-msg">'+(d1.claimed?('Claimed '+d1.claimed+' result'+(d1.claimed===1?'':'s')+' as '+escapeHtmlS(name)+'.'):('You\u2019re set as '+escapeHtmlS(name)+'.'))+'</div>';
+      }catch(e){ note.textContent='Network error \u2014 try again.'; }
+    };
+    document.getElementById('lbSetNameSave').onclick=save;
+    input.addEventListener('keydown',e=>{if(e.key==='Enter')save();});
+    input.focus();
+  };
+}
 function lbShowClaimGate(panel,onSave,rank){
   let msg='Nice result! Add your name to get credit for it:';
   if(rank){
@@ -2668,7 +2723,8 @@ function showResults(){
 
     // leaderboards last: this is community/reference info, not the result itself
     if(LB_API) html+='<div id="lbPanel" class="war-panel lb-panel"></div>'+
-                     '<div id="lbPerfectPanel" class="war-panel lb-panel"></div>';
+                     '<div id="lbPerfectPanel" class="war-panel lb-panel"></div>'+
+                     '<div id="lbSetNameRow"></div>';
 
     // snapshot what we just rendered so the share card draws from a stable copy
     shareCardData={
@@ -2690,6 +2746,7 @@ function showResults(){
     window.__LAST_WP__=winPctStr;
     if(window.__CHALLENGE__){ try{ renderChallengePanel(winPctStr); }catch(e){} }
     try{ lbInit(war.winPct*100, yours.w+'\u2013'+yours.l, samePicks); }catch(e){}
+    try{ lbShowSetNameLink(); }catch(e){}
     if(samePicks){ try{ fireConfetti(); }catch(e){} }
   },40);
 }
