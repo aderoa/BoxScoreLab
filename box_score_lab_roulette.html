@@ -839,7 +839,7 @@ let WAR2016=new Set();   // 2015-16 Warriors, removed from the draftable pool
 let teams=[[],[]], adjusted=[[],[]], teamNames=["YOUR SQUAD","OPPONENT"];
 
 // --- tunable game constants (easy to tweak / move to a config later) ---
-const BUILD      = "v71 · unaffordable-legend explainer copy · 2026-07-14";
+const BUILD      = "v72 · honest rank estimate messaging · 2026-07-14";
 // Where a shared squad link points. This must be a page that serves THIS game's
 // HTML (it reads the ?sq= payload client-side). Until hoopsmatic.com/73-9 serves
 // this file, shared links will 404 — change this one line back to the GitHub Pages
@@ -2444,7 +2444,12 @@ function lbShowRank(panel,rank){
   const label={day:'Today',week:'This week',alltime:'All-time'};
   for(const w of ['day','week','alltime']){
     const r=rank&&rank[w];
-    if(r)parts.push(label[w]+': <b>#'+r.rank+'</b> of '+r.of);
+    if(!r)continue;
+    // Rank beyond the stored top 1,000 is a floor, not an exact position — say
+    // so plainly rather than showing a number that looks precise but isn't.
+    parts.push(r.estimated
+      ? label[w]+': outside the currently-tracked top scores (of '+r.of+')'
+      : label[w]+': <b>#'+r.rank+'</b> of '+r.of);
   }
   if(!parts.length)return;
   const wrap=document.createElement('div');wrap.className='lb-rank';
