@@ -47,7 +47,7 @@ body{background:linear-gradient(160deg,#1a1a3e 0%,#0a0a1a 55%,#050510 100%);back
 .hidden{display:none!important}
 .btn{font-family:'Oswald',sans-serif;font-weight:700;letter-spacing:2px;text-transform:uppercase;border:none;border-radius:8px;cursor:pointer;padding:14px 30px;font-size:15px;background:linear-gradient(135deg,var(--orange),var(--gold));color:#1a1006;transition:transform .12s,box-shadow .12s;box-shadow:0 6px 18px rgba(255,107,53,.25)}
 .btn.ghost{background:transparent;color:var(--orange);border:1.5px solid var(--orange);box-shadow:none}
-.res-actions{display:flex;gap:14px;justify-content:center;flex-wrap:wrap;margin:16px 0 46px}
+.res-actions{display:flex;gap:14px;justify-content:center;flex-wrap:wrap;margin:0 0 26px;position:sticky;top:8px;z-index:20;background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:12px 16px;backdrop-filter:blur(6px)}
 .share-modal{position:fixed;inset:0;z-index:10000;background:rgba(5,5,16,.82);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;padding:20px;animation:fadeIn .2s}
 .share-box{position:relative;max-width:min(92vw,440px);display:flex;flex-direction:column;align-items:center;gap:16px}
 .share-img{width:100%;max-height:52vh;object-fit:contain;border-radius:14px;box-shadow:0 18px 50px rgba(0,0,0,.6)}
@@ -180,6 +180,9 @@ body{background:linear-gradient(160deg,#1a1a3e 0%,#0a0a1a 55%,#050510 100%);back
 /* ===== HUD ===== */
 .hud{display:flex;align-items:center;justify-content:space-between;gap:12px;background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:12px 16px;margin-bottom:16px;position:sticky;top:8px;z-index:20;backdrop-filter:blur(6px)}
 .hud-left{display:flex;flex-direction:column;gap:3px}
+.hud-title-row{display:flex;align-items:center;gap:8px}
+.restart-btn{background:transparent;border:1px solid rgba(255,215,0,.25);color:#9a9ac4;border-radius:6px;width:22px;height:22px;line-height:1;font-size:13px;cursor:pointer;padding:0;display:flex;align-items:center;justify-content:center;transition:color .12s,border-color .12s}
+.restart-btn:hover{color:var(--gold);border-color:rgba(255,215,0,.5)}
 .hud-title{font-family:'Oswald',sans-serif;font-weight:700;letter-spacing:3px;font-size:14px;background:linear-gradient(90deg,var(--orange),var(--gold));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;text-transform:uppercase}
 .slot-dots{display:flex;gap:6px}
 .slot-dots i{width:11px;height:11px;border-radius:50%;background:#2a2a4e;border:1px solid #3a3a62;display:block;transition:all .2s}
@@ -376,7 +379,10 @@ body{background:linear-gradient(160deg,#1a1a3e 0%,#0a0a1a 55%,#050510 100%);back
   <div id="game" class="hidden">
     <div class="hud">
       <div class="hud-left">
-        <div class="hud-title">73-9</div>
+        <div class="hud-title-row">
+          <div class="hud-title">73-9</div>
+          <button class="restart-btn" onclick="confirmRestart()" title="Start over" aria-label="Start over">&#8635;</button>
+        </div>
         <div class="slot-dots" id="slotDots"></div>
       </div>
       <div class="cap-pill" id="capPill"><span class="lab">Remaining</span>$100.0M</div>
@@ -843,7 +849,7 @@ let WAR2016=new Set();   // 2015-16 Warriors, removed from the draftable pool
 let teams=[[],[]], adjusted=[[],[]], teamNames=["YOUR SQUAD","OPPONENT"];
 
 // --- tunable game constants (easy to tweak / move to a config later) ---
-const BUILD      = "v76 · re-spin raised to $10M, hidden (not disabled) when unaffordable · 2026-07-14";
+const BUILD      = "v77 · mid-game restart button, sticky Play Again row · 2026-07-15";
 // Where a shared squad link points. This must be a page that serves THIS game's
 // HTML (it reads the ?sq= payload client-side). Until hoopsmatic.com/73-9 serves
 // this file, shared links will 404 — change this one line back to the GitHub Pages
@@ -1128,6 +1134,12 @@ let spinning=false;
 function $(id){return document.getElementById(id)}
 
 function rosterCount(){return roster.filter(Boolean).length;}
+// Mid-game restart: only asks for confirmation if there's actually something
+// to lose. An empty or barely-started draft restarts instantly, no nagging.
+function confirmRestart(){
+  if(rosterCount()===0){ startGame(); return; }
+  if(confirm('Start over? This discards your current picks.')) startGame();
+}
 function playAgain(){
   // Replay should jump straight back into the action: reset, then auto-spin the
   // first wheel (the very first game of a session still starts on a manual Spin).
@@ -1184,10 +1196,16 @@ function updateHud(){
     const slotPos=POS_NAMES[i];
     cell.dataset.slot=i;
     if(p){
-      const mis = (p.pos!==i);
+      // Compare against the SAME naturalPos() allocateSlots used to place this
+      // player, not the stale static p.pos field (season's most-common box-score
+      // position, set once at data-build time) — those two can genuinely
+      // disagree, which showed a misfit warning even when the player was
+      // exactly where the algorithm's own natural-fit logic put them.
+      const natP=naturalPos(p);
+      const mis = (natP!==i);
       cell.className="slot filled"+(mis?" misfit":"");
       cell.draggable=true;
-      cell.innerHTML='<div class="pos">'+slotPos+(mis?' <span class="misfit-tag" title="Natural '+POS_NAMES[p.pos]+' — out of position">'+POS_NAMES[p.pos]+'!</span>':'')+'</div>'+
+      cell.innerHTML='<div class="pos">'+slotPos+(mis?' <span class="misfit-tag" title="Natural '+POS_NAMES[natP]+' — out of position">'+POS_NAMES[natP]+'!</span>':'')+'</div>'+
         '<div class="nm">'+escapeHtmlS(p.name)+'</div>'+
         '<div class="tm">'+escapeHtmlS(p.meta.short)+" '"+String(p.sy).slice(-2)+'</div>'+
         '<div class="cost">'+fmtM(p.cost)+'</div>';
@@ -2470,23 +2488,17 @@ function lbFmtPerfect(e){
   if(!e)return '<span class="lb-empty">—</span>';
   return '<b>'+(e.n||0)+'</b> <span class="lb-name">'+escapeHtmlS(e.name||'anon')+'</span>';
 }
-function lbFmtBadge(e){
-  if(!e)return '<span class="lb-empty">—</span>';
-  return '<b>'+(e.count||0)+'</b> <span class="lb-name">'+escapeHtmlS(e.name||'anon')+'</span>';
-}
-// Three separate achievements, not one metric across three time windows like
-// the other boards — each row is its own leaderboard: most times finishing
-// in the day's top 10, the week's top 100, or (checked once daily, since
-// all-time has no closing moment) currently in the all-time top 1,000.
+// Personal, not a leaderboard — badges.top10Daily/top100Weekly/top1000Alltime
+// are now plain numbers (this player's own counts), not lists of other people.
 function lbRenderBadges(panel,badges){
   if(!panel)return;
   if(!badges){panel.remove();return;}   // older Worker without badges → hide this panel
-  const lead=l=>(l&&l.length)?l[0]:null;
-  panel.innerHTML='<div class="lb-hdr">Most badges earned</div>'+
+  const row=(label,n)=>'<div class="lb-row"><span class="lb-per">'+label+'</span><span class="lb-mark"><b>'+(n||0)+'</b></span></div>';
+  panel.innerHTML='<div class="lb-hdr">Your badges</div>'+
     '<div class="lb-rows">'+
-      '<div class="lb-row"><span class="lb-per">Top 10 daily finishes</span><span class="lb-mark">'+lbFmtBadge(lead(badges.top10Daily))+'</span></div>'+
-      '<div class="lb-row"><span class="lb-per">Top 100 weekly finishes</span><span class="lb-mark">'+lbFmtBadge(lead(badges.top100Weekly))+'</span></div>'+
-      '<div class="lb-row"><span class="lb-per">Top 1,000 all-time finishes</span><span class="lb-mark">'+lbFmtBadge(lead(badges.top1000Alltime))+'</span></div>'+
+      row('Top 10 daily finishes',badges.top10Daily)+
+      row('Top 100 weekly finishes',badges.top100Weekly)+
+      row('Top 1,000 all-time finishes',badges.top1000Alltime)+
     '</div>';
 }
 function lbShowRank(panel,rank){
@@ -2600,7 +2612,7 @@ async function lbInit(pct,record,isPerfect){
   if(!_lbFetched){
     if(panel)panel.innerHTML='<div class="lb-hdr">Best win % vs the 2015-16 Warriors</div><div class="lb-rows lb-loading">loading…</div>';
     try{
-      const r=await fetch(_lbBase()+'/board');
+      const r=await fetch(_lbBase()+'/board?id='+encodeURIComponent(playerId()));
       if(!r.ok)throw new Error('HTTP '+r.status);
       _lbBoard=await r.json(); _lbFetched=true;
     }
@@ -2730,6 +2742,15 @@ function showResults(){
       (warFive?'<div class="war-five">their five: '+warFive+'</div>':'')+
     '</div>';
 
+    // Actions row is built separately and always goes first, sticky at the
+    // top — visible the instant results load, no scroll needed, and stays
+    // reachable the whole time you're reviewing the breakdown below it.
+    const actionsHtml='<div class="res-actions">'+
+      '<button class="btn" onclick="shareResultCard()">Share result</button>'+
+      '<button class="btn ghost" onclick="openChallengeModal()">Challenge a friend</button>'+
+      '<button class="btn ghost" onclick="playAgain()">Play again</button>'+
+      '</div>';
+
     let html='<div class="res-record">'+
       '<div class="rl">Your season</div>'+
       '<div class="rv">'+yours.w+'<span class="dash">–</span>'+yours.l+'</div>'+
@@ -2744,16 +2765,10 @@ function showResults(){
                         : 'Your first best-possible squad.';
       html='<div class="perfect-callout">\u2605 Best possible squad! No five from your team-seasons beats it. '+tail+'</div>'+html;
     }
+    html=actionsHtml+html;   // actions row ALWAYS first, regardless of the callout above
     if(window.__CHALLENGE__) html+='<div id="chPanel" class="war-panel ch-panel"><div class="war-hdr">Friend challenge</div><div class="ch-h2h lb-loading">Checking the latest round\u2026</div></div>';
     // (series-vs-casual is declared BEFORE drafting, in startGame, so a finished
     // casual game can never be retroactively attached to a series)
-
-    // actions row sits between the win% area and the squad breakdown
-    html+='<div class="res-actions">'+
-      '<button class="btn" onclick="shareResultCard()">Share result</button>'+
-      '<button class="btn ghost" onclick="openChallengeModal()">Challenge a friend</button>'+
-      '<button class="btn ghost" onclick="playAgain()">Play again</button>'+
-      '</div>';
 
     // your squad
     html+='<div class="sq yours">'+
