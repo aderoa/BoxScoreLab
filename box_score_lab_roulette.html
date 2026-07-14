@@ -849,7 +849,7 @@ let WAR2016=new Set();   // 2015-16 Warriors, removed from the draftable pool
 let teams=[[],[]], adjusted=[[],[]], teamNames=["YOUR SQUAD","OPPONENT"];
 
 // --- tunable game constants (easy to tweak / move to a config later) ---
-const BUILD      = "v79 · restart button text, thin-bench teams excluded, ideal-squad respects respin cost · 2026-07-15";
+const BUILD      = "v80 · bench-size exclusion scoped to Warriors overlap specifically · 2026-07-15";
 // Where a shared squad link points. This must be a page that serves THIS game's
 // HTML (it reads the ?sq= payload client-side). Until hoopsmatic.com/73-9 serves
 // this file, shared links will 404 — change this one line back to the GitHub Pages
@@ -1262,14 +1262,23 @@ function unpickedPlayers(g){return g.players.filter(p=>!pickedNames.has(normName
 // often once the budget hit exactly $0.
 function groupHasAffordable(g){return unpickedPlayers(g).some(p=>p.cost<=remaining+1 && !WAR2016.has(p.name))}
 function groupHasUnpicked(g){return unpickedPlayers(g).some(p=>!WAR2016.has(p.name))}
-// A team-season needs a real bench to be worth landing on, not just one
-// token pickable player. The actual 2015-16 Warriors team-season (and any
-// team-season that happens to heavily overlap their locked roster) can have
-// almost its whole roster locked — technically landable under the checks
-// above, but a frustrating dead end in practice. Cached on the group since
-// WAR2016 and the roster don't change mid-game.
+// A Warriors-locked team-season needs a real bench to be worth landing on,
+// not just one token pickable player. The actual 2015-16 Warriors team-season
+// (and any team-season that happens to heavily overlap their locked roster,
+// since a lock applies to a player's NAME across every season they appear in,
+// not just the literal 2015-16 entry) can have almost its whole roster locked
+// — technically landable under the checks above, but a frustrating dead end
+// in practice. Scoped specifically to Warriors overlap: requires a MEANINGFUL
+// number of locked players (3+) before the bench-size check even applies, so
+// a team-season that's just naturally thin for unrelated data reasons is
+// never caught by this — only ones where the lock itself is the cause.
+// Cached on the group since WAR2016 and the roster don't change mid-game.
 function hasEnoughBench(g){
-  if(g._benchOK===undefined) g._benchOK = g.players.filter(p=>!WAR2016.has(p.name)).length>=5;
+  if(g._benchOK===undefined){
+    const lockedCount=g.players.filter(p=>WAR2016.has(p.name)).length;
+    const unlockedCount=g.players.length-lockedCount;
+    g._benchOK = !(lockedCount>=3 && unlockedCount<5);
+  }
   return g._benchOK;
 }
 // one-per-position aware: a player only counts if its natural position is still open
