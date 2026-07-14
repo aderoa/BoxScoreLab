@@ -46,6 +46,9 @@ body{background:linear-gradient(160deg,#1a1a3e 0%,#0a0a1a 55%,#050510 100%);back
 /* ===== Generic ===== */
 .hidden{display:none!important}
 .btn{font-family:'Oswald',sans-serif;font-weight:700;letter-spacing:2px;text-transform:uppercase;border:none;border-radius:8px;cursor:pointer;padding:14px 30px;font-size:15px;background:linear-gradient(135deg,var(--orange),var(--gold));color:#1a1006;transition:transform .12s,box-shadow .12s;box-shadow:0 6px 18px rgba(255,107,53,.25)}
+.btn-ghost{background:transparent;border:1px solid rgba(255,215,0,.3);color:#d8d8ee;box-shadow:none;padding:10px 20px;font-size:12px}
+.btn-ghost:disabled{opacity:.35;cursor:not-allowed}
+.respin-row{margin-top:14px}
 .btn.ghost{background:transparent;color:var(--orange);border:1.5px solid var(--orange);box-shadow:none}
 .res-actions{display:flex;gap:14px;justify-content:center;flex-wrap:wrap;margin:16px 0 46px}
 .share-modal{position:fixed;inset:0;z-index:10000;background:rgba(5,5,16,.82);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;padding:20px;animation:fadeIn .2s}
@@ -839,7 +842,7 @@ let WAR2016=new Set();   // 2015-16 Warriors, removed from the draftable pool
 let teams=[[],[]], adjusted=[[],[]], teamNames=["YOUR SQUAD","OPPONENT"];
 
 // --- tunable game constants (easy to tweak / move to a config later) ---
-const BUILD      = "v72 · honest rank estimate messaging · 2026-07-14";
+const BUILD      = "v75 · exact rank at any scale, paid re-spin option · 2026-07-14";
 // Where a shared squad link points. This must be a page that serves THIS game's
 // HTML (it reads the ?sq= payload client-side). Until hoopsmatic.com/73-9 serves
 // this file, shared links will 404 — change this one line back to the GitHub Pages
@@ -868,6 +871,7 @@ function shareText(platform){
 }
 const CAP_2026   = 165_000_000;   // 2026-27 projected NBA salary cap ($165M, ESPN/Shams Mar 2026)
 const BUDGET     = 100_000_000;   // bankroll
+const RESPIN_COST = 5_000_000;    // real, permanent cost to give up on a landed team-season and redraw
 const SLOTS      = 5;             // signings
 const SEASON_GAMES = 82;          // games simulated for the record
 
@@ -1344,12 +1348,30 @@ function renderLanded(group){
       '<div class="meta"><div class="yr">'+seasonStr+'</div><div class="tn">'+escapeHtmlS(m.name)+'</div></div></div>'+
     '<div class="landed-sub">Slot '+(rosterCount()+1)+' of '+SLOTS+' \u2014 sign any player</div>'+
     cards+tooRichNote+
-    (anySelectable?'':'<div class="center"><button class="btn" onclick="spin()">Spin again</button></div>');
+    (anySelectable?
+      '<div class="center respin-row"><button class="btn btn-ghost" id="respinBtn" onclick="reSpinCurrentTeam()">Re-spin \u2014 costs '+fmtM(RESPIN_COST)+'</button></div>'
+      :'<div class="center"><button class="btn" onclick="spin()">Spin again</button></div>');
   el.classList.remove("hidden");
   el.querySelectorAll('.pick-card[data-pick]').forEach(c=>{ c.onclick=()=>pickPlayer(c.dataset.key,c.dataset.name); });
   $("reelHint").textContent="Landed: "+m.name+" "+seasonStr;
   $("spinBtn").disabled=true;
+  const respinBtn=$("respinBtn");
+  if(respinBtn&&remaining<RESPIN_COST){ respinBtn.disabled=true; respinBtn.title="Not enough left in your bankroll"; }
   if(!anySelectable){ setTimeout(()=>{ if(!spinning && rosterCount()<SLOTS) spin(); },900); }
+}
+// Paid re-spin: give up on this landed team-season and draw a different one,
+// at a real, permanent cost — not a free do-over. Only reachable when the
+// landed team is actually usable (the auto-respin above already handles a
+// genuinely empty team for free, since that's not a choice, it's a dead end).
+function reSpinCurrentTeam(){
+  if(spinning||!currentGroup)return;
+  if(remaining<RESPIN_COST)return;
+  remaining-=RESPIN_COST;
+  usedKeys.add(currentGroup.key);   // don't draw this same team-season again this game
+  currentGroup=null;
+  $("landed").classList.add("hidden");
+  updateHud();
+  spin();
 }
 function pickPlayer(key,name){
   if(spinning)return;
@@ -2439,17 +2461,34 @@ function lbFmtPerfect(e){
   if(!e)return '<span class="lb-empty">—</span>';
   return '<b>'+(e.n||0)+'</b> <span class="lb-name">'+escapeHtmlS(e.name||'anon')+'</span>';
 }
+function lbFmtBadge(e){
+  if(!e)return '<span class="lb-empty">—</span>';
+  return '<b>'+(e.count||0)+'</b> <span class="lb-name">'+escapeHtmlS(e.name||'anon')+'</span>';
+}
+// Three separate achievements, not one metric across three time windows like
+// the other boards — each row is its own leaderboard: most times finishing
+// in the day's top 10, the week's top 100, or (checked once daily, since
+// all-time has no closing moment) currently in the all-time top 1,000.
+function lbRenderBadges(panel,badges){
+  if(!panel)return;
+  if(!badges){panel.remove();return;}   // older Worker without badges → hide this panel
+  const lead=l=>(l&&l.length)?l[0]:null;
+  panel.innerHTML='<div class="lb-hdr">Most badges earned</div>'+
+    '<div class="lb-rows">'+
+      '<div class="lb-row"><span class="lb-per">Top 10 daily finishes</span><span class="lb-mark">'+lbFmtBadge(lead(badges.top10Daily))+'</span></div>'+
+      '<div class="lb-row"><span class="lb-per">Top 100 weekly finishes</span><span class="lb-mark">'+lbFmtBadge(lead(badges.top100Weekly))+'</span></div>'+
+      '<div class="lb-row"><span class="lb-per">Top 1,000 all-time finishes</span><span class="lb-mark">'+lbFmtBadge(lead(badges.top1000Alltime))+'</span></div>'+
+    '</div>';
+}
 function lbShowRank(panel,rank){
   const parts=[];
   const label={day:'Today',week:'This week',alltime:'All-time'};
   for(const w of ['day','week','alltime']){
     const r=rank&&rank[w];
     if(!r)continue;
-    // Rank beyond the stored top 1,000 is a floor, not an exact position — say
-    // so plainly rather than showing a number that looks precise but isn't.
-    parts.push(r.estimated
-      ? label[w]+': outside the currently-tracked top scores (of '+r.of+')'
-      : label[w]+': <b>#'+r.rank+'</b> of '+r.of);
+    // Rank is exact at any population size now (histogram-based on the
+    // Worker side), so there's no "estimated/unknown" case to handle here.
+    parts.push(label[w]+': <b>#'+r.rank+'</b> of '+r.of);
   }
   if(!parts.length)return;
   const wrap=document.createElement('div');wrap.className='lb-rank';
@@ -2545,8 +2584,9 @@ async function lbInit(pct,record,isPerfect){
   if(!LB_API)return;
   const panel=document.getElementById('lbPanel');
   const perfPanel=document.getElementById('lbPerfectPanel');
+  const badgesPanel=document.getElementById('lbBadgesPanel');
   if(!panel&&!perfPanel)return;
-  const unavailable=()=>{ if(panel)panel.innerHTML='<div class="lb-hdr">Best win % vs the 2015-16 Warriors</div><div class="lb-rows lb-loading">leaderboard unavailable right now</div>'; if(perfPanel)perfPanel.remove(); };
+  const unavailable=()=>{ if(panel)panel.innerHTML='<div class="lb-hdr">Best win % vs the 2015-16 Warriors</div><div class="lb-rows lb-loading">leaderboard unavailable right now</div>'; if(perfPanel)perfPanel.remove(); if(badgesPanel)badgesPanel.remove(); };
   // Fetch the board ONCE per session (cached). Cheap, and keeps us inside the free tier.
   if(!_lbFetched){
     if(panel)panel.innerHTML='<div class="lb-hdr">Best win % vs the 2015-16 Warriors</div><div class="lb-rows lb-loading">loading…</div>';
@@ -2560,6 +2600,7 @@ async function lbInit(pct,record,isPerfect){
   if(!_lbBoard){ unavailable(); return; }
   if(panel)lbRenderBoard(panel,_lbBoard);
   lbRenderPerfect(perfPanel,_lbBoard.perfect);
+  lbRenderBadges(badgesPanel,_lbBoard.badges);
   // Both boards now record EVERY game, named or not — an anonymous score still
   // counts toward rank/percentile, it just never becomes the visible #1 (the
   // Worker filters unnamed entries out of that specific display) and never
@@ -2729,6 +2770,7 @@ function showResults(){
     // leaderboards last: this is community/reference info, not the result itself
     if(LB_API) html+='<div id="lbPanel" class="war-panel lb-panel"></div>'+
                      '<div id="lbPerfectPanel" class="war-panel lb-panel"></div>'+
+                     '<div id="lbBadgesPanel" class="war-panel lb-panel"></div>'+
                      '<div id="lbSetNameRow"></div>';
 
     // snapshot what we just rendered so the share card draws from a stable copy
