@@ -849,7 +849,7 @@ let WAR2016=new Set();   // 2015-16 Warriors, removed from the draftable pool
 let teams=[[],[]], adjusted=[[],[]], teamNames=["YOUR SQUAD","OPPONENT"];
 
 // --- tunable game constants (easy to tweak / move to a config later) ---
-const BUILD      = "v83 · reserve-budget guard prevents the zero-affordable dead end · 2026-07-15";
+const BUILD      = "v84 · clarify all-time perfect-squad count, exclude unaffordable-star teams · 2026-07-15";
 // Where a shared squad link points. This must be a page that serves THIS game's
 // HTML (it reads the ?sq= payload client-side). Until hoopsmatic.com/73-9 serves
 // this file, shared links will 404 — change this one line back to the GitHub Pages
@@ -1281,6 +1281,15 @@ function hasEnoughBench(g){
   }
   return g._benchOK;
 }
+// A team-season is excluded outright if ANY player on it costs more than the
+// entire $100M budget — not just "too expensive right now," genuinely
+// unsignable at any point in the draft regardless of remaining cap. Seeing a
+// legend you can never sign under any circumstance is a worse experience
+// than simply never drawing that team. Cached since cost/BUDGET don't change.
+function hasNoUnaffordableStar(g){
+  if(g._noUnaffordable===undefined) g._noUnaffordable = !g.players.some(p=>p.cost>BUDGET&&!WAR2016.has(p.name));
+  return g._noUnaffordable;
+}
 // one-per-position aware: a player only counts if its natural position is still open
 
 function spin(){
@@ -1294,8 +1303,8 @@ function spin(){
 
   // Prefer team-seasons where you can still sign someone affordable; fall back to any
   // unpicked group, then simulate if truly stuck.
-  let pool=GROUPS.filter(g=>!usedKeys.has(g.key)&&hasEnoughBench(g)&&groupHasAffordable(g));
-  if(!pool.length)pool=GROUPS.filter(g=>!usedKeys.has(g.key)&&hasEnoughBench(g)&&groupHasUnpicked(g));
+  let pool=GROUPS.filter(g=>!usedKeys.has(g.key)&&hasEnoughBench(g)&&hasNoUnaffordableStar(g)&&groupHasAffordable(g));
+  if(!pool.length)pool=GROUPS.filter(g=>!usedKeys.has(g.key)&&hasEnoughBench(g)&&hasNoUnaffordableStar(g)&&groupHasUnpicked(g));
   if(!pool.length){
     spinning=false;
     if(rosterCount()<3){
@@ -2851,7 +2860,7 @@ function showResults(){
     html+=warPanel;
     if(samePicks){
       const pc=bumpPerfect();
-      const tail = pc>1 ? ('That\u2019s <b>'+pc+'</b> best-possible squads you\u2019ve built.')
+      const tail = pc>1 ? ('That\u2019s <b>'+pc+'</b> best-possible squads you\u2019ve built on this device, all-time.')
                         : 'Your first best-possible squad.';
       html='<div class="perfect-callout">\u2605 Best possible squad! No five from your team-seasons beats it. '+tail+'</div>'+html;
     }
