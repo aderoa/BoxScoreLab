@@ -849,7 +849,7 @@ let WAR2016=new Set();   // 2015-16 Warriors, removed from the draftable pool
 let teams=[[],[]], adjusted=[[],[]], teamNames=["YOUR SQUAD","OPPONENT"];
 
 // --- tunable game constants (easy to tweak / move to a config later) ---
-const BUILD      = "v85 · business inquiries line in footer · 2026-07-15";
+const BUILD      = "v86 · best-squad candidates evaluated in the same arrangement they display in · 2026-07-15";
 // Where a shared squad link points. This must be a page that serves THIS game's
 // HTML (it reads the ?sq= payload client-side). Until hoopsmatic.com/73-9 serves
 // this file, shared links will 404 — change this one line back to the GitHub Pages
@@ -2037,7 +2037,16 @@ function findBestSquad(gauntlet){
   // the penalty only breaks ties/preferences among candidates that clear it.
   const userRawStr=lineupStrength(roster);
   let best=null,bestStr=-Infinity,bestRec=null,yoursRec=null;
-  for(const c of cands){
+  for(const c0 of cands){
+    // Canonicalize FIRST: evaluate every candidate in the exact arrangement
+    // allocateSlots would give it — the same arrangement the results screen
+    // displays and computes the Warriors win% from. Gating on the raw
+    // as-generated arrangement (which can be stronger than the arranged one,
+    // since allocateSlots prioritizes career-stretch over pure balance) let a
+    // candidate clear the floor at one strength and then DISPLAY at a lower
+    // one — which is how "best squad would win 14.68%" could show right
+    // under a user's own 15.12%.
+    const c=allocateSlots(c0.filter(Boolean));
     const rawStr=lineupStrength(c);
     const str=rawStr-selectionMisfitPenalty(c);
     const rec=expectedRecord(c,pool);
