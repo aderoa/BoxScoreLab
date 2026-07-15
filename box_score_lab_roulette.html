@@ -849,7 +849,7 @@ let WAR2016=new Set();   // 2015-16 Warriors, removed from the draftable pool
 let teams=[[],[]], adjusted=[[],[]], teamNames=["YOUR SQUAD","OPPONENT"];
 
 // --- tunable game constants (easy to tweak / move to a config later) ---
-const BUILD      = "v81 · best-squad search penalizes severe positional mismatches · 2026-07-15";
+const BUILD      = "v83 · reserve-budget guard prevents the zero-affordable dead end · 2026-07-15";
 // Where a shared squad link points. This must be a page that serves THIS game's
 // HTML (it reads the ?sq= payload client-side). Until hoopsmatic.com/73-9 serves
 // this file, shared links will 404 — change this one line back to the GitHub Pages
@@ -1423,12 +1423,36 @@ function reSpinCurrentTeam(){
   updateHud();
   spin();
 }
+// The absolute cheapest unlocked player anywhere in the whole dataset — a
+// floor used to guarantee a pick never leaves less money than that per
+// remaining slot, so the last slot can never be left with literally nothing
+// affordable anywhere. Computed once and cached; GROUPS/WAR2016 don't change
+// during a game.
+let _globalMinPlayerCost=null;
+function globalMinPlayerCost(){
+  if(_globalMinPlayerCost===null){
+    let min=Infinity;
+    for(const g of GROUPS)for(const p of g.players){ if(!WAR2016.has(p.name)&&p.cost<min)min=p.cost; }
+    _globalMinPlayerCost=isFinite(min)?min:0;
+  }
+  return _globalMinPlayerCost;
+}
 function pickPlayer(key,name,pickedPos){
   if(spinning)return;
   const group=GROUP_BY_KEY[key]; if(!group)return;
   const p=group.players.find(x=>x.name===name); if(!p)return;
   if(WAR2016.has(p.name))return;   // 2015-16 Warriors are locked, never signable
   if(pickedNames.has(normName(p.name))||p.cost>remaining+1)return;   // total flexibility: any affordable player
+  // Reserve guard: don't allow a pick that leaves less than the cheapest
+  // possible player's cost per remaining slot — the concrete failure mode
+  // reported was spending down to $0 with slots still open and nothing
+  // anywhere affordable for the last one.
+  const slotsAfter=SLOTS-rosterCount()-1;
+  if(slotsAfter>0 && (remaining-p.cost)<globalMinPlayerCost()*slotsAfter){
+    const hint=$("reelHint");
+    if(hint)hint.textContent="That leaves too little for the remaining "+slotsAfter+" slot"+(slotsAfter===1?"":"s")+" \u2014 pick someone cheaper.";
+    return;
+  }
 
   remaining-=p.cost;
   const entry={name:p.name,sy:p.sy,abbr:group.abbr,pct:p.pct,cost:p.cost,rating:p.rating,
@@ -1990,22 +2014,36 @@ function findBestSquad(gauntlet){
   for(let i=0;i<CANDIDATES_RANDOM;i++)add(genLineup('random'));
 
   const rosterKey=keyOf(roster);
-  // DETERMINISTIC selection: a lineup's strength (talent points + balance) is
-  // luck-free, so the best squad is simply the highest-strength candidate,
-  // minus the selection-only misfit penalty above. No simulation variance —
-  // the same picks always yield the same verdict, and a higher-rated
-  // balanced lineup can never be beaten by a lower-rated, badly-scattered one.
   const pool=[gauntlet];
   for(let i=0;i<EXTRA_GAUNTLETS;i++)pool.push(buildGauntlet());
+  // DETERMINISTIC selection: a lineup's strength (talent points + balance) is
+  // luck-free, so the best squad is simply the highest-strength candidate. The
+  // misfit penalty steers away from severely-scattered-but-talented lineups,
+  // but it's a SELECTION preference only, not a performance claim — it must
+  // never cause the search to recommend a candidate whose RAW (unpenalized)
+  // strength is actually lower than the user's own roster, since that would
+  // mean showing "the best you could've signed" performing worse than what
+  // they actually built, exactly backwards from the whole point of the panel.
+  // So every candidate is gated against the user's own raw strength FIRST;
+  // the penalty only breaks ties/preferences among candidates that clear it.
+  const userRawStr=lineupStrength(roster);
   let best=null,bestStr=-Infinity,bestRec=null,yoursRec=null;
   for(const c of cands){
-    const str=lineupStrength(c)-selectionMisfitPenalty(c);
+    const rawStr=lineupStrength(c);
+    const str=rawStr-selectionMisfitPenalty(c);
     const rec=expectedRecord(c,pool);
     if(keyOf(c)===rosterKey)yoursRec=rec;
-    if(str>bestStr){bestStr=str;best=c;bestRec=rec}
+    if(rawStr>=userRawStr-1e-9 && str>bestStr){bestStr=str;best=c;bestRec=rec}
   }
   if(!yoursRec)yoursRec=expectedRecord(roster,pool);
-  return {best,bestRec,yoursRec,sameAsYours:best&&keyOf(best)===rosterKey};
+  if(!best){best=roster;bestRec=yoursRec;}   // nothing cleared the floor — fall back to the user's own
+  // Success = same exact players OR a different combination that lands on the
+  // identical displayed record. A different five that ties your win-loss
+  // count didn't actually find something BETTER — showing it as if it did
+  // is misleading, since the number the user sees is the record, not the
+  // underlying floating-point strength that broke the tie internally.
+  const sameAsYours = best && (keyOf(best)===rosterKey || (bestRec && yoursRec && bestRec.w===yoursRec.w));
+  return {best,bestRec,yoursRec,sameAsYours};
 }
 
 /* ============================================================
