@@ -849,7 +849,7 @@ let WAR2016=new Set();   // 2015-16 Warriors, removed from the draftable pool
 let teams=[[],[]], adjusted=[[],[]], teamNames=["YOUR SQUAD","OPPONENT"];
 
 // --- tunable game constants (easy to tweak / move to a config later) ---
-const BUILD      = "v86 · best-squad candidates evaluated in the same arrangement they display in · 2026-07-15";
+const BUILD      = "v87 · best-possible win% displayed from the exact winning arrangement · 2026-07-15";
 // Where a shared squad link points. This must be a page that serves THIS game's
 // HTML (it reads the ?sq= payload client-side). Until hoopsmatic.com/73-9 serves
 // this file, shared links will 404 — change this one line back to the GitHub Pages
@@ -2846,7 +2846,12 @@ function showResults(){
     const marginStr=(war.margin>=0?'+':'')+war.margin.toFixed(1)+' pts/game';
     const beatWall=war.margin>0;
     const warFive=warriorsFiveNames();
-    const bestWar=opt?vsWarriors(allocateSlots(opt.slice())):null;
+    // opt comes back from findBestSquad already in its final arrangement —
+    // re-running allocateSlots here re-shuffled the fallback case (the user's
+    // own roster, possibly hand-dragged into a stronger arrangement than the
+    // auto-arranger would pick) into a WEAKER arrangement, displaying a
+    // "best possible" win% below the user's own actual number.
+    const bestWar=opt?vsWarriors(opt):null;
     const warNote=beatWall
       ? 'You cracked the wall. Only about 1 in 1,000 drawn teams beats the 2015-16 Warriors.'
       : 'Beating them takes a top 0.1% team. You are '+(-war.margin).toFixed(1)+' pts/game short.';
