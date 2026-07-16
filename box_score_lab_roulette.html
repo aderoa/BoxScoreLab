@@ -858,7 +858,7 @@ let WAR2016=new Set();   // 2015-16 Warriors, removed from the draftable pool
 let teams=[[],[]], adjusted=[[],[]], teamNames=["YOUR SQUAD","OPPONENT"];
 
 // --- tunable game constants (easy to tweak / move to a config later) ---
-const BUILD      = "v93 · leaderboard rows use a real grid, fixed a rank-class collision · 2026-07-16";
+const BUILD      = "v94 · visible build stamp on results screen · 2026-07-16";
 // Where a shared squad link points. This must be a page that serves THIS game's
 // HTML (it reads the ?sq= payload client-side). Until hoopsmatic.com/73-9 serves
 // this file, shared links will 404 — change this one line back to the GitHub Pages
@@ -3005,6 +3005,12 @@ function showResults(){
         cost:fmtM(p.cost)
       }))
     };
+    // Build stamp (v94): every "best possible looks wrong" report so far has
+    // needed a console check to find out which build actually produced the
+    // screenshot, and that step keeps not happening. Stamping it directly on
+    // the results screen means any screenshot anyone sends already answers
+    // that question, no F12 required from anyone.
+    html+='<div style="text-align:center;font-size:10px;color:#4a4a6a;margin-top:14px;font-family:monospace;letter-spacing:.5px">build '+BUILD.split(' \u00b7 ')[0]+'</div>';
     el.innerHTML=html;
     window.__LAST_WP__=winPctStr;
     if(window.__CHALLENGE__){ try{ renderChallengePanel(winPctStr); }catch(e){} }
