@@ -139,6 +139,9 @@ body{background:linear-gradient(160deg,#1a1a3e 0%,#0a0a1a 55%,#050510 100%);back
 .lb-loading{font-family:'JetBrains Mono',monospace;font-size:12px;color:#8a8ab8;text-align:center}
 .lb-row{display:flex;justify-content:space-between;align-items:baseline;font-family:'JetBrains Mono',monospace;font-size:13px;color:#cfcff0;border-top:1px solid rgba(255,255,255,.06);padding:7px 2px}
 .lb-row:first-child{border-top:none}
+.lb-sub{font-family:'JetBrains Mono',monospace;font-size:11px;color:#8a8ab8;letter-spacing:.5px;text-transform:uppercase;margin:12px 0 2px;opacity:.8}
+.lb-sub:first-of-type{margin-top:0}
+.lb-rank{color:#6a6a94;font-size:12px;min-width:16px}
 .lb-per{color:#8a8ab8;letter-spacing:.5px}
 .lb-mark b{color:#ffd700;font-size:15px}
 .lb-name{color:#bcbce6;margin-left:8px}
@@ -849,7 +852,7 @@ let WAR2016=new Set();   // 2015-16 Warriors, removed from the draftable pool
 let teams=[[],[]], adjusted=[[],[]], teamNames=["YOUR SQUAD","OPPONENT"];
 
 // --- tunable game constants (easy to tweak / move to a config later) ---
-const BUILD      = "v91 · auto-scroll now clears the sticky HUD instead of scrolling under it · 2026-07-16";
+const BUILD      = "v92 · leaderboard panels show top 10 instead of just the leader · 2026-07-16";
 // Where a shared squad link points. This must be a page that serves THIS game's
 // HTML (it reads the ?sq= payload client-side). Until hoopsmatic.com/73-9 serves
 // this file, shared links will 404 — change this one line back to the GitHub Pages
@@ -2671,24 +2674,25 @@ function lbShowRank(panel,rank){
   wrap.innerHTML='Where you rank \u2014 '+parts.join(' \u00b7 ');
   panel.appendChild(wrap);
 }
+function lbBoardSection(label,list,fmt){
+  const rows=(list&&list.length)
+    ? list.map((e,i)=>'<div class="lb-row"><span class="lb-rank">'+(i+1)+'</span>'+fmt(e)+'</div>').join('')
+    : '<div class="lb-row"><span class="lb-empty">\u2014</span></div>';
+  return '<div class="lb-sub">'+label+'</div><div class="lb-rows">'+rows+'</div>';
+}
 function lbRenderBoard(panel,board){
   panel.innerHTML='<div class="lb-hdr">Best win % vs the 2015-16 Warriors</div>'+
-    '<div class="lb-rows">'+
-      '<div class="lb-row"><span class="lb-per">Today</span><span class="lb-mark">'+lbFmt(board.day)+'</span></div>'+
-      '<div class="lb-row"><span class="lb-per">This week</span><span class="lb-mark">'+lbFmt(board.week)+'</span></div>'+
-      '<div class="lb-row"><span class="lb-per">All-time</span><span class="lb-mark">'+lbFmt(board.alltime)+'</span></div>'+
-    '</div>';
+    lbBoardSection('Today',board.day,lbFmt)+
+    lbBoardSection('This week',board.week,lbFmt)+
+    lbBoardSection('All-time',board.alltime,lbFmt);
 }
 function lbRenderPerfect(panel,perfect){
   if(!panel)return;
   if(!perfect){panel.remove();return;}   // older Worker without the perfect board → hide this panel
-  const lead=l=>(l&&l.length)?l[0]:null;
   panel.innerHTML='<div class="lb-hdr">Most best-possible squads</div>'+
-    '<div class="lb-rows">'+
-      '<div class="lb-row"><span class="lb-per">Today</span><span class="lb-mark">'+lbFmtPerfect(lead(perfect.day))+'</span></div>'+
-      '<div class="lb-row"><span class="lb-per">This week</span><span class="lb-mark">'+lbFmtPerfect(lead(perfect.week))+'</span></div>'+
-      '<div class="lb-row"><span class="lb-per">All-time</span><span class="lb-mark">'+lbFmtPerfect(lead(perfect.alltime))+'</span></div>'+
-    '</div>';
+    lbBoardSection('Today',perfect.day,lbFmtPerfect)+
+    lbBoardSection('This week',perfect.week,lbFmtPerfect)+
+    lbBoardSection('All-time',perfect.alltime,lbFmtPerfect);
 }
 let _lbBoard=null,_lbFetched=false;   // session cache so we read the board once, not per play
 // A record only goes on the board WITH a name. If the player hasn't named
