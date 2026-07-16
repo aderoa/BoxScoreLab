@@ -849,7 +849,7 @@ let WAR2016=new Set();   // 2015-16 Warriors, removed from the draftable pool
 let teams=[[],[]], adjusted=[[],[]], teamNames=["YOUR SQUAD","OPPONENT"];
 
 // --- tunable game constants (easy to tweak / move to a config later) ---
-const BUILD      = "v87 · best-possible win% displayed from the exact winning arrangement · 2026-07-15";
+const BUILD      = "v89 · tap-to-swap rearrange, best-possible safety clamp, banner tied to displayed % · 2026-07-16";
 // Where a shared squad link points. This must be a page that serves THIS game's
 // HTML (it reads the ?sq= payload client-side). Until hoopsmatic.com/73-9 serves
 // this file, shared links will 404 — change this one line back to the GitHub Pages
@@ -1228,6 +1228,7 @@ function updateHud(){
 function wireDragDrop(){
   const strip=$("strip");
   let dragFrom=null;
+  let tapFrom=null;
   strip.querySelectorAll(".slot").forEach(cell=>{
     cell.addEventListener("dragstart",e=>{
       dragFrom=+cell.dataset.slot;
@@ -1247,6 +1248,30 @@ function wireDragDrop(){
       if(roster[to])  roster[to].slot=to;
       if(roster[dragFrom]) roster[dragFrom].slot=dragFrom;
       dragFrom=null;
+      updateHud();
+    });
+    // Tap-to-swap (v89): the HTML5 drag events above never fire on touch
+    // devices at all, which was most of this game's traffic getting zero
+    // rearrange ability. Tap a filled slot to select it (same gold outline as
+    // the desktop drag-hover state), tap a second slot to swap, tap the same
+    // slot again to cancel. Fully separate listener, doesn't touch the drag
+    // code above, same underlying swap logic either way.
+    cell.addEventListener("click",()=>{
+      const idx=+cell.dataset.slot;
+      if(tapFrom===null){
+        if(!roster[idx])return;
+        tapFrom=idx; cell.classList.add("drop-hover");
+        return;
+      }
+      if(tapFrom===idx){
+        cell.classList.remove("drop-hover"); tapFrom=null;
+        return;
+      }
+      const a=roster[tapFrom], b=roster[idx];
+      roster[idx]=a; roster[tapFrom]=b;
+      if(roster[idx])     roster[idx].slot=idx;
+      if(roster[tapFrom]) roster[tapFrom].slot=tapFrom;
+      tapFrom=null;
       updateHud();
     });
   });
@@ -1483,7 +1508,7 @@ function pickPlayer(key,name,pickedPos){
   updateHud();
 
   if(rosterCount()>=SLOTS){
-    $("reelHint").textContent="Roster complete \u2014 simulate your season";
+    $("reelHint").textContent="Roster complete \u2014 tap two players to swap positions, or simulate your season";
     $("spinBtn").textContent="Simulate season";
     $("spinBtn").disabled=false;
     $("spinBtn").onclick=showResults;
@@ -2367,7 +2392,7 @@ function lineupNotes(lineup){
       'A hair out of position ('+lst+'), but well within range.',
       lst+' bends the depth chart a touch, not enough to matter.',
       'Soft positional stretch: '+lst+', modern lineups do this nightly.',
-      'Versatility tax: '+lst+', and a small one.',
+      'Small versatility tax: '+lst+'.',
       lst+' plays a notch off the usual spot, no real cost.',
       'Lineup flexes one slot ('+lst+'), fine.',
       'Just outside natural alignment: '+lst+'.',
@@ -2831,13 +2856,14 @@ function showResults(){
   // defer so the spinner paints before the (sync) sim work runs
   setTimeout(()=>{
     const gauntlet=buildGauntlet();
-    const {best:opt,bestRec:optRec,yoursRec,sameAsYours}=findBestSquad(gauntlet);
+    const found=findBestSquad(gauntlet);
+    let opt=found.best, optRec=found.bestRec;
+    const yoursRec=found.yoursRec;
     const yours=yoursRec||expectedRecord(roster,[gauntlet]);
 
     const spent=roster.reduce((s,p)=>s+(p?p.cost:0),0);
     const yourRtg=roster.reduce((s,p)=>s+(p?p.rating:0),0);
     const g=gradeFor(yours.w);
-    const samePicks=sameAsYours;
 
     // 73-9 Warriors wall
     const war=vsWarriors(roster);
@@ -2851,7 +2877,28 @@ function showResults(){
     // own roster, possibly hand-dragged into a stronger arrangement than the
     // auto-arranger would pick) into a WEAKER arrangement, displaying a
     // "best possible" win% below the user's own actual number.
-    const bestWar=opt?vsWarriors(opt):null;
+    let bestWar=opt?vsWarriors(opt):null;
+    // SAFETY CLAMP (v89): the floor in findBestSquad is supposed to make this
+    // impossible — verified twice on real, live rosters. But reader reports
+    // keep surfacing a still-unreproduced case where "best possible" shows
+    // worse than what the user actually built. Rather than keep telling users
+    // that's the best they could've signed when it demonstrably isn't, fall
+    // back to their own roster whenever this is detected. Both conditions
+    // below are false whenever the floor is actually holding, so this changes
+    // nothing in the normal case — it's a last-resort correction, not a fix
+    // for whatever the real cause turns out to be. Still logs either way.
+    if((bestWar && bestWar.winPct < war.winPct - 1e-9) || (optRec && optRec.w < yours.w)){
+      console.warn('[ROULETTE] best-possible was worse than the user\'s own — clamped for display, send Jorge this line',
+        {build:BUILD, yourWinPct:war.winPct, bestWinPct:bestWar?bestWar.winPct:null,
+         yourRec:yours, bestRecBeforeClamp:optRec, yourStrength:lineupStrength(roster),
+         bestStrengthBeforeClamp:opt?lineupStrength(opt):null});
+      opt=roster; optRec=yours; bestWar=war;
+    }
+    // "Best possible squad!" now keyed to the exact number the panel displays
+    // (Warriors win%), not the season record — those can tie on the rounded
+    // record while differing here, which used to let the banner claim "nobody
+    // beats it" right next to a different, higher number in the panel below it.
+    const samePicks = !bestWar || bestWar.winPct <= war.winPct + 1e-9;
     const warNote=beatWall
       ? 'You cracked the wall. Only about 1 in 1,000 drawn teams beats the 2015-16 Warriors.'
       : 'Beating them takes a top 0.1% team. You are '+(-war.margin).toFixed(1)+' pts/game short.';
