@@ -849,7 +849,7 @@ let WAR2016=new Set();   // 2015-16 Warriors, removed from the draftable pool
 let teams=[[],[]], adjusted=[[],[]], teamNames=["YOUR SQUAD","OPPONENT"];
 
 // --- tunable game constants (easy to tweak / move to a config later) ---
-const BUILD      = "v90 · auto-scroll to picker on landing, decline-series option · 2026-07-16";
+const BUILD      = "v91 · auto-scroll now clears the sticky HUD instead of scrolling under it · 2026-07-16";
 // Where a shared squad link points. This must be a page that serves THIS game's
 // HTML (it reads the ?sq= payload client-side). Until hoopsmatic.com/73-9 serves
 // this file, shared links will 404 — change this one line back to the GitHub Pages
@@ -1429,11 +1429,19 @@ function renderLanded(group){
     cards+tooRichNote+
     (anySelectable?'':'<div class="center"><button class="btn" onclick="spin()">Spin again</button></div>');
   el.classList.remove("hidden");
-  // Auto-scroll (v89): on mobile the wheel sits well above the fold, so every
-  // single landing used to leave the player cards below the visible viewport —
-  // real, repeated friction across five picks a game. Bring the team header
-  // and cards into view instead of leaving that to the reader each time.
-  try{ el.scrollIntoView({behavior:'smooth', block:'start'}); }catch(e){}
+  // Auto-scroll (v89, adjusted v91): on mobile the wheel sits well above the
+  // fold, so every landing used to leave the player cards below the viewport.
+  // Plain scrollIntoView(block:'start') doesn't know the HUD is
+  // position:sticky, so it put the team logo right at the very top, behind
+  // where the sticky HUD then pins itself — logo got covered, not shown.
+  // Measure the HUD's real height and stop that far down instead, so the HUD
+  // sits above the reveal like it does everywhere else, not on top of it.
+  try{
+    const hud=document.querySelector(".hud");
+    const clearance=(hud?hud.getBoundingClientRect().height:64)+24;
+    const y=el.getBoundingClientRect().top+window.scrollY-clearance;
+    window.scrollTo({top:Math.max(0,y), behavior:"smooth"});
+  }catch(e){}
   el.querySelectorAll('.pick-card[data-pick]').forEach(c=>{ c.onclick=()=>pickPlayer(c.dataset.key,c.dataset.name,+c.dataset.pos); });
   $("reelHint").textContent="Landed: "+m.name+" "+seasonStr;
   $("spinBtn").disabled=true;
