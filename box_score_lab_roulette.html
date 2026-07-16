@@ -137,11 +137,17 @@ body{background:linear-gradient(160deg,#1a1a3e 0%,#0a0a1a 55%,#050510 100%);back
 .lb-hdr{font-family:'Oswald',sans-serif;text-transform:uppercase;letter-spacing:1.5px;font-size:12px;color:#9a9ac8;text-align:center;margin-bottom:10px}
 .lb-rows{display:flex;flex-direction:column;gap:0}
 .lb-loading{font-family:'JetBrains Mono',monospace;font-size:12px;color:#8a8ab8;text-align:center}
-.lb-row{display:flex;justify-content:space-between;align-items:baseline;font-family:'JetBrains Mono',monospace;font-size:13px;color:#cfcff0;border-top:1px solid rgba(255,255,255,.06);padding:7px 2px}
+.lb-row{display:flex;justify-content:space-between;align-items:baseline;column-gap:8px;font-family:'JetBrains Mono',monospace;font-size:13px;color:#cfcff0;border-top:1px solid rgba(255,255,255,.06);padding:7px 2px}
 .lb-row:first-child{border-top:none}
+.lb-row-4{display:grid;grid-template-columns:20px 62px 46px 1fr}
+.lb-row-3{display:grid;grid-template-columns:20px 40px 1fr}
 .lb-sub{font-family:'JetBrains Mono',monospace;font-size:11px;color:#8a8ab8;letter-spacing:.5px;text-transform:uppercase;margin:12px 0 2px;opacity:.8}
 .lb-sub:first-of-type{margin-top:0}
-.lb-rank{color:#6a6a94;font-size:12px;min-width:16px}
+.lb-c-rank{color:#6a6a94;font-size:12px}
+.lb-c-pct{white-space:nowrap}
+.lb-c-pct b{color:#ffd700;font-size:15px}
+.lb-c-rec{color:#8a8ab8;font-size:12px;white-space:nowrap}
+.lb-c-name{color:#cfcff0;text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
 .lb-per{color:#8a8ab8;letter-spacing:.5px}
 .lb-mark b{color:#ffd700;font-size:15px}
 .lb-name{color:#bcbce6;margin-left:8px}
@@ -852,7 +858,7 @@ let WAR2016=new Set();   // 2015-16 Warriors, removed from the draftable pool
 let teams=[[],[]], adjusted=[[],[]], teamNames=["YOUR SQUAD","OPPONENT"];
 
 // --- tunable game constants (easy to tweak / move to a config later) ---
-const BUILD      = "v92 · leaderboard panels show top 10 instead of just the leader · 2026-07-16";
+const BUILD      = "v93 · leaderboard rows use a real grid, fixed a rank-class collision · 2026-07-16";
 // Where a shared squad link points. This must be a page that serves THIS game's
 // HTML (it reads the ?sq= payload client-side). Until hoopsmatic.com/73-9 serves
 // this file, shared links will 404 — change this one line back to the GitHub Pages
@@ -2637,14 +2643,17 @@ function setPlayerName(n){try{localStorage.setItem('h99_name',n);}catch(e){}}
 // reads as addressing whoever's looking at it, not as a fixed identity).
 function displayName(){ const n=playerName()||_lbSavedName; return n||('Player-'+playerId().slice(-4).toUpperCase()); }
 function lbFmt(e){
-  if(!e||e.pct==null)return '<span class="lb-empty">—</span>';
+  if(!e||e.pct==null)return '<span class="lb-empty">\u2014</span>';
   const nm=e.name?escapeHtmlS(e.name):'anon';
-  const rec=e.record?' <span class="lb-rec">'+escapeHtmlS(e.record)+'</span>':'';
-  return '<b>'+Number(e.pct).toFixed(2)+'%</b>'+rec+' <span class="lb-name">'+nm+'</span>';
+  const rec=e.record?escapeHtmlS(e.record):'\u2014';
+  return '<span class="lb-c-pct"><b>'+Number(e.pct).toFixed(2)+'%</b></span>'+
+         '<span class="lb-c-rec">'+rec+'</span>'+
+         '<span class="lb-c-name">'+nm+'</span>';
 }
 function lbFmtPerfect(e){
-  if(!e)return '<span class="lb-empty">—</span>';
-  return '<b>'+(e.n||0)+'</b> <span class="lb-name">'+escapeHtmlS(e.name||'anon')+'</span>';
+  if(!e)return '<span class="lb-empty">\u2014</span>';
+  return '<span class="lb-c-pct"><b>'+(e.n||0)+'</b></span>'+
+         '<span class="lb-c-name">'+escapeHtmlS(e.name||'anon')+'</span>';
 }
 // Personal, not a leaderboard — badges.top10Daily/top100Weekly/top1000Alltime
 // are now plain numbers (this player's own counts), not lists of other people.
@@ -2674,25 +2683,25 @@ function lbShowRank(panel,rank){
   wrap.innerHTML='Where you rank \u2014 '+parts.join(' \u00b7 ');
   panel.appendChild(wrap);
 }
-function lbBoardSection(label,list,fmt){
+function lbBoardSection(label,list,fmt,rowClass){
   const rows=(list&&list.length)
-    ? list.map((e,i)=>'<div class="lb-row"><span class="lb-rank">'+(i+1)+'</span>'+fmt(e)+'</div>').join('')
+    ? list.map((e,i)=>'<div class="lb-row '+rowClass+'"><span class="lb-c-rank">'+(i+1)+'</span>'+fmt(e)+'</div>').join('')
     : '<div class="lb-row"><span class="lb-empty">\u2014</span></div>';
   return '<div class="lb-sub">'+label+'</div><div class="lb-rows">'+rows+'</div>';
 }
 function lbRenderBoard(panel,board){
   panel.innerHTML='<div class="lb-hdr">Best win % vs the 2015-16 Warriors</div>'+
-    lbBoardSection('Today',board.day,lbFmt)+
-    lbBoardSection('This week',board.week,lbFmt)+
-    lbBoardSection('All-time',board.alltime,lbFmt);
+    lbBoardSection('Today',board.day,lbFmt,'lb-row-4')+
+    lbBoardSection('This week',board.week,lbFmt,'lb-row-4')+
+    lbBoardSection('All-time',board.alltime,lbFmt,'lb-row-4');
 }
 function lbRenderPerfect(panel,perfect){
   if(!panel)return;
   if(!perfect){panel.remove();return;}   // older Worker without the perfect board → hide this panel
   panel.innerHTML='<div class="lb-hdr">Most best-possible squads</div>'+
-    lbBoardSection('Today',perfect.day,lbFmtPerfect)+
-    lbBoardSection('This week',perfect.week,lbFmtPerfect)+
-    lbBoardSection('All-time',perfect.alltime,lbFmtPerfect);
+    lbBoardSection('Today',perfect.day,lbFmtPerfect,'lb-row-3')+
+    lbBoardSection('This week',perfect.week,lbFmtPerfect,'lb-row-3')+
+    lbBoardSection('All-time',perfect.alltime,lbFmtPerfect,'lb-row-3');
 }
 let _lbBoard=null,_lbFetched=false;   // session cache so we read the board once, not per play
 // A record only goes on the board WITH a name. If the player hasn't named
