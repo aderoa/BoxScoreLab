@@ -849,7 +849,7 @@ let WAR2016=new Set();   // 2015-16 Warriors, removed from the draftable pool
 let teams=[[],[]], adjusted=[[],[]], teamNames=["YOUR SQUAD","OPPONENT"];
 
 // --- tunable game constants (easy to tweak / move to a config later) ---
-const BUILD      = "v89 · tap-to-swap rearrange, best-possible safety clamp, banner tied to displayed % · 2026-07-16";
+const BUILD      = "v90 · auto-scroll to picker on landing, decline-series option · 2026-07-16";
 // Where a shared squad link points. This must be a page that serves THIS game's
 // HTML (it reads the ?sq= payload client-side). Until hoopsmatic.com/73-9 serves
 // this file, shared links will 404 — change this one line back to the GitHub Pages
@@ -1429,6 +1429,11 @@ function renderLanded(group){
     cards+tooRichNote+
     (anySelectable?'':'<div class="center"><button class="btn" onclick="spin()">Spin again</button></div>');
   el.classList.remove("hidden");
+  // Auto-scroll (v89): on mobile the wheel sits well above the fold, so every
+  // single landing used to leave the player cards below the visible viewport —
+  // real, repeated friction across five picks a game. Bring the team header
+  // and cards into view instead of leaving that to the reader each time.
+  try{ el.scrollIntoView({behavior:'smooth', block:'start'}); }catch(e){}
   el.querySelectorAll('.pick-card[data-pick]').forEach(c=>{ c.onclick=()=>pickPlayer(c.dataset.key,c.dataset.name,+c.dataset.pos); });
   $("reelHint").textContent="Landed: "+m.name+" "+seasonStr;
   $("spinBtn").disabled=true;
@@ -3310,7 +3315,9 @@ function showSeriesIntentModal(act){
     '<div class="ch-modal-hdr">Series game?</div>'+
     '<div class="ch-modal-sub">You have a live series with <b>'+escapeHtmlS(act.opp)+'</b> ('+sc+', first to 4). Decide before you draft \u2014 this five is locked to your choice.</div>'+
     '<div class="ch-fire-row"><button class="btn ch-fire" id="ciSeries">Play for the series</button> '+
-    '<button class="btn ghost" id="ciCasual">Casual game</button></div></div>';
+    '<button class="btn ghost" id="ciCasual">Casual game</button></div>'+
+    '<div style="text-align:center;margin-top:10px"><a href="#" id="ciDecline" style="color:var(--dim);font-size:13px;text-decoration:underline">Decline this series \u2014 don\u2019t ask again</a></div>'+
+    '</div>';
   document.body.appendChild(ov);
   const go=()=>{ov.remove();startGame();};
   ov.querySelector('#ciSeries').onclick=()=>{
@@ -3320,6 +3327,20 @@ function showSeriesIntentModal(act){
     go();
   };
   ov.querySelector('#ciCasual').onclick=()=>{ window.__CASUAL_GAME__=true; go(); };
+  // Decline (added v89): marks this specific feud id done in the LOCAL known-
+  // feuds list only, so startGame()'s active-feud filter stops picking it up
+  // and this modal never resurfaces for this opponent. Client-side only —
+  // doesn't tell the Worker or the other player anything, this is a personal
+  // "stop asking me" rather than a forfeit. Falls through to a casual game for
+  // right now, same safe default as clicking outside the modal.
+  ov.querySelector('#ciDecline').onclick=(e)=>{
+    e.preventDefault();
+    const list=_knownFeuds();
+    const idx=list.findIndex(x=>x.id===act.id);
+    if(idx>=0){ list[idx].done=true; _saveKnownFeuds(list); }
+    window.__CASUAL_GAME__=true;
+    go();
+  };
   // clicking outside = casual (safe default: never touches the series)
   ov.addEventListener('click',e=>{if(e.target===ov){window.__CASUAL_GAME__=true;go();}});
 }
