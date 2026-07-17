@@ -860,7 +860,7 @@ let WAR2016=new Set();   // 2015-16 Warriors, removed from the draftable pool
 let teams=[[],[]], adjusted=[[],[]], teamNames=["YOUR SQUAD","OPPONENT"];
 
 // --- tunable game constants (easy to tweak / move to a config later) ---
-const BUILD      = "v95 · fixed same-five-players regression, perfect-board rank shown every game, optional social handle · 2026-07-16";
+const BUILD      = "v96 · removed 14-15 Warriors from the wheel, fixed perfect-board name re-sync · 2026-07-16";
 // Where a shared squad link points. This must be a page that serves THIS game's
 // HTML (it reads the ?sq= payload client-side). Until hoopsmatic.com/73-9 serves
 // this file, shared links will 404 — change this one line back to the GitHub Pages
@@ -1077,8 +1077,12 @@ function buildGroups(){
   }
   GROUPS=Object.values(byKey).filter(g=>g.players.length>=2); // need a real choice
   // The 2015-16 Warriors are shown (locked) on other rosters, but their own team-season is
-  // not landable, since every player on it is off the board.
-  GROUPS=GROUPS.filter(g=>!(g.abbr==='GSW'&&g.sy===2016));
+  // not landable, since every player on it is off the board. Added 2026-07-16: the
+  // 2014-15 Warriors have the same problem for the same reason — Curry/Klay/Draymond
+  // are locked off the board by name, not by season, so landing on '14-15 left almost
+  // nobody worth drafting and ruined an otherwise-live turn. Jorge asked for this one
+  // specifically; not touching any other Warriors season unless he asks for those too.
+  GROUPS=GROUPS.filter(g=>!(g.abbr==='GSW'&&(g.sy===2016||g.sy===2015)));
   GROUP_BY_KEY={};GROUPS.forEach(g=>{GROUP_BY_KEY[g.key]=g});
   // precompute cost units for the optimizer
   GROUPS.forEach(g=>g.players.forEach(p=>{p.costUnit=Math.round(p.cost/1e5)}));
@@ -2722,11 +2726,21 @@ let _lbBoard=null,_lbFetched=false;   // session cache so we read the board once
 // "not sure where to sign up" and "I played for hours, why aren't I listed."
 function lbShowSetNameLink(){
   const row=document.getElementById('lbSetNameRow'); if(!row)return;
-  if(playerName()){ row.innerHTML=''; return; }   // already named — nothing to add here
-  row.innerHTML='<div class="lb-setname-link"><a href="javascript:void(0)" id="lbSetNameBtn">Played anonymously so far? Set your name to appear on the leaderboard \u2192</a></div>';
+  // Fixed 2026-07-16: this used to hide entirely once ANY name existed
+  // locally. But a name set via the win board's own top-3 claim-gate never
+  // touches the perfect board's stored name for this device — only this
+  // link's save() does both. Someone who named themselves that way, then
+  // racked up best-possibles without ever hitting perfect-board top-3
+  // themselves, had no way left to attach their name there. Keep the link
+  // available either way, just with different wording once a name exists.
+  const existing=playerName();
+  const linkText=existing
+    ? 'Best-possible count missing from the leaderboard? Re-sync your name \u2192'
+    : 'Played anonymously so far? Set your name to appear on the leaderboard \u2192';
+  row.innerHTML='<div class="lb-setname-link"><a href="javascript:void(0)" id="lbSetNameBtn">'+linkText+'</a></div>';
   document.getElementById('lbSetNameBtn').onclick=()=>{
-    row.innerHTML='<div class="lb-claim"><div class="lb-claim-msg">Set your name \u2014 this claims every result you\u2019ve already played today, not just this one:</div>'+
-      '<div class="lb-claim-row"><input class="lb-input" id="lbSetNameInput" maxlength="16" placeholder="Your name" autocomplete="off"><button class="btn lb-save" id="lbSetNameSave">Save</button></div>'+
+    row.innerHTML='<div class="lb-claim"><div class="lb-claim-msg">'+(existing?'Confirm your name to re-sync both leaderboards:':'Set your name \u2014 this claims every result you\u2019ve already played today, not just this one:')+'</div>'+
+      '<div class="lb-claim-row"><input class="lb-input" id="lbSetNameInput" maxlength="16" placeholder="Your name" autocomplete="off" value="'+escapeHtmlS(existing)+'"><button class="btn lb-save" id="lbSetNameSave">Save</button></div>'+
       '<div class="lb-claim-note" id="lbSetNameNote"></div></div>';
     const input=document.getElementById('lbSetNameInput'),note=document.getElementById('lbSetNameNote');
     const save=async()=>{
