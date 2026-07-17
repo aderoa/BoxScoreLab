@@ -148,6 +148,8 @@ body{background:linear-gradient(160deg,#1a1a3e 0%,#0a0a1a 55%,#050510 100%);back
 .lb-c-pct b{color:#ffd700;font-size:15px}
 .lb-c-rec{color:#8a8ab8;font-size:12px;white-space:nowrap}
 .lb-c-name{color:#cfcff0;text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.lb-handle{color:#7a8cff;font-size:11px;text-decoration:none}
+.lb-handle:hover{text-decoration:underline}
 .lb-per{color:#8a8ab8;letter-spacing:.5px}
 .lb-mark b{color:#ffd700;font-size:15px}
 .lb-name{color:#bcbce6;margin-left:8px}
@@ -858,7 +860,7 @@ let WAR2016=new Set();   // 2015-16 Warriors, removed from the draftable pool
 let teams=[[],[]], adjusted=[[],[]], teamNames=["YOUR SQUAD","OPPONENT"];
 
 // --- tunable game constants (easy to tweak / move to a config later) ---
-const BUILD      = "v94 · visible build stamp on results screen · 2026-07-16";
+const BUILD      = "v95 · fixed same-five-players regression, perfect-board rank shown every game, optional social handle · 2026-07-16";
 // Where a shared squad link points. This must be a page that serves THIS game's
 // HTML (it reads the ?sq= payload client-side). Until hoopsmatic.com/73-9 serves
 // this file, shared links will 404 — change this one line back to the GitHub Pages
@@ -2108,7 +2110,10 @@ function findBestSquad(gauntlet){
   // is misleading, since the number the user sees is the record, not the
   // underlying floating-point strength that broke the tie internally.
   const sameAsYours = best && (keyOf(best)===rosterKey || (bestRec && yoursRec && bestRec.w===yoursRec.w));
-  return {best,bestRec,yoursRec,sameAsYours};
+  // Unambiguous name-only match, exposed separately from sameAsYours above —
+  // showResults needs this one specifically (see v95 fix note there).
+  const sameFive = !!(best && keyOf(best)===rosterKey);
+  return {best,bestRec,yoursRec,sameAsYours,sameFive};
 }
 
 /* ============================================================
@@ -2639,6 +2644,8 @@ function _lbBase(){return LB_API.replace(/\/+$/,'');}
 function playerId(){try{let id=localStorage.getItem('h99_id');if(!id){id=(crypto.randomUUID?crypto.randomUUID():String(Date.now())+Math.random().toString(16).slice(2));localStorage.setItem('h99_id',id);}return id;}catch(e){return 'anon';}}
 function playerName(){try{return localStorage.getItem('h99_name')||'';}catch(e){return '';}}
 function setPlayerName(n){try{localStorage.setItem('h99_name',n);}catch(e){}}
+function playerHandle(){try{return localStorage.getItem('h99_handle')||'';}catch(e){return '';}}
+function setPlayerHandle(h){try{localStorage.setItem('h99_handle',h);}catch(e){}}
 // A name safe to store as a shared data key (never the literal word "You", which
 // reads as addressing whoever's looking at it, not as a fixed identity).
 function displayName(){ const n=playerName()||_lbSavedName; return n||('Player-'+playerId().slice(-4).toUpperCase()); }
@@ -2646,14 +2653,16 @@ function lbFmt(e){
   if(!e||e.pct==null)return '<span class="lb-empty">\u2014</span>';
   const nm=e.name?escapeHtmlS(e.name):'anon';
   const rec=e.record?escapeHtmlS(e.record):'\u2014';
+  const h=e.handle?' <a class="lb-handle" href="https://x.com/'+encodeURIComponent(e.handle)+'" target="_blank" rel="noopener">@'+escapeHtmlS(e.handle)+'</a>':'';
   return '<span class="lb-c-pct"><b>'+Number(e.pct).toFixed(2)+'%</b></span>'+
          '<span class="lb-c-rec">'+rec+'</span>'+
-         '<span class="lb-c-name">'+nm+'</span>';
+         '<span class="lb-c-name">'+nm+h+'</span>';
 }
 function lbFmtPerfect(e){
   if(!e)return '<span class="lb-empty">\u2014</span>';
+  const h=e.handle?' <a class="lb-handle" href="https://x.com/'+encodeURIComponent(e.handle)+'" target="_blank" rel="noopener">@'+escapeHtmlS(e.handle)+'</a>':'';
   return '<span class="lb-c-pct"><b>'+(e.n||0)+'</b></span>'+
-         '<span class="lb-c-name">'+escapeHtmlS(e.name||'anon')+'</span>';
+         '<span class="lb-c-name">'+escapeHtmlS(e.name||'anon')+h+'</span>';
 }
 // Personal, not a leaderboard — badges.top10Daily/top100Weekly/top1000Alltime
 // are now plain numbers (this player's own counts), not lists of other people.
@@ -2753,20 +2762,24 @@ function lbShowClaimGate(panel,onSave,rank){
   const wrap=document.createElement('div');wrap.className='lb-claim';
   wrap.innerHTML='<div class="lb-claim-msg">'+msg+'</div>'+
     '<div class="lb-claim-row"><input class="lb-input" maxlength="16" placeholder="Your name" autocomplete="off"><button class="btn lb-save">Claim it</button></div>'+
+    '<div class="lb-claim-row"><input class="lb-input lb-handle-input" maxlength="30" placeholder="Twitter/IG handle (optional)" autocomplete="off" value="'+escapeHtmlS(playerHandle())+'"></div>'+
     '<div class="lb-claim-note"></div>';
   panel.appendChild(wrap);
-  const input=wrap.querySelector('.lb-input'),note=wrap.querySelector('.lb-claim-note');
+  const input=wrap.querySelector('.lb-input'),handleInput=wrap.querySelector('.lb-handle-input'),note=wrap.querySelector('.lb-claim-note');
   const save=async()=>{
     const name=input.value.trim();
     if(!name){note.textContent='Type a name first.';return;}
+    const handle=handleInput.value.trim().replace(/^@+/,'');
     setPlayerName(name);_lbSavedName=name;
+    setPlayerHandle(handle);
     note.textContent='Claiming\u2026';
-    const result=await onSave(name);
+    const result=await onSave(name,handle);
     if(result===true)wrap.remove();
     else note.textContent=(typeof result==='string'?result:'Something went wrong \u2014 try again.');
   };
   wrap.querySelector('.lb-save').onclick=save;
   input.addEventListener('keydown',e=>{if(e.key==='Enter')save();});
+  handleInput.addEventListener('keydown',e=>{if(e.key==='Enter')save();});
 }
 function _lbApplyWin(w){ if(!_lbBoard)_lbBoard={}; _lbBoard.day=w.day; _lbBoard.week=w.week; _lbBoard.alltime=w.alltime; }
 async function lbInit(pct,record,isPerfect){
@@ -2789,6 +2802,7 @@ async function lbInit(pct,record,isPerfect){
   if(!_lbBoard){ unavailable(); return; }
   if(panel)lbRenderBoard(panel,_lbBoard);
   lbRenderPerfect(perfPanel,_lbBoard.perfect);
+  if(perfPanel&&_lbBoard.perfectRank)lbShowRank(perfPanel,_lbBoard.perfectRank);
   lbRenderBadges(badgesPanel,_lbBoard.badges);
   // Both boards now record EVERY game, named or not — an anonymous score still
   // counts toward rank/percentile, it just never becomes the visible #1 (the
@@ -2800,13 +2814,13 @@ async function lbInit(pct,record,isPerfect){
   if(panel){
     const submitPlay=async(nmVal)=>{
       try{
-        const r=await fetch(_lbBase()+'/claim',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pct:Number(pct.toFixed(2)),record:record,name:nmVal||'',id:playerId()})});
+        const r=await fetch(_lbBase()+'/claim',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pct:Number(pct.toFixed(2)),record:record,name:nmVal||'',handle:playerHandle()||'',id:playerId()})});
         return await r.json();
       }catch(e){ console.warn('[ROULETTE] leaderboard /claim failed:',e); return null; }
     };
-    const claimName=async(ts,typedName)=>{
+    const claimName=async(ts,typedName,typedHandle)=>{
       try{
-        const r=await fetch(_lbBase()+'/claim',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({claimTs:ts,name:typedName,id:playerId()})});
+        const r=await fetch(_lbBase()+'/claim',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({claimTs:ts,name:typedName,handle:typedHandle||'',id:playerId()})});
         return await r.json();
       }catch(e){ console.warn('[ROULETTE] leaderboard /claim (name) failed:',e); return null; }
     };
@@ -2820,12 +2834,13 @@ async function lbInit(pct,record,isPerfect){
     // default — a network hiccup or a stale/expired play look nothing like a
     // rejected name, and telling someone their clean name "may be
     // inappropriate" when the real cause was unrelated is actively misleading.
-    const claimNameWithReason=async(ts,typedName)=>{
-      const d=await claimName(ts,typedName);
+    const claimNameWithReason=async(ts,typedName,typedHandle)=>{
+      const d=await claimName(ts,typedName,typedHandle);
       if(!d)return 'Network error \u2014 try again.';
       if(d.error==='play not found')return 'That result expired before it could be claimed \u2014 your rank was still saved, just without a name.';
       if(d.error==='inappropriate')return 'That name isn\u2019t allowed \u2014 try another.';
       if(d.error==='invalid characters')return 'That name has characters we can\u2019t use \u2014 try letters and numbers.';
+      if(d.error==='invalid handle')return 'That handle has characters we can\u2019t use \u2014 letters, numbers, periods, underscores only.';
       if(d.error==='empty')return 'Type a name first.';
       if(d.error)return 'Could not claim: '+d.error;
       return applyResult(d);
@@ -2838,7 +2853,7 @@ async function lbInit(pct,record,isPerfect){
       if(isTop3('day')||isTop3('week')||isTop3('alltime')){
         // Claiming afterward attaches a name to THIS SAME play (by its ts) —
         // it must not resubmit pct/record, which would count as a second game.
-        lbShowClaimGate(panel, (typedName)=>claimNameWithReason(d.ts,typedName), d.rank);
+        lbShowClaimGate(panel, (typedName,typedHandle)=>claimNameWithReason(d.ts,typedName,typedHandle), d.rank);
       }
     }
   }
@@ -2847,16 +2862,20 @@ async function lbInit(pct,record,isPerfect){
   if(isPerfect&&perfPanel){
     try{
       const nm=playerName();
-      const r=await fetch(_lbBase()+'/perfect',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:playerId(),name:nm||''})});
+      const r=await fetch(_lbBase()+'/perfect',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:playerId(),name:nm||'',handle:playerHandle()||''})});
       const d=await r.json();
       if(d&&d.perfect){
         _lbBoard.perfect=d.perfect; lbRenderPerfect(perfPanel,d.perfect);
+        // lbRenderPerfect replaces the panel outright, wiping the rank line
+        // /board already added above — re-add it from this fresher data
+        // (reflects standings right after this achievement) rather than
+        // leaving the panel without one.
         if(d.rank)lbShowRank(perfPanel,d.rank);
         if(!nm&&d.rank){
           const isTop3=w=>d.rank[w]&&d.rank[w].rank<=3;
           if(isTop3('day')||isTop3('week')||isTop3('alltime')){
-            lbShowClaimGate(perfPanel, async(typedName)=>{
-              const r2=await fetch(_lbBase()+'/perfect',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:playerId(),name:typedName})});
+            lbShowClaimGate(perfPanel, async(typedName,typedHandle)=>{
+              const r2=await fetch(_lbBase()+'/perfect',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:playerId(),name:typedName,handle:typedHandle||''})});
               const d2=await r2.json();
               if(d2&&d2.perfect){ _lbBoard.perfect=d2.perfect; lbRenderPerfect(perfPanel,d2.perfect); return !d2.error; }
               return false;
@@ -2920,11 +2939,23 @@ function showResults(){
          bestStrengthBeforeClamp:opt?lineupStrength(opt):null});
       opt=roster; optRec=yours; bestWar=war;
     }
-    // "Best possible squad!" now keyed to the exact number the panel displays
-    // (Warriors win%), not the season record — those can tie on the rounded
-    // record while differing here, which used to let the banner claim "nobody
-    // beats it" right next to a different, higher number in the panel below it.
-    const samePicks = !bestWar || bestWar.winPct <= war.winPct + 1e-9;
+    // FIX (v95): found.sameFive means the "best" candidate is the exact same
+    // five players as the user's own roster, just arranged differently —
+    // allocateSlots re-canonicalizes every candidate (including the user's
+    // own) by pickedSlot hint, which a manual drag or tap-swap afterward
+    // never updates. That's not a different, better recommendation, it's the
+    // same talent pool the auto-arranger would have laid out. The old
+    // sameAsYours check used to catch this by name match alone; my last pass
+    // at samePicks (fixing a real, different bug, the banner disagreeing with
+    // the displayed %) replaced that with a pure win%-comparison and dropped
+    // the name-match case entirely, which is what let this regress. Force the
+    // display back to the user's own arrangement here too, so "best squad"
+    // never shows a different-looking lineup for the identical five players.
+    if(found.sameFive && opt!==roster){ opt=roster; optRec=yours; bestWar=war; }
+    // "Best possible squad!" fires on an exact name match OR on the displayed
+    // metric tying/losing — covers both the original record-vs-% mismatch
+    // and this arrangement-only case, without reintroducing either bug.
+    const samePicks = found.sameFive || !bestWar || bestWar.winPct <= war.winPct + 1e-9;
     const warNote=beatWall
       ? 'You cracked the wall. Only about 1 in 1,000 drawn teams beats the 2015-16 Warriors.'
       : 'Beating them takes a top 0.1% team. You are '+(-war.margin).toFixed(1)+' pts/game short.';
