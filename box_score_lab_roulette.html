@@ -193,6 +193,8 @@ body{background:linear-gradient(160deg,#1a1a3e 0%,#0a0a1a 55%,#050510 100%);back
 .hud-left{display:flex;flex-direction:column;gap:3px}
 .hud-title-row{display:flex;align-items:center;gap:8px}
 .restart-btn{background:transparent;border:1px solid rgba(255,215,0,.3);color:#9a9ac4;border-radius:6px;height:22px;line-height:1;font-size:10px;font-family:'Oswald',sans-serif;font-weight:700;letter-spacing:1px;text-transform:uppercase;cursor:pointer;padding:0 8px;white-space:nowrap;transition:color .12s,border-color .12s}
+.motion-toggle{background:transparent;border:1px solid rgba(255,255,255,.12);color:#5a5a7a;border-radius:6px;height:22px;line-height:1;font-size:9px;font-family:'Oswald',sans-serif;font-weight:600;letter-spacing:.5px;text-transform:uppercase;cursor:pointer;padding:0 7px;white-space:nowrap;transition:color .12s,border-color .12s}
+.motion-toggle.active{color:#ffd700;border-color:rgba(255,215,0,.35)}
 .restart-btn:hover{color:var(--gold);border-color:rgba(255,215,0,.6)}
 .hud-title{font-family:'Oswald',sans-serif;font-weight:700;letter-spacing:3px;font-size:14px;background:linear-gradient(90deg,var(--orange),var(--gold));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;text-transform:uppercase}
 .slot-dots{display:flex;gap:6px}
@@ -393,6 +395,7 @@ body{background:linear-gradient(160deg,#1a1a3e 0%,#0a0a1a 55%,#050510 100%);back
         <div class="hud-title-row">
           <div class="hud-title">73-9</div>
           <button class="restart-btn" onclick="confirmRestart()" title="Start over" aria-label="Start over">Start over</button>
+          <button class="motion-toggle" id="motionToggle" onclick="toggleMotion()" title="Reduce wheel-spin animation" aria-label="Reduce wheel-spin animation">Reduce motion</button>
         </div>
         <div class="slot-dots" id="slotDots"></div>
       </div>
@@ -860,7 +863,7 @@ let WAR2016=new Set();   // 2015-16 Warriors, removed from the draftable pool
 let teams=[[],[]], adjusted=[[],[]], teamNames=["YOUR SQUAD","OPPONENT"];
 
 // --- tunable game constants (easy to tweak / move to a config later) ---
-const BUILD      = "v96 · removed 14-15 Warriors from the wheel, fixed perfect-board name re-sync · 2026-07-16";
+const BUILD      = "v98 · wheel spin 30% faster (2.7s to 1.89s) · 2026-07-28";
 // Where a shared squad link points. This must be a page that serves THIS game's
 // HTML (it reads the ?sq= payload client-side). Until hoopsmatic.com/73-9 serves
 // this file, shared links will 404 — change this one line back to the GitHub Pages
@@ -1182,6 +1185,8 @@ function startGame(){
   $("intro").classList.add("hidden");
   $("results").classList.add("hidden");
   $("game").classList.remove("hidden");
+  const mtBtn=$("motionToggle");
+  if(mtBtn){ const on=motionReduced(); mtBtn.classList.toggle('active',on); mtBtn.textContent=on?'Motion: reduced':'Reduce motion'; }
   $("landed").classList.add("hidden");
   $("respinBtn").style.display="none";
   $("spinBtn").textContent="Spin";
@@ -1378,7 +1383,9 @@ function spin(){
   const dx=-(TARGET_IDX*TILE + TILE/2 - W/2);
   // force reflow, then animate
   void track.offsetWidth;
-  track.style.transition="transform 2.7s cubic-bezier(.13,.66,.16,1)";
+  const reduced=motionReduced();
+  const dur=reduced?0.25:1.89;
+  track.style.transition="transform "+dur+"s "+(reduced?"ease-out":"cubic-bezier(.13,.66,.16,1)");
   track.style.transform="translateX("+dx+"px)";
 
   let done=false;
@@ -1390,7 +1397,7 @@ function spin(){
     renderLanded(target);
   };
   track.addEventListener("transitionend",finish,{once:true});
-  setTimeout(finish,2850); // safety in case transitionend doesn't fire
+  setTimeout(finish,reduced?350:2040); // safety in case transitionend doesn't fire
 }
 
 function renderLanded(group){
@@ -2650,6 +2657,18 @@ function playerName(){try{return localStorage.getItem('h99_name')||'';}catch(e){
 function setPlayerName(n){try{localStorage.setItem('h99_name',n);}catch(e){}}
 function playerHandle(){try{return localStorage.getItem('h99_handle')||'';}catch(e){return '';}}
 function setPlayerHandle(h){try{localStorage.setItem('h99_handle',h);}catch(e){}}
+// Added 2026-07-17: reader reported the wheel-spin animation triggers motion
+// sickness. Purely visual toggle, does not change odds, timing of what's
+// drawn, or anything else — only how the reel gets there. Kept small and out
+// of the way in the HUD per Jorge's call not to make the control itself loud.
+function motionReduced(){try{return localStorage.getItem('h99_reduce_motion')==='1';}catch(e){return false;}}
+function setMotionReduced(v){try{localStorage.setItem('h99_reduce_motion',v?'1':'0');}catch(e){}}
+function toggleMotion(){
+  const on=!motionReduced();
+  setMotionReduced(on);
+  const btn=$("motionToggle");
+  if(btn){ btn.classList.toggle('active',on); btn.textContent=on?'Motion: reduced':'Reduce motion'; }
+}
 // A name safe to store as a shared data key (never the literal word "You", which
 // reads as addressing whoever's looking at it, not as a fixed identity).
 function displayName(){ const n=playerName()||_lbSavedName; return n||('Player-'+playerId().slice(-4).toUpperCase()); }
@@ -2966,10 +2985,20 @@ function showResults(){
     // display back to the user's own arrangement here too, so "best squad"
     // never shows a different-looking lineup for the identical five players.
     if(found.sameFive && opt!==roster){ opt=roster; optRec=yours; bestWar=war; }
-    // "Best possible squad!" fires on an exact name match OR on the displayed
-    // metric tying/losing — covers both the original record-vs-% mismatch
-    // and this arrangement-only case, without reintroducing either bug.
-    const samePicks = found.sameFive || !bestWar || bestWar.winPct <= war.winPct + 1e-9;
+    // ADDED 2026-07-17: a reader reported their squad "won just as many games
+    // and cost less" than what showed as best-possible — a genuinely
+    // different five that ties the user's own season record (not just the
+    // Warriors %) wasn't being treated as flawless, so it displayed as a
+    // separate, not-obviously-better recommendation instead of a tie. Same
+    // treatment as sameFive above: an exact win-loss tie forces the display
+    // back to the user's own squad too.
+    const sameRecord = !!(optRec && optRec.w===yours.w && optRec.l===yours.l);
+    if(sameRecord && opt!==roster){ opt=roster; optRec=yours; bestWar=war; }
+    // "Best possible squad!" fires on an exact name match OR an exact record
+    // tie OR the displayed metric tying/losing — covers the original
+    // record-vs-% mismatch, the arrangement-only case, and this one, without
+    // reintroducing any of them.
+    const samePicks = found.sameFive || sameRecord || !bestWar || bestWar.winPct <= war.winPct + 1e-9;
     const warNote=beatWall
       ? 'You cracked the wall. Only about 1 in 1,000 drawn teams beats the 2015-16 Warriors.'
       : 'Beating them takes a top 0.1% team. You are '+(-war.margin).toFixed(1)+' pts/game short.';
