@@ -484,6 +484,27 @@ body{background:linear-gradient(145deg,#1a1a3e 0%,#0a0a1a 50%,#ffffff 100%);back
 @media(max-width:600px){.logo-main{font-size:32px;letter-spacing:3px}.controls{padding:10px;gap:6px}.search-wrap{max-width:100%;flex:1 1 100%}.score-pts{font-size:40px}.scoreboard{gap:20px}.slots-grid{grid-template-columns:1fr 1fr}.roster-cards{grid-template-columns:1fr 1fr}.roster-cards-compact{grid-template-columns:1fr 1fr}.reveal-header{font-size:24px;letter-spacing:5px}.reveal-card-meta{grid-template-columns:1fr}}
 
 /* ── Dream Team mode ── */
+.dt-roster{margin-top:16px;padding:12px 14px;background:rgba(74,144,226,.07);border:1px solid rgba(74,144,226,.28);border-radius:10px}
+.dt-roster-head{font-size:.62rem;letter-spacing:.13em;text-transform:uppercase;opacity:.7;margin-bottom:8px;display:flex;gap:12px;align-items:baseline;flex-wrap:wrap}
+.dt-shape{letter-spacing:.04em;text-transform:none;font-size:.68rem}
+.dt-shape.ok{color:#4ade80}.dt-shape.bad{color:#ffb020}
+.dt-rgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:5px}
+.dt-rslot{font-size:.74rem;font-weight:600;padding:5px 8px;border-radius:5px;background:rgba(255,255,255,.03);opacity:.4;display:flex;gap:7px;align-items:center}
+.dt-rslot.filled{background:rgba(255,255,255,.09);opacity:1}
+.dt-rpos{font-size:.58rem;font-weight:800;color:#ffd700;min-width:12px}
+.dt-boxes{display:grid;gap:14px;margin:18px 0 22px;text-align:left}
+.dt-box{border:1px solid rgba(255,255,255,.12);border-radius:9px;overflow:hidden}
+.dt-box-head{display:flex;justify-content:space-between;align-items:baseline;padding:8px 12px;background:rgba(255,255,255,.06);font-size:.66rem;letter-spacing:.12em;text-transform:uppercase}
+.dt-box-head b{font-size:1.25rem;letter-spacing:0}
+.dt-btable{width:100%;border-collapse:collapse;font-size:.7rem}
+.dt-btable th{text-align:right;padding:5px 6px;font-size:.55rem;letter-spacing:.07em;text-transform:uppercase;opacity:.5;border-bottom:1px solid rgba(255,255,255,.1)}
+.dt-btable th:first-child{text-align:left}
+.dt-btable td{text-align:right;padding:4px 6px;border-bottom:1px solid rgba(255,255,255,.05);font-variant-numeric:tabular-nums}
+.dt-bn{text-align:left!important;font-weight:600}
+.dt-bn i{display:block;font-style:normal;font-size:.58rem;opacity:.45}
+.dt-bp{font-weight:800}
+@media(max-width:640px){.dt-btable{font-size:.62rem}.dt-btable th:nth-child(n+6),.dt-btable td:nth-child(n+6){display:none}}
+
 .dt-pos{font-size:.6rem;font-weight:800;letter-spacing:.08em;color:#ffd700;background:rgba(255,215,0,.12);padding:1px 6px;border-radius:4px}
 .dt-clue{display:flex;flex-direction:column;line-height:1.2;padding:2px 4px;border-radius:4px;opacity:.34}
 .dt-clue.on{opacity:1;background:rgba(255,255,255,.05)}
@@ -576,7 +597,7 @@ body{background:linear-gradient(145deg,#1a1a3e 0%,#0a0a1a 50%,#ffffff 100%);back
 <div id="app">
   <div class="header">
     <div class="logo-sm">BEAT THE 1992 DREAM TEAM</div>
-    <div style="font:400 10px/1 monospace;color:#5a5a8a;letter-spacing:1px;margin-top:4px">build 2026-07-30 22:35</div>
+    <div style="font:400 10px/1 monospace;color:#5a5a8a;letter-spacing:1px;margin-top:4px">build 2026-07-30 23:09</div>
   </div>
   <div class="mode-tabs">
     <button class="mode-tab" id="modeSandboxTab" onclick="setMode('sandbox')" style="display:none">Sandbox</button>
@@ -2872,6 +2893,68 @@ const DT_ALIASES = {
 
 let DT = null;
 
+/* bio.json columns 9/10/11 are All-NBA First Team, All-NBA Second Team and
+   All-Star selections. Third Team is not stored, so All-NBA totals run a
+   little low for anyone from 1989 onwards. */
+const dtBio = n => { const bi = bioByName[n]; return bi == null ? null : bioData[bi]; };
+function dtAwardOptions(name) {
+  const b = dtBio(name); if (!b) return [];
+  const flags = b[8] || 0, allNba = (b[9] || 0) + (b[10] || 0), allStar = b[11] || 0;
+  const out = [];
+  if (flags & 1) out.push("HoopsHype Top-78");
+  if ((flags & 4) || allNba) out.push(allNba ? allNba + "x All-NBA" : "All-NBA");
+  if ((flags & 8) || allStar) out.push(allStar ? allStar + "x All-Star" : "All-Star");
+  return out;
+}
+function dtOrdinal(n) {
+  const v = parseInt(n, 10);
+  if (!v) return null;
+  const s = ["th", "st", "nd", "rd"], m = v % 100;
+  return v + (s[(m - 20) % 10] || s[m] || s[0]);
+}
+function dtPickLabel(raw) {
+  const t = String(raw == null ? "" : raw).trim();
+  if (!t) return "\u2014";
+  if (t === "UND" || t === "ND") return "Undrafted";
+  if (t === "T") return "Territorial Draft";
+  if (t === "SD") return "Supplemental Draft";
+  const ord = dtOrdinal(t);
+  return ord ? ord + " Draft Pick" : t;
+}
+/* Own clue renderer so Career's version is left exactly as it is. */
+function dtClueValue(card, i) {
+  const b = dtBio(card.name); if (!b) return "\u2014";
+  if (i === 0) { const v = String(b[2] || "").trim(); const ab = (typeof STATE_ABBR !== "undefined") && STATE_ABBR[v];
+                 return v ? (ab ? v + " (" + ab + ")" : v) : "\u2014"; }
+  if (i === 1) return card.award || "No All-Star selections";
+  if (i === 2) return String(b[4] || "\u2014");
+  if (i === 3) return dtPickLabel(b[6]);
+  if (i === 4) return card.rolledSeason || "\u2014";
+  return "\u2014";
+}
+
+/* Positional balance. Until now the simulation summed points and never
+   looked at position, so twelve centres played exactly like a real roster.
+   A lineup needs guards to create and bigs to rebound, so a squad is scaled
+   by how close it sits to a workable 5G/4F/3C shape. */
+const DT_TARGET = { G: 5, F: 4, C: 3 };
+function dtPosBucket(name) {
+  const b = dtBio(name);
+  const p = String((b && b[3]) || "").toUpperCase();
+  if (p.startsWith("C")) return "C";
+  if (p.startsWith("F")) return "F";
+  if (p.startsWith("G")) return "G";
+  return "F";
+}
+function dtBalance(names) {
+  const have = { G: 0, F: 0, C: 0 };
+  names.forEach(n => { have[dtPosBucket(n)]++; });
+  let miss = 0;
+  for (const k of ["G", "F", "C"]) miss += Math.abs(have[k] - DT_TARGET[k] * (names.length / 12));
+  // A perfect shape is 1.00; an all-one-position roster bottoms out near 0.88.
+  return { mult: Math.max(0.88, 1 - miss * 0.012), have };
+}
+
 function dtResolveName(want) {
   if (playerIndex[want]) return want;
   for (const alt of (DT_ALIASES[want] || [])) if (playerIndex[alt]) return alt;
@@ -2904,9 +2987,10 @@ function dtBuildOpponent() {
 /* ── simulation ─────────────────────────────────────────────── */
 function dtRollFrom(games) { return games[Math.floor(Math.random() * games.length)]; }
 
-function dtSim(squadNames, opp, nGames) {
+function dtSim(squadNames, opp, nGames, keepBoard) {
   const savedT = teams, savedA = adjusted;
-  let wins = 0, ptsA = 0, ptsB = 0;
+  const bal = dtBalance(squadNames).mult;
+  let wins = 0, ptsA = 0, ptsB = 0, lastA = null, lastB = null;
   const pool = squadNames.map(n => ({ name: n, games: (playerIndex[n] || []).filter(isPlayableGame) }))
                          .filter(p => p.games.length);
   for (let g = 0; g < nGames; g++) {
@@ -2918,14 +3002,18 @@ function dtSim(squadNames, opp, nGames) {
     let a = 0, b = 0;
     tA.forEach((_, i) => { a += av(0, i, "PTS"); });
     tB.forEach((_, i) => { b += av(1, i, "PTS"); });
-    a = Math.round(a); b = Math.round(b);
+    a = Math.round(a * bal); b = Math.round(b);
     if (a === b) (Math.random() < 0.5 ? a++ : b++);
     ptsA += a; ptsB += b;
     if (a > b) wins++;
+    lastA = a; lastB = b;
   }
-  teams = savedT; adjusted = savedA;
-  return { wins, losses: nGames - wins, pct: wins / nGames,
-           ppgA: (ptsA / nGames).toFixed(1), ppgB: (ptsB / nGames).toFixed(1) };
+  const out = { wins, losses: nGames - wins, pct: wins / nGames, bal,
+                ptsA: lastA, ptsB: lastB,
+                ppgA: (ptsA / nGames).toFixed(1), ppgB: (ptsB / nGames).toFixed(1) };
+  if (keepBoard) { out.boxA = teams[0], out.boxB = teams[1], out.adj = adjusted; }
+  else { teams = savedT; adjusted = savedA; }
+  return out;
 }
 
 /* Cheap per-36 production score, used only to rank a pool internally. */
@@ -3024,7 +3112,9 @@ function dtStart() {
     seed, rng, opp, bestPossible: pool.best, bestPct: pool.bestPct,
     cards: pool.names.map((n, i) => {
       const sc = rollSeasonClue(n);
+      const aw = dtAwardOptions(n);
       return { id: i, name: n, revealed: [false, false, false, false, false],
+               award: aw.length ? aw[Math.floor(rng() * aw.length)] : null,
                rolledSeason: sc.display, rolledSeasonYear: sc.seasonYr, rolledTeam: sc.team,
                state: "open" };
     }),
@@ -3080,8 +3170,10 @@ function dtResolve(id, keep) {
 function dtAdvance(id) {
   if (!DT) return;
   DT.revealing = null;
-  DT.visible = DT.visible.filter(x => x !== id);
-  if (DT.queue.length) DT.visible.push(DT.queue.shift());
+  DT.lastClue = null;                      // the flash belongs to the clue, not the swap
+  const at = DT.visible.indexOf(id);       // the replacement takes the same slot
+  if (DT.queue.length) DT.visible[at] = DT.queue.shift();
+  else DT.visible.splice(at, 1);
   if (DT.picked.length < DT_SQUAD && dtUnresolved() === DT_SQUAD - DT.picked.length) {
     DT.cards.filter(c => c.state === "open").forEach(c => { c.state = "picked"; DT.picked.push(c.name); });
     DT.visible = []; DT.queue = [];
@@ -3092,8 +3184,9 @@ function dtAdvance(id) {
 
 function dtFinish() {
   DT.done = true;
-  DT.result = dtSim(DT.picked, DT.opp, DT_SIM);
-  DT.result.best = dtSim(DT.bestPossible, DT.opp, DT_SIM);
+  // One game, with a real box score -- same engine the Sandbox uses.
+  DT.result = dtSim(DT.picked, DT.opp, 1, true);
+  DT.result.best = dtSim(DT.bestPossible, DT.opp, 41);
   try {
     const prev = JSON.parse(localStorage.getItem(DT_STORAGE_KEY) || "null");
     const rec = { seed: DT.seed, wins: DT.result.wins, clues: DT.cluesUsed,
@@ -3121,7 +3214,7 @@ function dtCardHtml(c) {
     const on = c.revealed[i];
     const fresh = !resolved && DT.lastClue && DT.lastClue.card === c.id && DT.lastClue.clue === i;
     return `<div class="dt-clue ${on ? "on" : ""} ${fresh ? "flash" : ""}">
-      <span>${lab}</span><b>${on && player ? clueValueFor(player, i, c) : "&mdash;"}</b></div>`;
+      <span>${lab}</span><b>${on ? dtClueValue(c, i) : "&mdash;"}</b></div>`;
   }).join("");
   const head = `<div class="dt-card-top">
       <span class="dt-num">${c.id + 1}</span>
@@ -3167,6 +3260,7 @@ function dtRender() {
       ? "Ten clues are out. Sign or cut a card to clear its clues and make room."
       : "Clues land on a random visible card. Resolving one clears its clues and brings the next unknown onto the board."}</div>
     <div class="dt-grid">${dtVisibleCards().map(dtCardHtml).join("")}</div>
+    ${dtRosterHtml()}
     <div class="dt-opp">
       <div class="dt-opp-head">You are playing</div>
       <div class="dt-opp-name">THE DREAM TEAM</div>
@@ -3175,26 +3269,75 @@ function dtRender() {
     </div>`;
 }
 
+function dtRosterHtml() {
+  const b = dtBalance(DT.picked);
+  const slots = [];
+  for (let i = 0; i < DT_SQUAD; i++) {
+    const n = DT.picked[i];
+    slots.push(n
+      ? `<div class="dt-rslot filled"><span class="dt-rpos">${dtPosBucket(n)}</span>${n}</div>`
+      : `<div class="dt-rslot"><span class="dt-rpos">&nbsp;</span>&mdash;</div>`);
+  }
+  const shapeOk = b.mult > 0.985;
+  return `<div class="dt-roster">
+    <div class="dt-roster-head">Your roster
+      <span class="dt-shape ${shapeOk ? "ok" : "bad"}">${b.have.G}G / ${b.have.F}F / ${b.have.C}C
+        &nbsp;·&nbsp; ${shapeOk ? "balanced" : "lopsided \u2014 " + Math.round((1 - b.mult) * 100) + "% penalty"}</span>
+    </div>
+    <div class="dt-rgrid">${slots.join("")}</div></div>`;
+}
+
+function dtBoxRow(ti, i, t, adj) {
+  const g = t.game;
+  const st = k => { const v = (adj[ti] && adj[ti][i] && adj[ti][i][k] !== undefined) ? adj[ti][i][k] : rawG(g, k);
+                    return Math.round(v * 10) / 10; };
+  const season = formatSeasonYear(g[G.SY]);
+  const team = String(TEAMS[g[G.TM]] || "").replace(/\s*\([^)]*\)\s*$/, "");
+  return `<tr><td class="dt-bn">${t.name}<i>${season}${team ? " " + team : ""}</i></td>
+    <td>${st("MIN")}</td><td class="dt-bp">${st("PTS")}</td><td>${st("REB")}</td><td>${st("AST")}</td>
+    <td>${st("STL")}</td><td>${st("BLK")}</td>
+    <td>${st("FGM")}-${st("FGA")}</td><td>${st("3PM")}-${st("3PA")}</td><td>${st("FTM")}-${st("FTA")}</td></tr>`;
+}
+function dtBoxHtml(label, ti, rows, adj, pts) {
+  return `<div class="dt-box">
+    <div class="dt-box-head"><span>${label}</span><b>${pts}</b></div>
+    <table class="dt-btable"><thead><tr><th>Player</th><th>MIN</th><th>PTS</th><th>REB</th><th>AST</th>
+      <th>STL</th><th>BLK</th><th>FG</th><th>3P</th><th>FT</th></tr></thead>
+      <tbody>${rows.map((t, i) => dtBoxRow(ti, i, t, adj)).join("")}</tbody></table></div>`;
+}
+
 function dtResultHtml() {
   const r = DT.result, b = r.best;
-  const won = r.wins > DT_SIM / 2;
+  const won = r.ptsA > r.ptsB;
   const best = dtLoadBest();
   return `<div class="dt-result">
     <div class="dt-verdict ${won ? "win" : "loss"}">${won ? "YOU BEAT THE DREAM TEAM" : "THE DREAM TEAM HELD"}</div>
-    <div class="dt-record">${r.wins}<span>–</span>${r.losses}</div>
-    <div class="dt-sub">${(r.pct * 100).toFixed(1)}% over ${DT_SIM} games
-      &nbsp;·&nbsp; ${r.ppgA} to ${r.ppgB} per game
-      &nbsp;·&nbsp; ${DT.cluesUsed} clues used</div>
+    <div class="dt-record">${r.ptsA}<span>–</span>${r.ptsB}</div>
+    <div class="dt-sub">${DT.cluesUsed} clues used
+      &nbsp;·&nbsp; roster shape ${r.bal >= 0.985 ? "balanced" : Math.round((1 - r.bal) * 100) + "% penalty"}
+      &nbsp;·&nbsp; over 41 games this twelve wins ${Math.round(dtSimCache().pct * 100)}%</div>
+    ${r.boxA ? `<div class="dt-boxes">
+      ${dtBoxHtml("YOUR TWELVE", 0, r.boxA, r.adj, r.ptsA)}
+      ${dtBoxHtml("THE DREAM TEAM", 1, r.boxB, r.adj, r.ptsB)}
+    </div>` : ""}
     <div class="dt-cols">
       <div><div class="dt-col-head">Your twelve</div>
         ${DT.picked.map(n => `<div class="dt-row">${n}</div>`).join("")}</div>
       <div><div class="dt-col-head">The best twelve in the pool</div>
         ${DT.bestPossible.map(n => `<div class="dt-row ${DT.picked.includes(n) ? "got" : ""}">${n}</div>`).join("")}
-        <div class="dt-bestpct">${b.wins}–${b.losses} (${(b.pct * 100).toFixed(1)}%)</div></div>
+        <div class="dt-bestpct">wins ${(b.pct * 100).toFixed(0)}% of the time</div></div>
     </div>
     ${best && best.seed === DT.seed ? `<div class="dt-best">Your best today: ${best.wins} wins</div>` : ""}
     <button class="dt-b dt-again" onclick="dtStart()">NEW POOL</button>
   </div>`;
+}
+
+let _dtSimCache = null;
+function dtSimCache() {
+  if (!_dtSimCache || _dtSimCache.key !== DT.picked.join()) {
+    _dtSimCache = { key: DT.picked.join(), pct: dtSim(DT.picked, DT.opp, 41).pct };
+  }
+  return _dtSimCache;
 }
 
 function dtShowIntro() {
