@@ -557,7 +557,7 @@ body{background:linear-gradient(145deg,#1a1a3e 0%,#0a0a1a 50%,#ffffff 100%);back
 <div id="app">
   <div class="header">
     <div class="logo-sm">BEAT THE 1992 DREAM TEAM</div>
-    <div style="font:400 10px/1 monospace;color:#5a5a8a;letter-spacing:1px;margin-top:4px">build 2026-07-30 21:55</div>
+    <div style="font:400 10px/1 monospace;color:#5a5a8a;letter-spacing:1px;margin-top:4px">build 2026-07-30 22:07</div>
   </div>
   <div class="mode-tabs">
     <button class="mode-tab" id="modeSandboxTab" onclick="setMode('sandbox')" style="display:none">Sandbox</button>
@@ -845,7 +845,7 @@ let adjusted=[[],[]];
 // bioData is array of [name, birthYear, state, pos, college, draftYear, pick]
 // bioByName is name → index in bioData for fast lookup.
 let bioData=[],bioByName={};
-let currentMode="career";   // default landing tab — was "sandbox"
+let currentMode="blitz";    // default landing tab — Dream Team (was "career")
 let careerScreen="roster";  // "roster" | "boxscore" | "freeagents"
 let careerState=null;       // see initCareerState() for shape
 let pendingPickSlotIdx=null; // mystery-slot index awaiting roster choice
@@ -1199,16 +1199,16 @@ function processAll(){normalizeTeam(0);normalizeTeam(1);equalizePossessions();ap
     setTimeout(()=>{
       document.getElementById("loadScreen").style.display="none";
       document.getElementById("app").style.display="block";
-      // Defensive: force career mode visible at boot. The mode-tabs UI
-      // is hidden (sandbox is dormant) so setMode() never auto-fires —
-      // we belt-and-suspenders the display here to guard against any
-      // CSS rule that might still hide #careerMode.
+      // Land on the Dream Team game. setMode() handles every panel's
+      // display and paints the intro; Career still initialises lazily the
+      // first time its tab is clicked, so nothing about it changes.
       const cmEl=document.getElementById("careerMode");
-      if(cmEl)cmEl.style.display="block";
+      if(cmEl)cmEl.style.display="none";
       const smEl=document.getElementById("sandboxMode");
       if(smEl)smEl.style.display="none";
       const bmEl=document.getElementById("blitzMode");
-      if(bmEl)bmEl.style.display="none";
+      if(bmEl)bmEl.style.display="block";
+      try{ setMode("blitz"); }catch(e){ console.warn("setMode(blitz) failed:",e); }
 
       try{
         // Diagnostic dump — helps debug team-abbreviation mismatches that
@@ -2832,9 +2832,9 @@ function toggleDifficulty(){
 const DT_STORAGE_KEY = "bsl_dreamteam_v1";
 const DT_CARDS   = 30;
 const DT_SQUAD   = 12;
-const DT_BOARD   = 10;   // max clues visible at once
+const DT_VISIBLE = 10;   // cards on the board at once, out of the 30
+const DT_BOARD   = 10;   // max clues sitting out at once
 const DT_BUDGET  = 60;   // total clues for the whole game
-const DT_OPEN    = 5;    // clues already showing when you start
 const DT_SIM     = 82;
 
 /* The 1992 Olympic roster. Everyone at 1991-92 except Magic, who sat that
@@ -2989,20 +2989,28 @@ function dtStart() {
                rolledSeason: sc.display, rolledSeasonYear: sc.seasonYr, rolledTeam: sc.team,
                state: "open" };
     }),
+    // Only ten of the thirty are on the board. The rest wait in a queue and
+    // step forward one at a time as you resolve, so signing or cutting is
+    // also how you get to see anybody new.
+    visible: [], queue: [],
     cluesUsed: 0, picked: [], cut: [], done: false, result: null, lastClue: null,
   };
-  for (let i = 0; i < DT_OPEN; i++) dtSpendClue(true);
-  dtRender();
+  DT.visible = DT.cards.slice(0, DT_VISIBLE).map(c => c.id);
+  DT.queue   = DT.cards.slice(DT_VISIBLE).map(c => c.id);
+  dtRender();   // no opening clues -- the board starts blank
 }
 
-const dtBoardCount = () => DT.cards.reduce((n, c) =>
-  n + (c.state === "open" ? c.revealed.filter(Boolean).length : 0), 0);
+const dtCard = id => DT.cards.find(c => c.id === id);
+const dtVisibleCards = () => DT.visible.map(dtCard);
+const dtBoardCount = () => dtVisibleCards().reduce((n, c) => n + c.revealed.filter(Boolean).length, 0);
+const dtUnresolved = () => DT.cards.filter(c => c.state === "open").length;
 
 function dtSpendClue(free) {
   if (!DT || DT.done) return;
   if (!free && DT.cluesUsed >= DT_BUDGET) return;
   if (dtBoardCount() >= DT_BOARD) return;
-  const eligible = DT.cards.filter(c => c.state === "open" && c.revealed.some(r => !r));
+  // A clue can only land on a card you can actually see.
+  const eligible = dtVisibleCards().filter(c => c.revealed.some(r => !r));
   if (!eligible.length) return;
   const card = eligible[Math.floor(Math.random() * eligible.length)];
   const slots = card.revealed.map((r, i) => (r ? -1 : i)).filter(i => i >= 0);
@@ -3020,11 +3028,15 @@ function dtResolve(id, keep) {
   if (keep && DT.picked.length >= DT_SQUAD) return;
   card.state = keep ? "picked" : "cut";
   (keep ? DT.picked : DT.cut).push(card.name);
+  // Resolving clears that card's clues off the board and pulls the next
+  // unknown forward into its place.
+  DT.visible = DT.visible.filter(id => id !== card.id);
+  if (DT.queue.length) DT.visible.push(DT.queue.shift());
   // If cutting any further would make twelve impossible, everyone still
-  // open is signed automatically.
-  const openLeft = DT.cards.filter(c => c.state === "open").length;
-  if (DT.picked.length < DT_SQUAD && openLeft === DT_SQUAD - DT.picked.length) {
+  // unresolved is signed automatically.
+  if (DT.picked.length < DT_SQUAD && dtUnresolved() === DT_SQUAD - DT.picked.length) {
     DT.cards.filter(c => c.state === "open").forEach(c => { c.state = "picked"; DT.picked.push(c.name); });
+    DT.visible = []; DT.queue = [];
   }
   if (DT.picked.length >= DT_SQUAD) { dtFinish(); return; }
   dtRender();
@@ -3085,6 +3097,7 @@ function dtRender() {
     <div class="dt-bar">
       <div class="dt-stat"><b>${DT.picked.length}</b><span>/ ${DT_SQUAD} signed</span></div>
       <div class="dt-stat"><b>${DT.cut.length}</b><span>cut</span></div>
+      <div class="dt-stat"><b>${DT.queue.length}</b><span>still unseen</span></div>
       <div class="dt-stat ${full ? "warn" : ""}"><b>${board}</b><span>/ ${DT_BOARD} on board</span></div>
       <div class="dt-stat ${broke ? "warn" : ""}"><b>${DT_BUDGET - DT.cluesUsed}</b><span>clues left</span></div>
       <button class="dt-clue-btn" onclick="dtSpendClue(false)" ${full || broke ? "disabled" : ""}>
@@ -3093,8 +3106,8 @@ function dtRender() {
     </div>
     <div class="dt-hint">${full
       ? "Ten clues are out. Sign or cut a card to clear its clues and make room."
-      : "Clues land on a random card. Signing or cutting a card clears its clues from the board."}</div>
-    <div class="dt-grid">${DT.cards.map(dtCardHtml).join("")}</div>
+      : "Clues land on a random visible card. Resolving one clears its clues and brings the next unknown onto the board."}</div>
+    <div class="dt-grid">${dtVisibleCards().map(dtCardHtml).join("")}</div>
     <div class="dt-opp">
       <div class="dt-opp-head">You are playing</div>
       <div class="dt-opp-name">THE DREAM TEAM</div>
@@ -3135,7 +3148,8 @@ function dtShowIntro() {
     <div class="dt-intro-sub">Thirty unknown players. Sign twelve of them.</div>
     <ol class="dt-rules">
       <li>Thirty hidden candidates. You must sign <b>${DT_SQUAD}</b> and cut the rest.</li>
-      <li>A clue lands on a <b>random</b> card and reveals a <b>random</b> detail.</li>
+      <li>Only <b>${DT_VISIBLE}</b> of them are on the board. A new one appears each time you resolve a card.</li>
+      <li>A clue lands on a <b>random visible</b> card and reveals a <b>random</b> detail. You start with none.</li>
       <li>Only <b>${DT_BOARD}</b> clues can be on the board at once. Signing or cutting a card clears its clues.</li>
       <li>You get <b>${DT_BUDGET}</b> clues for the whole game. After that you keep resolving cards blind.</li>
       <li>Somewhere in the thirty is a twelve that beats the 1992 Dream Team. Find it.</li>
