@@ -483,59 +483,65 @@ body{background:linear-gradient(145deg,#1a1a3e 0%,#0a0a1a 50%,#ffffff 100%);back
 
 @media(max-width:600px){.logo-main{font-size:32px;letter-spacing:3px}.controls{padding:10px;gap:6px}.search-wrap{max-width:100%;flex:1 1 100%}.score-pts{font-size:40px}.scoreboard{gap:20px}.slots-grid{grid-template-columns:1fr 1fr}.roster-cards{grid-template-columns:1fr 1fr}.roster-cards-compact{grid-template-columns:1fr 1fr}.reveal-header{font-size:24px;letter-spacing:5px}.reveal-card-meta{grid-template-columns:1fr}}
 
-/* ── Blitz mode ── */
-#blitzMode{max-width:760px;margin:0 auto;padding:14px 12px 60px}
-.bf-top{display:flex;align-items:center;gap:14px;margin-bottom:14px}
-.bf-clock{font-size:2.6rem;font-weight:800;line-height:1;font-variant-numeric:tabular-nums;color:#fff;min-width:92px}
-.bf-clock span{font-size:1rem;font-weight:600;opacity:.5;margin-left:2px}
-.bf-clock.low{color:#e63946}
-.bf-clockbar{flex:1;height:6px;background:rgba(255,255,255,.1);border-radius:3px;overflow:hidden}
-.bf-clockfill{height:100%;background:#4a90e2;transition:width .95s linear}
-.bf-clockfill.low{background:#e63946}
-.bf-progress{font-size:.75rem;letter-spacing:.08em;text-transform:uppercase;opacity:.6;white-space:nowrap}
-.bf-slots{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-bottom:16px}
-.bf-slot{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.09);border-radius:8px;padding:8px 6px;min-height:56px;display:flex;flex-direction:column;justify-content:center;text-align:center}
-.bf-slot.filled{background:rgba(74,144,226,.13);border-color:rgba(74,144,226,.5)}
-.bf-slot-name{font-size:.78rem;font-weight:700;line-height:1.15}
-.bf-slot-sub{font-size:.6rem;opacity:.5;margin-top:3px}
-.bf-slot-empty{font-size:1.3rem;font-weight:800;opacity:.18}
-.bf-card{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);border-radius:12px;padding:16px}
-.bf-card-head{font-size:.7rem;letter-spacing:.14em;text-transform:uppercase;opacity:.55;margin-bottom:10px}
-.bf-clues{display:flex;flex-direction:column;gap:5px;margin-bottom:14px}
-.bf-clue{display:flex;align-items:baseline;gap:10px;padding:7px 10px;border-radius:6px;background:rgba(255,255,255,.03);min-height:34px;opacity:.32}
-.bf-clue.on{opacity:1;background:rgba(255,255,255,.08)}
-.bf-clue-l{font-size:.6rem;letter-spacing:.1em;text-transform:uppercase;opacity:.55;min-width:132px}
-.bf-clue-v{font-size:1rem;font-weight:700}
-.bf-actions{display:flex;gap:10px}
-.bf-btn{flex:1;font-family:inherit;font-size:.9rem;font-weight:800;letter-spacing:.08em;padding:14px;border:none;border-radius:8px;cursor:pointer}
-.bf-keep{background:#4a90e2;color:#fff}
-.bf-pass{background:rgba(255,255,255,.09);color:#fff}
-.bf-keep:hover{background:#3d7fcc}.bf-pass:hover{background:rgba(255,255,255,.16)}
-.bf-hint{font-size:.68rem;opacity:.45;margin-top:9px;text-align:center}
-.bf-opp{margin-top:16px;padding:12px 14px;background:rgba(230,57,70,.08);border:1px solid rgba(230,57,70,.28);border-radius:10px}
-.bf-opp-head{font-size:.62rem;letter-spacing:.14em;text-transform:uppercase;opacity:.7;margin-bottom:6px}
-.bf-opp-list{display:flex;flex-wrap:wrap;gap:6px}
-.bf-opp-list span{font-size:.74rem;font-weight:600;background:rgba(255,255,255,.07);padding:3px 8px;border-radius:5px}
-.bf-intro{text-align:center;padding:26px 16px}
-.bf-intro-title{font-size:2.6rem;font-weight:900;letter-spacing:-.02em}
-.bf-intro-sub{opacity:.65;margin:6px 0 20px}
-.bf-rules{text-align:left;max-width:520px;margin:0 auto 22px;font-size:.85rem;line-height:1.6;opacity:.85;padding-left:20px}
-.bf-rules li{margin-bottom:5px}
-.bf-again{max-width:300px;margin:0 auto;display:block}
-.bf-result{text-align:center;padding:16px 6px}
-.bf-verdict{font-size:.72rem;letter-spacing:.18em;text-transform:uppercase;opacity:.55}
-.bf-record{font-size:3.4rem;font-weight:900;line-height:1.05;font-variant-numeric:tabular-nums}
-.bf-record span{opacity:.3;margin:0 4px}
-.bf-sub{font-size:.8rem;opacity:.7;margin-bottom:22px}
-.bf-warn{color:#e63946}
-.bf-cols{display:grid;grid-template-columns:1fr 1fr;gap:16px;text-align:left;margin-bottom:20px}
-.bf-col-head{font-size:.62rem;letter-spacing:.12em;text-transform:uppercase;opacity:.55;margin-bottom:7px}
-.bf-row{font-size:.82rem;font-weight:600;padding:5px 8px;background:rgba(255,255,255,.04);border-radius:5px;margin-bottom:4px;display:flex;justify-content:space-between}
-.bf-row span{opacity:.45;font-weight:500;font-size:.68rem}
-.bf-row.got{background:rgba(74,144,226,.2)}
-.bf-bestpct{font-size:.72rem;opacity:.6;margin-top:6px;padding-left:8px}
-.bf-best{font-size:.78rem;opacity:.7;margin-bottom:14px}
-@media(max-width:560px){.bf-cols{grid-template-columns:1fr}.bf-clue-l{min-width:104px}.bf-slot-name{font-size:.66rem}}
+/* ── Dream Team mode ── */
+#blitzMode{max-width:1180px;margin:0 auto;padding:12px 12px 60px}
+.dt-bar{display:flex;align-items:center;gap:18px;flex-wrap:wrap;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:11px 14px;margin-bottom:8px;position:sticky;top:0;z-index:30;backdrop-filter:blur(8px)}
+.dt-stat{display:flex;align-items:baseline;gap:5px}
+.dt-stat b{font-size:1.45rem;font-weight:800;font-variant-numeric:tabular-nums}
+.dt-stat span{font-size:.66rem;letter-spacing:.07em;text-transform:uppercase;opacity:.55}
+.dt-stat.warn b{color:#e63946}
+.dt-clue-btn{margin-left:auto;font-family:inherit;font-size:.78rem;font-weight:800;letter-spacing:.07em;padding:11px 18px;border:none;border-radius:8px;background:#4a90e2;color:#fff;cursor:pointer}
+.dt-clue-btn:hover:not(:disabled){background:#3d7fcc}
+.dt-clue-btn:disabled{background:rgba(255,255,255,.09);color:rgba(255,255,255,.45);cursor:not-allowed}
+.dt-hint{font-size:.7rem;opacity:.5;margin-bottom:12px;text-align:center}
+.dt-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(196px,1fr));gap:8px}
+.dt-card{background:rgba(255,255,255,.045);border:1px solid rgba(255,255,255,.1);border-radius:9px;padding:9px;display:flex;flex-direction:column;min-height:112px}
+.dt-card.known{background:rgba(255,255,255,.075);border-color:rgba(255,255,255,.2)}
+.dt-card.hot{border-color:#4a90e2;box-shadow:0 0 0 2px rgba(74,144,226,.3)}
+.dt-card.picked{background:rgba(74,144,226,.16);border-color:rgba(74,144,226,.55);min-height:0}
+.dt-card.cut{background:rgba(255,255,255,.02);border-color:rgba(255,255,255,.06);opacity:.4;min-height:0}
+.dt-card-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+.dt-num{font-size:.62rem;font-weight:700;opacity:.35}
+.dt-tag{font-size:.56rem;font-weight:800;letter-spacing:.1em;opacity:.75}
+.dt-dots{display:flex;gap:3px}
+.dt-dots i{width:5px;height:5px;border-radius:50%;background:rgba(255,255,255,.16);display:block}
+.dt-dots i.on{background:#4a90e2}
+.dt-clues{flex:1;display:flex;flex-direction:column;gap:3px;margin-bottom:7px}
+.dt-clue{display:flex;flex-direction:column;line-height:1.2}
+.dt-clue span{font-size:.53rem;letter-spacing:.08em;text-transform:uppercase;opacity:.5}
+.dt-clue b{font-size:.8rem;font-weight:700}
+.dt-blank{font-size:.66rem;opacity:.28;font-style:italic;padding:6px 0}
+.dt-name{font-size:.82rem;font-weight:700}
+.dt-btns{display:flex;gap:5px}
+.dt-b{flex:1;font-family:inherit;font-size:.64rem;font-weight:800;letter-spacing:.06em;padding:7px;border:none;border-radius:5px;cursor:pointer}
+.dt-sign{background:rgba(74,144,226,.85);color:#fff}
+.dt-cut{background:rgba(255,255,255,.09);color:rgba(255,255,255,.8)}
+.dt-sign:hover{background:#4a90e2}.dt-cut:hover{background:rgba(230,57,70,.55);color:#fff}
+.dt-opp{margin-top:18px;padding:13px 15px;background:rgba(230,57,70,.08);border:1px solid rgba(230,57,70,.3);border-radius:10px}
+.dt-opp-head{font-size:.6rem;letter-spacing:.14em;text-transform:uppercase;opacity:.6}
+.dt-opp-name{font-size:1.05rem;font-weight:900;letter-spacing:.03em;margin:2px 0 8px}
+.dt-opp-list{display:flex;flex-wrap:wrap;gap:5px}
+.dt-opp-list span{font-size:.7rem;font-weight:600;background:rgba(255,255,255,.07);padding:3px 8px;border-radius:5px}
+.dt-opp-list i{font-style:normal;opacity:.45;margin-left:5px;font-size:.62rem}
+.dt-intro{text-align:center;padding:28px 16px}
+.dt-intro-title{font-size:2.3rem;font-weight:900;letter-spacing:-.02em;line-height:1.05}
+.dt-intro-sub{opacity:.65;margin:8px 0 20px}
+.dt-rules{text-align:left;max-width:540px;margin:0 auto 22px;font-size:.85rem;line-height:1.6;opacity:.85;padding-left:20px}
+.dt-rules li{margin-bottom:6px}
+.dt-again{max-width:300px;margin:0 auto;display:block;font-size:.85rem;padding:14px;background:#4a90e2;color:#fff}
+.dt-result{text-align:center;padding:18px 6px;max-width:760px;margin:0 auto}
+.dt-verdict{font-size:.72rem;letter-spacing:.18em;text-transform:uppercase;opacity:.6}
+.dt-verdict.win{color:#4ade80;opacity:1}.dt-verdict.loss{color:#e63946;opacity:1}
+.dt-record{font-size:3.4rem;font-weight:900;line-height:1.05;font-variant-numeric:tabular-nums}
+.dt-record span{opacity:.3;margin:0 4px}
+.dt-sub{font-size:.78rem;opacity:.7;margin-bottom:22px}
+.dt-cols{display:grid;grid-template-columns:1fr 1fr;gap:16px;text-align:left;margin-bottom:18px}
+.dt-col-head{font-size:.6rem;letter-spacing:.12em;text-transform:uppercase;opacity:.55;margin-bottom:7px}
+.dt-row{font-size:.78rem;font-weight:600;padding:4px 8px;background:rgba(255,255,255,.04);border-radius:5px;margin-bottom:3px}
+.dt-row.got{background:rgba(74,144,226,.22)}
+.dt-bestpct{font-size:.7rem;opacity:.6;margin-top:6px;padding-left:8px}
+.dt-best{font-size:.78rem;opacity:.7;margin-bottom:14px}
+@media(max-width:640px){.dt-cols{grid-template-columns:1fr}.dt-grid{grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}}
 </style>
 </head>
 <body>
@@ -555,7 +561,7 @@ body{background:linear-gradient(145deg,#1a1a3e 0%,#0a0a1a 50%,#ffffff 100%);back
   <div class="mode-tabs" style="display:none">
     <button class="mode-tab" id="modeSandboxTab" onclick="setMode('sandbox')">Sandbox</button>
     <button class="mode-tab active" id="modeCareerTab" onclick="setMode('career')">Career</button>
-    <button class="mode-tab" id="modeBlitzTab" onclick="setMode('blitz')">Blitz</button>
+    <button class="mode-tab" id="modeBlitzTab" onclick="setMode('blitz')">Dream Team</button>
   </div>
 
   <!-- =========== SANDBOX MODE =========== -->
@@ -2801,154 +2807,91 @@ function toggleDifficulty(){
 
 // --- Mode toggle -------------------------------------------------------
 /* ═══════════════════════════════════════════════════════════════════
-   BLITZ MODE — a 75-second draft.
+   DREAM TEAM MODE — a 30-card deduction draft.
 
-   The clock is the only currency. Clues surface one at a time while it
-   runs, so information always costs you something without there being an
-   economy to explain. PASS is self-balancing: it throws away every clue
-   you have already paid for and restarts the reveal from nothing, so it
-   needs no penalty of its own.
+   Thirty hidden candidates, twelve of which you must sign. Clues land on
+   a random card and reveal a random unknown field, so you cannot probe a
+   specific player: information arrives scattered and you decide who to
+   commit to on partial evidence.
 
-   Nothing here touches Sandbox or Career. State lives in BF, storage in
-   its own key, and the only shared machinery is read-only: bio lookups,
-   rollSeasonClue, clueValueFor, normalizeTeam and av.
+   The squeeze is the board cap. Only ten clues can sit out at once, and
+   they only clear when you resolve the card they belong to — so a card
+   that has attracted three clues is occupying a third of your working
+   memory and pressures you to make a call on it.
+
+   The pool is generated so that SOME twelve of the thirty beat the Dream
+   Team, but a random twelve do not. Finding that twelve is the game.
+
+   Read-only reuse from the base game: bio lookups, clueValueFor,
+   rollSeasonClue, formatSeasonYear, normalizeTeam, av, rawG.
    ═══════════════════════════════════════════════════════════════════ */
 
-const BF_STORAGE_KEY = "bsl_blitz_v1";
-const BF_CLOCK       = 75;   // seconds for the whole draft
-const BF_CLUE_EVERY  = 3;    // seconds between clue reveals
-const BF_SLOTS       = 5;
-const BF_SIM_GAMES   = 82;
+const DT_STORAGE_KEY = "bsl_dreamteam_v1";
+const DT_CARDS   = 30;
+const DT_SQUAD   = 12;
+const DT_BOARD   = 10;   // max clues visible at once
+const DT_BUDGET  = 60;   // total clues for the whole game
+const DT_OPEN    = 5;    // clues already showing when you start
+const DT_SIM     = 82;
 
-let BF = null;
-let bfTimer = null;
+/* The 1992 Olympic roster. Everyone at 1991-92 except Magic, who sat that
+   season out, and Laettner, who was still at Duke. */
+const DREAM_TEAM = [
+  ["Michael Jordan", "1991-92"], ["Magic Johnson", "1990-91"],
+  ["Larry Bird", "1991-92"],     ["Charles Barkley", "1991-92"],
+  ["Patrick Ewing", "1991-92"],  ["Scottie Pippen", "1991-92"],
+  ["Karl Malone", "1991-92"],    ["John Stockton", "1991-92"],
+  ["David Robinson", "1991-92"], ["Chris Mullin", "1991-92"],
+  ["Clyde Drexler", "1991-92"],  ["Christian Laettner", "1992-93"],
+];
+const DT_ALIASES = {
+  "Magic Johnson": ["Earvin Johnson", "Earvin Magic Johnson", "Earvin Johnson Jr."],
+  "Michael Jordan": ["Michael Jeffrey Jordan"],
+};
 
-/* Deterministic per-day randomness, so everyone gets the same challenger
-   and the same sequence of players on a given date. */
-function bfSeedForToday() {
-  const d = new Date();
-  const key = d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate();
-  return key >>> 0;
-}
-function bfRng(seed) {
-  let a = seed >>> 0;
-  return () => {
-    a = (a + 0x6D2B79F5) | 0;
-    let t = Math.imul(a ^ (a >>> 15), 1 | a);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-function bfPick(rng, arr) { return arr[Math.floor(rng() * arr.length)]; }
+let DT = null;
 
-function bfPool() {
-  return bioEligibleNames().filter(n => playerHasPlayableGames(n) && (playerIndex[n] || []).length >= 3);
-}
-
-/* Today's challenger: five All-Star-or-better players, drawn from the
-   daily seed so the target is identical for everyone. */
-function bfBuildChallenger(rng) {
-  const elite = bfPool().filter(n => {
-    const bi = bioByName[n];
-    return bi != null && ((bioData[bi][8] || 0) & 8) !== 0;
-  });
-  const src = elite.length >= 40 ? elite : bfPool();
-  const picked = [], seen = new Set();
-  let guard = 0;
-  while (picked.length < BF_SLOTS && guard++ < 500) {
-    const n = bfPick(rng, src);
-    if (seen.has(n)) continue;
-    seen.add(n); picked.push(n);
-  }
-  return picked;
+function dtResolveName(want) {
+  if (playerIndex[want]) return want;
+  for (const alt of (DT_ALIASES[want] || [])) if (playerIndex[alt]) return alt;
+  const lower = want.toLowerCase();
+  const hit = Object.keys(playerIndex).find(n => n.toLowerCase() === lower);
+  if (hit) return hit;
+  const last = want.split(" ").pop().toLowerCase();
+  return Object.keys(playerIndex).find(n => n.toLowerCase().endsWith(" " + last)) || null;
 }
 
-function bfNewDeal() {
-  const used = new Set([...BF.kept.map(k => k.name), ...BF.challenger]);
-  const src = BF.pool.filter(n => !used.has(n));
-  const name = bfPick(BF.rng, src.length ? src : BF.pool);
-  const sc = rollSeasonClue(name);
-  BF.seenNames.push(name);
-  return {
-    name, revealed: 0,
-    order: [0, 1, 2, 3, 4],   // fixed order: geography first, identity last
-    rolledSeason: sc.display, rolledSeasonYear: sc.seasonYr, rolledTeam: sc.team,
-    dealtAt: BF.remaining,
-  };
+/* Games for a player in one specific season. Falls back to their whole
+   career if that season is missing from the data, and says so. */
+function dtSeasonGames(name, season) {
+  const real = dtResolveName(name);
+  if (!real) { DT_MISSING.push(name + " (not in data)"); return []; }
+  const all = (playerIndex[real] || []).filter(isPlayableGame);
+  const yr = all.filter(g => formatSeasonYear(g[G.SY]) === season);
+  if (yr.length) return yr;
+  DT_MISSING.push(name + " " + season + " (using career)");
+  return all;
+}
+let DT_MISSING = [];
+
+function dtBuildOpponent() {
+  DT_MISSING = [];
+  return DREAM_TEAM.map(([n, s]) => ({ name: n, games: dtSeasonGames(n, s), season: s }))
+                   .filter(p => p.games.length);
 }
 
-function bfStart() {
-  const seed = bfSeedForToday();
-  BF = {
-    rng: bfRng(seed), seed,
-    pool: bfPool(),
-    challenger: bfBuildChallenger(bfRng(seed ^ 0x5f3759df)),
-    kept: [], current: null, seenNames: [],
-    remaining: BF_CLOCK, nextClueAt: BF_CLOCK - BF_CLUE_EVERY,
-    running: true, done: false, result: null,
-  };
-  BF.current = bfNewDeal();
-  bfRender();
-  clearInterval(bfTimer);
-  bfTimer = setInterval(bfTick, 1000);
-}
+/* ── simulation ─────────────────────────────────────────────── */
+function dtRollFrom(games) { return games[Math.floor(Math.random() * games.length)]; }
 
-function bfTick() {
-  if (!BF || !BF.running) return;
-  BF.remaining--;
-  if (BF.current && BF.remaining <= BF.nextClueAt && BF.current.revealed < 5) {
-    BF.current.revealed++;
-    BF.nextClueAt = BF.remaining - BF_CLUE_EVERY;
-  }
-  if (BF.remaining <= 0) { BF.remaining = 0; bfFinish(true); return; }
-  bfRender();
-}
-
-function bfKeep() {
-  if (!BF || !BF.running || !BF.current) return;
-  BF.kept.push({ ...BF.current, keptWith: BF.current.revealed });
-  if (BF.kept.length >= BF_SLOTS) { bfFinish(false); return; }
-  BF.current = bfNewDeal();
-  BF.nextClueAt = BF.remaining - BF_CLUE_EVERY;
-  bfRender();
-}
-function bfPass() {
-  if (!BF || !BF.running || !BF.current) return;
-  BF.current = bfNewDeal();
-  BF.nextClueAt = BF.remaining - BF_CLUE_EVERY;
-  bfRender();
-}
-
-/* Ran out of time: whatever is still empty gets filled blind. That is the
-   penalty for lingering, and it guarantees the run always resolves. */
-function bfFinish(ranOut) {
-  BF.running = false;
-  clearInterval(bfTimer);
-  while (BF.kept.length < BF_SLOTS) {
-    BF.kept.push({ ...bfNewDeal(), keptWith: 0, forced: true });
-  }
-  BF.done = true;
-  BF.result = bfSimulate(BF.kept.map(k => k.name), BF.challenger);
-  BF.result.ranOut = ranOut;
-  BF.result.timeLeft = BF.remaining;
-  BF.result.best = bfBestPossible();
-  bfSaveBest();
-  bfRender();
-}
-
-/* Re-rolls a fresh box score for every player each game, so the answer is
-   a win rate over a season rather than one lucky night. */
-function bfSimulate(namesA, namesB) {
-  const roll = n => {
-    const gs = (playerIndex[n] || []).filter(isPlayableGame);
-    return gs.length ? gs[Math.floor(Math.random() * gs.length)] : null;
-  };
-  const savedTeams = teams, savedAdj = adjusted;
+function dtSim(squadNames, opp, nGames) {
+  const savedT = teams, savedA = adjusted;
   let wins = 0, ptsA = 0, ptsB = 0;
-  for (let g = 0; g < BF_SIM_GAMES; g++) {
-    const tA = namesA.map(n => ({ name: n, game: roll(n) })).filter(p => p.game);
-    const tB = namesB.map(n => ({ name: n, game: roll(n) })).filter(p => p.game);
-    if (tA.length < 3 || tB.length < 3) continue;
+  const pool = squadNames.map(n => ({ name: n, games: (playerIndex[n] || []).filter(isPlayableGame) }))
+                         .filter(p => p.games.length);
+  for (let g = 0; g < nGames; g++) {
+    const tA = pool.map(p => ({ name: p.name, game: dtRollFrom(p.games) }));
+    const tB = opp.map(p => ({ name: p.name, game: dtRollFrom(p.games) }));
+    if (tA.length < 5 || tB.length < 5) continue;
     teams = [tA, tB]; adjusted = [[], []];
     normalizeTeam(0); normalizeTeam(1);
     let a = 0, b = 0;
@@ -2959,159 +2902,245 @@ function bfSimulate(namesA, namesB) {
     ptsA += a; ptsB += b;
     if (a > b) wins++;
   }
-  teams = savedTeams; adjusted = savedAdj;
-  return {
-    wins, losses: BF_SIM_GAMES - wins,
-    pct: wins / BF_SIM_GAMES,
-    ppgA: (ptsA / BF_SIM_GAMES).toFixed(1),
-    ppgB: (ptsB / BF_SIM_GAMES).toFixed(1),
+  teams = savedT; adjusted = savedA;
+  return { wins, losses: nGames - wins, pct: wins / nGames,
+           ppgA: (ptsA / nGames).toFixed(1), ppgB: (ptsB / nGames).toFixed(1) };
+}
+
+/* Cheap per-36 production score, used only to rank a pool internally. */
+function dtQuality(name) {
+  const gs = (playerIndex[name] || []).filter(isPlayableGame);
+  if (!gs.length) return -1;
+  let s = 0; const n = Math.min(gs.length, 25);
+  for (let i = 0; i < n; i++) {
+    const g = gs[Math.floor(Math.random() * gs.length)];
+    const mn = Math.max(rawG(g, "MIN"), 1);
+    s += (rawG(g, "PTS") + 0.7 * rawG(g, "REB") + 0.9 * rawG(g, "AST")
+          + 1.2 * rawG(g, "STL") + 1.2 * rawG(g, "BLK") - 0.8 * rawG(g, "TOV")) * (36 / mn);
+  }
+  return s / n;
+}
+
+/* Build a pool where the best twelve win but an average twelve do not.
+   Without the second condition any thirty good players would do and the
+   deduction would not matter. */
+function dtBuildPool(rng, opp) {
+  const excluded = new Set(DREAM_TEAM.map(d => dtResolveName(d[0])).filter(Boolean));
+  const src = bioEligibleNames().filter(n =>
+    !excluded.has(n) && playerHasPlayableGames(n) && (playerIndex[n] || []).length >= 8);
+  for (let attempt = 0; attempt < 40; attempt++) {
+    const picked = [], seen = new Set();
+    let guard = 0;
+    while (picked.length < DT_CARDS && guard++ < 2000) {
+      const n = src[Math.floor(rng() * src.length)];
+      if (seen.has(n)) continue;
+      seen.add(n); picked.push(n);
+    }
+    if (picked.length < DT_CARDS) continue;
+    const ranked = picked.slice().sort((a, b) => dtQuality(b) - dtQuality(a));
+    const best = ranked.slice(0, DT_SQUAD);
+    const mid  = ranked.slice(9, 9 + DT_SQUAD);
+    const bestPct = dtSim(best, opp, 31).pct;
+    if (bestPct < 0.55) continue;              // must be winnable
+    const midPct = dtSim(mid, opp, 31).pct;
+    if (midPct > 0.45) continue;               // must not be a gimme
+    return { names: picked, best, bestPct };
+  }
+  // Nothing satisfied both bounds — take the strongest draw we can and
+  // let the player have a hard day rather than failing to start.
+  const fallback = [], seen = new Set();
+  let guard = 0;
+  while (fallback.length < DT_CARDS && guard++ < 2000) {
+    const n = src[Math.floor(rng() * src.length)];
+    if (!seen.has(n)) { seen.add(n); fallback.push(n); }
+  }
+  const ranked = fallback.slice().sort((a, b) => dtQuality(b) - dtQuality(a));
+  return { names: fallback, best: ranked.slice(0, DT_SQUAD), bestPct: null };
+}
+
+/* ── game state ─────────────────────────────────────────────── */
+function dtSeedToday() {
+  const d = new Date();
+  return (d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate()) >>> 0;
+}
+function dtRng(seed) {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 }
 
-/* The 73-9 kicker: every player dealt is known, so the best five that were
-   ever on the table is computable. Scored on a cheap 12-game sample per
-   candidate to keep it instant. */
-function bfBestPossible() {
-  const scored = [...new Set(BF.seenNames)].map(n => {
-    const gs = (playerIndex[n] || []).filter(isPlayableGame);
-    if (!gs.length) return { name: n, v: -1 };
-    let s = 0;
-    for (let i = 0; i < 12; i++) {
-      const g = gs[Math.floor(Math.random() * gs.length)];
-      const mn = Math.max(rawG(g, "MIN"), 1);
-      s += (rawG(g, "PTS") + 0.7 * rawG(g, "REB") + 0.9 * rawG(g, "AST")) * (36 / mn);
-    }
-    return { name: n, v: s / 12 };
-  }).sort((a, b) => b.v - a.v).slice(0, BF_SLOTS);
-  const res = bfSimulate(scored.map(s => s.name), BF.challenger);
-  return { names: scored.map(s => s.name), pct: res.pct, wins: res.wins };
+function dtStart() {
+  const seed = dtSeedToday();
+  const rng = dtRng(seed);
+  const opp = dtBuildOpponent();
+  const pool = dtBuildPool(rng, opp);
+  DT = {
+    seed, rng, opp, bestPossible: pool.best, bestPct: pool.bestPct,
+    cards: pool.names.map((n, i) => {
+      const sc = rollSeasonClue(n);
+      return { id: i, name: n, revealed: [false, false, false, false, false],
+               rolledSeason: sc.display, rolledSeasonYear: sc.seasonYr, rolledTeam: sc.team,
+               state: "open" };
+    }),
+    cluesUsed: 0, picked: [], cut: [], done: false, result: null, lastClue: null,
+  };
+  for (let i = 0; i < DT_OPEN; i++) dtSpendClue(true);
+  dtRender();
 }
 
-function bfSaveBest() {
+const dtBoardCount = () => DT.cards.reduce((n, c) =>
+  n + (c.state === "open" ? c.revealed.filter(Boolean).length : 0), 0);
+
+function dtSpendClue(free) {
+  if (!DT || DT.done) return;
+  if (!free && DT.cluesUsed >= DT_BUDGET) return;
+  if (dtBoardCount() >= DT_BOARD) return;
+  const eligible = DT.cards.filter(c => c.state === "open" && c.revealed.some(r => !r));
+  if (!eligible.length) return;
+  const card = eligible[Math.floor(Math.random() * eligible.length)];
+  const slots = card.revealed.map((r, i) => (r ? -1 : i)).filter(i => i >= 0);
+  const which = slots[Math.floor(Math.random() * slots.length)];
+  card.revealed[which] = true;
+  if (!free) DT.cluesUsed++;
+  DT.lastClue = { card: card.id, clue: which };
+  if (!free) dtRender();
+}
+
+function dtResolve(id, keep) {
+  if (!DT || DT.done) return;
+  const card = DT.cards.find(c => c.id === id);
+  if (!card || card.state !== "open") return;
+  if (keep && DT.picked.length >= DT_SQUAD) return;
+  card.state = keep ? "picked" : "cut";
+  (keep ? DT.picked : DT.cut).push(card.name);
+  // If cutting any further would make twelve impossible, everyone still
+  // open is signed automatically.
+  const openLeft = DT.cards.filter(c => c.state === "open").length;
+  if (DT.picked.length < DT_SQUAD && openLeft === DT_SQUAD - DT.picked.length) {
+    DT.cards.filter(c => c.state === "open").forEach(c => { c.state = "picked"; DT.picked.push(c.name); });
+  }
+  if (DT.picked.length >= DT_SQUAD) { dtFinish(); return; }
+  dtRender();
+}
+
+function dtFinish() {
+  DT.done = true;
+  DT.result = dtSim(DT.picked, DT.opp, DT_SIM);
+  DT.result.best = dtSim(DT.bestPossible, DT.opp, DT_SIM);
   try {
-    const prev = JSON.parse(localStorage.getItem(BF_STORAGE_KEY) || "null");
-    const rec = { seed: BF.seed, wins: BF.result.wins, timeLeft: BF.result.timeLeft,
-                  names: BF.kept.map(k => k.name), at: new Date().toISOString() };
-    if (!prev || prev.seed !== BF.seed || rec.wins > prev.wins ||
-        (rec.wins === prev.wins && rec.timeLeft > prev.timeLeft)) {
-      localStorage.setItem(BF_STORAGE_KEY, JSON.stringify(rec));
-    }
+    const prev = JSON.parse(localStorage.getItem(DT_STORAGE_KEY) || "null");
+    const rec = { seed: DT.seed, wins: DT.result.wins, clues: DT.cluesUsed,
+                  names: DT.picked.slice() };
+    if (!prev || prev.seed !== DT.seed || rec.wins > prev.wins)
+      localStorage.setItem(DT_STORAGE_KEY, JSON.stringify(rec));
   } catch (e) {}
+  dtRender();
 }
-function bfLoadBest() {
-  try { return JSON.parse(localStorage.getItem(BF_STORAGE_KEY) || "null"); } catch (e) { return null; }
+function dtLoadBest() {
+  try { return JSON.parse(localStorage.getItem(DT_STORAGE_KEY) || "null"); } catch (e) { return null; }
 }
 
-/* Blitz rendering — kept separate from the logic above for clarity. */
+/* Dream Team mode — rendering. */
 
-function bfClueRow(slot, i, revealed) {
-  const bi = bioByName[slot.name];
+function dtCardHtml(c) {
+  const bi = bioByName[c.name];
   const player = bi != null ? bioData[bi] : null;
-  const shown = i < revealed;
-  const val = (shown && player) ? clueValueFor(player, slot.order[i], slot) : "";
-  return `<div class="bf-clue ${shown ? "on" : ""}">
-    <span class="bf-clue-l">${CLUE_LABELS[slot.order[i]]}</span>
-    <span class="bf-clue-v">${shown ? val : "&nbsp;"}</span>
+  const shown = c.revealed.filter(Boolean).length;
+  const clues = c.revealed.map((on, i) => on && player
+    ? `<div class="dt-clue"><span>${CLUE_LABELS[i]}</span><b>${clueValueFor(player, i, c)}</b></div>`
+    : "").join("");
+  const hot = DT.lastClue && DT.lastClue.card === c.id;
+  if (c.state !== "open") {
+    return `<div class="dt-card ${c.state}">
+      <div class="dt-card-top"><span class="dt-num">${c.id + 1}</span>
+        <span class="dt-tag">${c.state === "picked" ? "SIGNED" : "CUT"}</span></div>
+      <div class="dt-name">${c.name}</div></div>`;
+  }
+  return `<div class="dt-card ${hot ? "hot" : ""} ${shown ? "known" : ""}">
+    <div class="dt-card-top"><span class="dt-num">${c.id + 1}</span>
+      <span class="dt-dots">${c.revealed.map(r => `<i class="${r ? "on" : ""}"></i>`).join("")}</span></div>
+    <div class="dt-clues">${clues || '<div class="dt-blank">no information</div>'}</div>
+    <div class="dt-btns">
+      <button class="dt-b dt-sign" onclick="dtResolve(${c.id},true)">SIGN</button>
+      <button class="dt-b dt-cut" onclick="dtResolve(${c.id},false)">CUT</button>
+    </div></div>`;
+}
+
+function dtRender() {
+  const el = document.getElementById("blitzMode");
+  if (!el || !DT) return;
+  if (DT.done) { el.innerHTML = dtResultHtml(); return; }
+
+  const board = dtBoardCount();
+  const full = board >= DT_BOARD;
+  const broke = DT.cluesUsed >= DT_BUDGET;
+  el.innerHTML = `
+    <div class="dt-bar">
+      <div class="dt-stat"><b>${DT.picked.length}</b><span>/ ${DT_SQUAD} signed</span></div>
+      <div class="dt-stat"><b>${DT.cut.length}</b><span>cut</span></div>
+      <div class="dt-stat ${full ? "warn" : ""}"><b>${board}</b><span>/ ${DT_BOARD} on board</span></div>
+      <div class="dt-stat ${broke ? "warn" : ""}"><b>${DT_BUDGET - DT.cluesUsed}</b><span>clues left</span></div>
+      <button class="dt-clue-btn" onclick="dtSpendClue(false)" ${full || broke ? "disabled" : ""}>
+        ${broke ? "NO CLUES LEFT" : full ? "BOARD FULL — RESOLVE A CARD" : "REVEAL A CLUE"}
+      </button>
+    </div>
+    <div class="dt-hint">${full
+      ? "Ten clues are out. Sign or cut a card to clear its clues and make room."
+      : "Clues land on a random card. Signing or cutting a card clears its clues from the board."}</div>
+    <div class="dt-grid">${DT.cards.map(dtCardHtml).join("")}</div>
+    <div class="dt-opp">
+      <div class="dt-opp-head">You are playing</div>
+      <div class="dt-opp-name">THE DREAM TEAM</div>
+      <div class="dt-opp-list">${DT.opp.map(p =>
+        `<span>${p.name}<i>${p.season}</i></span>`).join("")}</div>
+    </div>`;
+}
+
+function dtResultHtml() {
+  const r = DT.result, b = r.best;
+  const won = r.wins > DT_SIM / 2;
+  const best = dtLoadBest();
+  return `<div class="dt-result">
+    <div class="dt-verdict ${won ? "win" : "loss"}">${won ? "YOU BEAT THE DREAM TEAM" : "THE DREAM TEAM HELD"}</div>
+    <div class="dt-record">${r.wins}<span>–</span>${r.losses}</div>
+    <div class="dt-sub">${(r.pct * 100).toFixed(1)}% over ${DT_SIM} games
+      &nbsp;·&nbsp; ${r.ppgA} to ${r.ppgB} per game
+      &nbsp;·&nbsp; ${DT.cluesUsed} of ${DT_BUDGET} clues used</div>
+    <div class="dt-cols">
+      <div><div class="dt-col-head">Your twelve</div>
+        ${DT.picked.map(n => `<div class="dt-row">${n}</div>`).join("")}</div>
+      <div><div class="dt-col-head">The best twelve in the pool</div>
+        ${DT.bestPossible.map(n => `<div class="dt-row ${DT.picked.includes(n) ? "got" : ""}">${n}</div>`).join("")}
+        <div class="dt-bestpct">${b.wins}–${b.losses} (${(b.pct * 100).toFixed(1)}%)</div></div>
+    </div>
+    ${best && best.seed === DT.seed ? `<div class="dt-best">Your best today: ${best.wins} wins</div>` : ""}
+    <button class="dt-b dt-again" onclick="dtStart()">NEW POOL</button>
   </div>`;
 }
 
-function bfRender() {
-  const el = document.getElementById("blitzMode");
-  if (!el || !BF) return;
-
-  if (BF.done) { el.innerHTML = bfResultHtml(); return; }
-
-  const pctLeft = Math.max(0, BF.remaining / BF_CLOCK) * 100;
-  const low = BF.remaining <= 15;
-  const c = BF.current;
-
-  el.innerHTML = `
-    <div class="bf-top">
-      <div class="bf-clock ${low ? "low" : ""}">${BF.remaining}<span>s</span></div>
-      <div class="bf-clockbar"><div class="bf-clockfill ${low ? "low" : ""}" style="width:${pctLeft}%"></div></div>
-      <div class="bf-progress">${BF.kept.length} / ${BF_SLOTS} signed</div>
-    </div>
-
-    <div class="bf-slots">
-      ${Array.from({ length: BF_SLOTS }, (_, i) => {
-        const k = BF.kept[i];
-        return `<div class="bf-slot ${k ? "filled" : ""}">
-          ${k ? `<div class="bf-slot-name">${k.name}</div>
-                 <div class="bf-slot-sub">${k.forced ? "forced" : k.keptWith + "/5 clues"}</div>`
-              : `<div class="bf-slot-empty">${i + 1}</div>`}
-        </div>`;
-      }).join("")}
-    </div>
-
-    <div class="bf-card">
-      <div class="bf-card-head">On the clock</div>
-      <div class="bf-clues">
-        ${[0, 1, 2, 3, 4].map(i => bfClueRow(c, i, c.revealed)).join("")}
-      </div>
-      <div class="bf-actions">
-        <button class="bf-btn bf-keep" onclick="bfKeep()">SIGN</button>
-        <button class="bf-btn bf-pass" onclick="bfPass()">PASS</button>
-      </div>
-      <div class="bf-hint">Passing deals a new player and starts the clues over.</div>
-    </div>
-
-    <div class="bf-opp">
-      <div class="bf-opp-head">Today's challenger</div>
-      <div class="bf-opp-list">${BF.challenger.map(n => `<span>${n}</span>`).join("")}</div>
-    </div>`;
-}
-
-function bfResultHtml() {
-  const r = BF.result;
-  const best = bfLoadBest();
-  const verdict = r.wins >= 42 ? "WINNING RECORD" : r.wins >= 30 ? "RESPECTABLE" : "ROUGH SEASON";
-  return `
-    <div class="bf-result">
-      <div class="bf-verdict">${verdict}</div>
-      <div class="bf-record">${r.wins}<span>–</span>${r.losses}</div>
-      <div class="bf-sub">${(r.pct * 100).toFixed(1)}% against today's challenger
-        &nbsp;·&nbsp; ${r.ppgA} to ${r.ppgB} per game
-        ${r.ranOut ? '&nbsp;·&nbsp; <b class="bf-warn">clock expired</b>' : `&nbsp;·&nbsp; ${r.timeLeft}s left`}</div>
-
-      <div class="bf-cols">
-        <div>
-          <div class="bf-col-head">Your five</div>
-          ${BF.kept.map(k => `<div class="bf-row">${k.name}
-            <span>${k.forced ? "forced" : k.keptWith + "/5"}</span></div>`).join("")}
-        </div>
-        <div>
-          <div class="bf-col-head">Best five you were offered</div>
-          ${r.best.names.map(n => `<div class="bf-row ${BF.kept.some(k => k.name === n) ? "got" : ""}">${n}</div>`).join("")}
-          <div class="bf-bestpct">${r.best.wins}–${BF_SIM_GAMES - r.best.wins} &nbsp;(${(r.best.pct * 100).toFixed(1)}%)</div>
-        </div>
-      </div>
-
-      ${best && best.seed === BF.seed ? `<div class="bf-best">Your best today: ${best.wins} wins</div>` : ""}
-      <button class="bf-btn bf-again" onclick="bfStart()">RUN IT AGAIN</button>
-      <div class="bf-hint">Same challenger and the same player pool all day — beat your own number.</div>
-    </div>`;
-}
-
-function bfShowIntro() {
+function dtShowIntro() {
   const el = document.getElementById("blitzMode");
   if (!el) return;
-  clearInterval(bfTimer);
-  const best = bfLoadBest();
-  const todays = best && best.seed === bfSeedForToday();
-  el.innerHTML = `
-    <div class="bf-intro">
-      <div class="bf-intro-title">BLITZ</div>
-      <div class="bf-intro-sub">Sign five players in ${BF_CLOCK} seconds.</div>
-      <ol class="bf-rules">
-        <li>A hidden player is on the clock. Clues appear one at a time, every ${BF_CLUE_EVERY} seconds.</li>
-        <li><b>SIGN</b> to take them. <b>PASS</b> to deal someone else &mdash; and lose every clue you were shown.</li>
-        <li>The clock never stops. Waiting for certainty on one player costs you the next.</li>
-        <li>Empty slots when time runs out get filled blind.</li>
-        <li>Your five play an ${BF_SIM_GAMES}-game season against today's challenger.</li>
-      </ol>
-      ${todays ? `<div class="bf-best">Your best today: ${best.wins} wins</div>` : ""}
-      <button class="bf-btn bf-again" onclick="bfStart()">START THE CLOCK</button>
-    </div>`;
+  const best = dtLoadBest();
+  const todays = best && best.seed === dtSeedToday();
+  el.innerHTML = `<div class="dt-intro">
+    <div class="dt-intro-title">BEAT THE DREAM TEAM</div>
+    <div class="dt-intro-sub">Thirty unknown players. Sign twelve of them.</div>
+    <ol class="dt-rules">
+      <li>Thirty hidden candidates. You must sign <b>${DT_SQUAD}</b> and cut the rest.</li>
+      <li>A clue lands on a <b>random</b> card and reveals a <b>random</b> detail.</li>
+      <li>Only <b>${DT_BOARD}</b> clues can be on the board at once. Signing or cutting a card clears its clues.</li>
+      <li>You get <b>${DT_BUDGET}</b> clues for the whole game. After that you keep resolving cards blind.</li>
+      <li>Somewhere in the thirty is a twelve that beats the 1992 Dream Team. Find it.</li>
+    </ol>
+    ${todays ? `<div class="dt-best">Your best today: ${best.wins} wins</div>` : ""}
+    <button class="dt-b dt-again" onclick="dtStart()">DEAL THE POOL</button>
+    <div class="dt-hint" style="margin-top:10px">Building the pool takes a moment — it simulates until it finds one that is winnable but not easy.</div>
+  </div>`;
 }
 
 function setMode(mode){
@@ -3126,9 +3155,9 @@ function setMode(mode){
   if(bm)bm.style.display=mode==="blitz"?"block":"none";
   if(mode==="blitz"){
     // Career keeps its own state; Blitz never writes to it.
-    if(typeof bfTimer!=="undefined")clearInterval(bfTimer);
+    
     updateCareerScreenVisibility();
-    bfShowIntro();
+    dtShowIntro();
     return;
   }
   if(mode==="career"){
