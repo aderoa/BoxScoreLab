@@ -558,8 +558,8 @@ body{background:linear-gradient(145deg,#1a1a3e 0%,#0a0a1a 50%,#ffffff 100%);back
   <div class="header">
     <div class="logo-sm">ALL-TIME NBA CHALLENGE</div>
   </div>
-  <div class="mode-tabs" style="display:none">
-    <button class="mode-tab" id="modeSandboxTab" onclick="setMode('sandbox')">Sandbox</button>
+  <div class="mode-tabs">
+    <button class="mode-tab" id="modeSandboxTab" onclick="setMode('sandbox')" style="display:none">Sandbox</button>
     <button class="mode-tab active" id="modeCareerTab" onclick="setMode('career')">Career</button>
     <button class="mode-tab" id="modeBlitzTab" onclick="setMode('blitz')">Dream Team</button>
   </div>
@@ -1206,6 +1206,8 @@ function processAll(){normalizeTeam(0);normalizeTeam(1);equalizePossessions();ap
       if(cmEl)cmEl.style.display="block";
       const smEl=document.getElementById("sandboxMode");
       if(smEl)smEl.style.display="none";
+      const bmEl=document.getElementById("blitzMode");
+      if(bmEl)bmEl.style.display="none";
 
       try{
         // Diagnostic dump — helps debug team-abbreviation mismatches that
