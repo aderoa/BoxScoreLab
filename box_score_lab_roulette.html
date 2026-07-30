@@ -863,7 +863,7 @@ let WAR2016=new Set();   // 2015-16 Warriors, removed from the draftable pool
 let teams=[[],[]], adjusted=[[],[]], teamNames=["YOUR SQUAD","OPPONENT"];
 
 // --- tunable game constants (easy to tweak / move to a config later) ---
-const BUILD      = "v98 · wheel spin 30% faster (2.7s to 1.89s) · 2026-07-28";
+const BUILD      = "v99 · fixed infinite re-spin loop when a re-spin would strand the budget · 2026-07-29";
 // Where a shared squad link points. This must be a page that serves THIS game's
 // HTML (it reads the ?sq= payload client-side). Until hoopsmatic.com/73-9 serves
 // this file, shared links will 404 — change this one line back to the GitHub Pages
@@ -1471,12 +1471,26 @@ function renderLanded(group){
   if(respinBtn){
     // No visible option at all unless it's actually affordable — a disabled
     // button inviting a click that can't work is worse than not showing it.
-    const canRespin=anySelectable&&remaining>=RESPIN_COST;
+    const canRespin=anySelectable&&remaining>=RESPIN_COST&&respinLeavesEnough();
     respinBtn.style.display=canRespin?"":"none";
     respinBtn.textContent="Re-spin for "+fmtM(RESPIN_COST);
     respinBtn.onclick=reSpinCurrentTeam;
   }
-  if(!anySelectable){ setTimeout(()=>{ if(!spinning && rosterCount()<SLOTS) spin(); },900); }
+  if(!anySelectable){
+    // The free auto-redraw is correct when THIS team is a dead end. But when
+    // nothing is affordable ANYWHERE, spin()'s fallback pool (which ignores
+    // affordability by design, so the wheel still has something to land on)
+    // hands back another unusable team and this fires again — forever. Only
+    // auto-redraw when a real option exists; otherwise mirror spin()'s own
+    // stuck handling rather than looping.
+    const anyAffordableAnywhere=GROUPS.some(g=>!usedKeys.has(g.key)&&groupHasAffordable(g));
+    if(anyAffordableAnywhere){ setTimeout(()=>{ if(!spinning && rosterCount()<SLOTS) spin(); },900); }
+    else if(rosterCount()>=3){ showResults(); }
+    else {
+      $("spinBtn").disabled=false;
+      $("reelHint").textContent="No affordable, unlocked players left anywhere \u2014 try dragging a cheaper pick, or sign what you can and simulate.";
+    }
+  }
 }
 // Paid re-spin: give up on this landed team-season and draw a different one,
 // at a real, permanent cost — not a free do-over. Only reachable when the
@@ -1485,6 +1499,7 @@ function renderLanded(group){
 function reSpinCurrentTeam(){
   if(spinning||!currentGroup)return;
   if(remaining<RESPIN_COST)return;
+  if(!respinLeavesEnough())return;   // backstop: the button is hidden in this case, but never rely on that alone
   remaining-=RESPIN_COST; respinSpent+=RESPIN_COST;
   usedKeys.add(currentGroup.key);   // don't draw this same team-season again this game
   currentGroup=null;
@@ -1505,6 +1520,18 @@ function globalMinPlayerCost(){
     _globalMinPlayerCost=isFinite(min)?min:0;
   }
   return _globalMinPlayerCost;
+}
+// ADDED v99 (reported bug: "$10M left + re-spin = infinite re-spin loop").
+// pickPlayer below enforces a reserve floor so a signing can never strand the
+// game — but a re-spin costs $10M and fills NO slot, and had no equivalent
+// check. Paying it with exactly $10M left leaves $0 with slots still open,
+// after which spin()'s fallback pool keeps landing on unaffordable teams and
+// the free auto-redraw fires forever. Same floor, applied to every remaining
+// slot (a re-spin fills none of them).
+function respinLeavesEnough(){
+  const slotsLeft=SLOTS-rosterCount();
+  if(slotsLeft<=0)return true;
+  return (remaining-RESPIN_COST)>=globalMinPlayerCost()*slotsLeft;
 }
 function pickPlayer(key,name,pickedPos){
   if(spinning)return;
