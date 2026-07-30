@@ -484,6 +484,10 @@ body{background:linear-gradient(145deg,#1a1a3e 0%,#0a0a1a 50%,#ffffff 100%);back
 @media(max-width:600px){.logo-main{font-size:32px;letter-spacing:3px}.controls{padding:10px;gap:6px}.search-wrap{max-width:100%;flex:1 1 100%}.score-pts{font-size:40px}.scoreboard{gap:20px}.slots-grid{grid-template-columns:1fr 1fr}.roster-cards{grid-template-columns:1fr 1fr}.roster-cards-compact{grid-template-columns:1fr 1fr}.reveal-header{font-size:24px;letter-spacing:5px}.reveal-card-meta{grid-template-columns:1fr}}
 
 /* ── Dream Team mode ── */
+.dt-grid.must-act .dt-card{background:rgba(255,255,255,.13);border-color:rgba(255,215,0,.5);box-shadow:0 0 12px rgba(255,215,0,.12)}
+.dt-grid.must-act .dt-clue.on{background:rgba(255,255,255,.12)}
+.dt-grid.must-act .dt-b{filter:brightness(1.15)}
+
 .dt-roster{margin-top:16px;padding:12px 14px;background:rgba(74,144,226,.07);border:1px solid rgba(74,144,226,.28);border-radius:10px}
 .dt-roster-head{font-size:.62rem;letter-spacing:.13em;text-transform:uppercase;opacity:.7;margin-bottom:8px;display:flex;gap:12px;align-items:baseline;flex-wrap:wrap}
 .dt-shape{letter-spacing:.04em;text-transform:none;font-size:.68rem}
@@ -597,7 +601,7 @@ body{background:linear-gradient(145deg,#1a1a3e 0%,#0a0a1a 50%,#ffffff 100%);back
 <div id="app">
   <div class="header">
     <div class="logo-sm">BEAT THE 1992 DREAM TEAM</div>
-    <div style="font:400 10px/1 monospace;color:#5a5a8a;letter-spacing:1px;margin-top:4px">build 2026-07-30 23:09</div>
+    <div style="font:400 10px/1 monospace;color:#5a5a8a;letter-spacing:1px;margin-top:4px">build 2026-07-30 23:32</div>
   </div>
   <div class="mode-tabs">
     <button class="mode-tab" id="modeSandboxTab" onclick="setMode('sandbox')" style="display:none">Sandbox</button>
@@ -894,6 +898,7 @@ let pendingResult=null;      // {pA, pB, justRevealedSlotIdx} held between game 
 let pendingBonusName=null;   // bonus teammate to add after a correct guess
 let pendingDismissedNames=null; // 4 mystery-slot names dismissed by the current pick (shown to user)
 const CLUE_LABELS=["STATE/COUNTRY","STATUS","PRE-DRAFT TEAM","PICK","TEAM / SEASON"];
+const DT_CLUE_LABELS=["STATE/COUNTRY","RANDOM CAREER HONOR","PRE-DRAFT TEAM","DRAFT PICK","TEAM / SEASON"];
 // Mapping from clue index → display value. POSITION lives in the slot
 // header (always visible). BIRTH YEAR was dropped in v6, DRAFT YEAR in v7.
 // COLLEGE was relabeled to "Pre-Draft Team" since the field also holds
@@ -2872,9 +2877,13 @@ function toggleDifficulty(){
 const DT_STORAGE_KEY = "bsl_dreamteam_v1";
 const DT_CARDS   = 30;
 const DT_SQUAD   = 12;
-const DT_VISIBLE = 10;   // cards on the board at once, out of the 30
-const DT_BOARD   = 10;   // max clues sitting out at once -- the only limit
-const DT_SIM     = 82;
+const DT_VISIBLE = 5;    // cards on the board at once, out of the 30
+const DT_BOARD   = 5;    // max clues sitting out at once -- the only limit
+const DT_SIM     = 41;
+const DT_GAME_MIN = 200;              // 5 x 40, an Olympic game, not 5 x 48
+const DT_MIN_SCALE = DT_GAME_MIN / TARGET_MIN;
+const DT_CORE_BAR = 0.75;             // the planted twelve must win this often
+const DT_SURE_WIN = 0.75;             // at or above this, the one game is a win
 
 /* The 1992 Olympic roster. Everyone at 1991-92 except Magic, who sat that
    season out, and Laettner, who was still at Duke. */
@@ -2897,15 +2906,70 @@ let DT = null;
    All-Star selections. Third Team is not stored, so All-NBA totals run a
    little low for anyone from 1989 onwards. */
 const dtBio = n => { const bi = bioByName[n]; return bi == null ? null : bioData[bi]; };
+/* Career honours that bio.json does not carry. It has All-NBA counts,
+   All-Star counts and a flags byte (1 Top-78, 2 MVP, 4 All-NBA, 8 All-Star)
+   and nothing else, so Defensive Player, Rookie of the Year, Most Improved
+   and Sixth Man have to live here. Lists run to 2025. */
+const DT_DPOY = ["Sidney Moncrief","Mark Eaton","Alvin Robertson","Michael Cooper","Michael Jordan",
+"Dennis Rodman","David Robinson","Hakeem Olajuwon","Dikembe Mutombo","Gary Payton","Alonzo Mourning",
+"Ben Wallace","Ron Artest","Metta World Peace","Marcus Camby","Kevin Garnett","Dwight Howard",
+"Tyson Chandler","Marc Gasol","Joakim Noah","Kawhi Leonard","Draymond Green","Rudy Gobert",
+"Giannis Antetokounmpo","Marcus Smart","Jaren Jackson Jr","Jaren Jackson Jr.","Evan Mobley"];
+
+const DT_ROY = ["Don Meineke","Ray Felix","Bob Pettit","Maurice Stokes","Tom Heinsohn","Woody Sauldsberry",
+"Elgin Baylor","Wilt Chamberlain","Oscar Robertson","Walt Bellamy","Terry Dischinger","Jerry Lucas",
+"Willis Reed","Rick Barry","Dave Bing","Earl Monroe","Wes Unseld","Lew Alcindor","Kareem Abdul-Jabbar",
+"Dave Cowens","Geoff Petrie","Sidney Wicks","Bob McAdoo","Ernie DiGregorio","Jamaal Wilkes","Alvan Adams",
+"Adrian Dantley","Walter Davis","Phil Ford","Larry Bird","Darrell Griffith","Buck Williams",
+"Terry Cummings","Ralph Sampson","Michael Jordan","Patrick Ewing","Chuck Person","Mark Jackson",
+"Mitch Richmond","David Robinson","Derrick Coleman","Larry Johnson","Shaquille O'Neal","Chris Webber",
+"Jason Kidd","Grant Hill","Damon Stoudamire","Allen Iverson","Tim Duncan","Vince Carter","Elton Brand",
+"Steve Francis","Mike Miller","Pau Gasol","Amare Stoudemire","Amar'e Stoudemire","LeBron James",
+"Emeka Okafor","Chris Paul","Brandon Roy","Kevin Durant","Derrick Rose","Tyreke Evans","Blake Griffin",
+"Kyrie Irving","Damian Lillard","Michael Carter-Williams","Andrew Wiggins","Karl-Anthony Towns",
+"Malcolm Brogdon","Ben Simmons","Luka Doncic","Ja Morant","LaMelo Ball","Scottie Barnes",
+"Paolo Banchero","Victor Wembanyama","Stephon Castle"];
+
+const DT_MIP = ["Alvin Robertson","Dale Ellis","Kevin Duckworth","Kevin Johnson","Rony Seikaly",
+"Scott Skiles","Pervis Ellison","Mahmoud Abdul-Rauf","Don MacLean","Dana Barros","Gheorghe Muresan",
+"Isaac Austin","Alan Henderson","Darrell Armstrong","Jalen Rose","Tracy McGrady","Jermaine O'Neal",
+"Gilbert Arenas","Zach Randolph","Bobby Simmons","Boris Diaw","Monta Ellis","Hedo Turkoglu",
+"Danny Granger","Aaron Brooks","Kevin Love","Ryan Anderson","Paul George","Goran Dragic",
+"Jimmy Butler","CJ McCollum","C.J. McCollum","Giannis Antetokounmpo","Victor Oladipo","Pascal Siakam",
+"Brandon Ingram","Julius Randle","Ja Morant","Lauri Markkanen","Coby White","Dyson Daniels"];
+
+const DT_SIXTH = ["Bobby Jones","Kevin McHale","Bill Walton","Ricky Pierce","Roy Tarpley","Eddie Johnson",
+"Detlef Schrempf","Clifford Robinson","Dell Curry","Anthony Mason","Toni Kukoc","John Starks",
+"Danny Manning","Darrell Armstrong","Rodney Rogers","Aaron McKie","Corliss Williamson","Bobby Jackson",
+"Antawn Jamison","Ben Gordon","Mike Miller","Leandro Barbosa","Manu Ginobili","Jason Terry",
+"Jamal Crawford","Lamar Odom","James Harden","J.R. Smith","Lou Williams","Eric Gordon",
+"Montrezl Harrell","Jordan Clarkson","Tyler Herro","Malcolm Brogdon","Naz Reid","Payton Pritchard"];
+
+const DT_HONOURS = [
+  { list: DT_DPOY,  label: "Defensive Player of the Year" },
+  { list: DT_ROY,   label: "Rookie of the Year" },
+  { list: DT_MIP,   label: "Most Improved Player" },
+  { list: DT_SIXTH, label: "Sixth Man of the Year" },
+];
+const DT_HONOUR_SET = DT_HONOURS.map(h => ({ set: new Set(h.list), label: h.label }));
+
+/* Every honour a player can truthfully claim. One is drawn at random per
+   card, so a superstar might show "Rookie of the Year" and give little
+   away — but a player with nothing to show always reads as nothing. */
 function dtAwardOptions(name) {
-  const b = dtBio(name); if (!b) return [];
-  const flags = b[8] || 0, allNba = (b[9] || 0) + (b[10] || 0), allStar = b[11] || 0;
+  const b = dtBio(name);
   const out = [];
-  if (flags & 1) out.push("HoopsHype Top-78");
-  if ((flags & 4) || allNba) out.push(allNba ? allNba + "x All-NBA" : "All-NBA");
-  if ((flags & 8) || allStar) out.push(allStar ? allStar + "x All-Star" : "All-Star");
+  if (b) {
+    const flags = b[8] || 0, allNba = (b[9] || 0) + (b[10] || 0), allStar = b[11] || 0;
+    if (flags & 2) out.push("Most Valuable Player");
+    if (flags & 1) out.push("HoopsHype Top-78");
+    if ((flags & 4) || allNba) out.push(allNba ? allNba + "x All-NBA" : "All-NBA");
+    if ((flags & 8) || allStar) out.push(allStar ? allStar + "x All-Star" : "All-Star");
+  }
+  for (const h of DT_HONOUR_SET) if (h.set.has(name)) out.push(h.label);
   return out;
 }
+
 function dtOrdinal(n) {
   const v = parseInt(n, 10);
   if (!v) return null;
@@ -2926,7 +2990,7 @@ function dtClueValue(card, i) {
   const b = dtBio(card.name); if (!b) return "\u2014";
   if (i === 0) { const v = String(b[2] || "").trim(); const ab = (typeof STATE_ABBR !== "undefined") && STATE_ABBR[v];
                  return v ? (ab ? v + " (" + ab + ")" : v) : "\u2014"; }
-  if (i === 1) return card.award || "No All-Star selections";
+  if (i === 1) return card.award || "No career honours";
   if (i === 2) return String(b[4] || "\u2014");
   if (i === 3) return dtPickLabel(b[6]);
   if (i === 4) return card.rolledSeason || "\u2014";
@@ -3002,7 +3066,7 @@ function dtSim(squadNames, opp, nGames, keepBoard) {
     let a = 0, b = 0;
     tA.forEach((_, i) => { a += av(0, i, "PTS"); });
     tB.forEach((_, i) => { b += av(1, i, "PTS"); });
-    a = Math.round(a * bal); b = Math.round(b);
+    a = Math.round(a * bal * DT_MIN_SCALE); b = Math.round(b * DT_MIN_SCALE);
     if (a === b) (Math.random() < 0.5 ? a++ : b++);
     ptsA += a; ptsB += b;
     if (a > b) wins++;
@@ -3064,12 +3128,12 @@ function dtBuildPool(rng, opp) {
     }
     if (draw.length < DT_SQUAD) continue;
     const pct = dtSim(draw, opp, 31).pct;
-    if (pct >= 0.60) { core = draw; corePct = pct; break; }
+    if (pct >= DT_CORE_BAR) { core = draw; corePct = pct; break; }
     if (pct > corePct) { core = draw; corePct = pct; }
   }
   // Absolute guarantee: if no random draw cleared the bar, use the twelve
   // best players available, which certainly does.
-  if (!core || corePct < 0.60) { core = ranked.slice(0, DT_SQUAD); corePct = dtSim(core, opp, 31).pct; }
+  if (!core || corePct < DT_CORE_BAR) { core = ranked.slice(0, DT_SQUAD); corePct = dtSim(core, opp, 31).pct; }
 
   const rest = [];
   const seen = new Set(core);
@@ -3104,7 +3168,9 @@ function dtRng(seed) {
 }
 
 function dtStart() {
-  const seed = dtSeedToday();
+  // A new pool every game. It used to key off the calendar date, which is
+  // why the same thirty kept coming back all day.
+  const seed = (Math.random() * 0xFFFFFFFF) >>> 0;
   const rng = dtRng(seed);
   const opp = dtBuildOpponent();
   const pool = dtBuildPool(rng, opp);
@@ -3157,6 +3223,7 @@ function dtResolve(id, keep) {
   const card = DT.cards.find(c => c.id === id);
   if (!card || card.state !== "open") return;
   if (keep && DT.picked.length >= DT_SQUAD) return;
+  DT.lastClue = null;            // the flash belongs to a reveal, never a resolve
   card.state = keep ? "picked" : "cut";
   (keep ? DT.picked : DT.cut).push(card.name);
   // Show who it was, with every clue open, before the card leaves. You
@@ -3184,9 +3251,18 @@ function dtAdvance(id) {
 
 function dtFinish() {
   DT.done = true;
-  // One game, with a real box score -- same engine the Sandbox uses.
-  DT.result = dtSim(DT.picked, DT.opp, 1, true);
-  DT.result.best = dtSim(DT.bestPossible, DT.opp, 41);
+  // How good this twelve actually is, over a decent sample.
+  const rate = dtSim(DT.picked, DT.opp, DT_SIM).pct;
+  // A single game is noisy enough to rob a squad that genuinely wins three
+  // times in four. If the twelve is that good, keep rolling until the game
+  // reflects it -- the scoreline stays random, the outcome does not.
+  let r = dtSim(DT.picked, DT.opp, 1, true);
+  if (rate >= DT_SURE_WIN) {
+    for (let i = 0; i < 300 && r.ptsA <= r.ptsB; i++) r = dtSim(DT.picked, DT.opp, 1, true);
+  }
+  r.rate = rate;
+  DT.result = r;
+  DT.result.best = dtSim(DT.bestPossible, DT.opp, DT_SIM);
   try {
     const prev = JSON.parse(localStorage.getItem(DT_STORAGE_KEY) || "null");
     const rec = { seed: DT.seed, wins: DT.result.wins, clues: DT.cluesUsed,
@@ -3210,7 +3286,7 @@ function dtCardHtml(c) {
   const resolved = c.state !== "open";
   // Every row is present from the first moment, empty, so you can see what
   // there is to learn before you learn any of it.
-  const clues = CLUE_LABELS.map((lab, i) => {
+  const clues = DT_CLUE_LABELS.map((lab, i) => {
     const on = c.revealed[i];
     const fresh = !resolved && DT.lastClue && DT.lastClue.card === c.id && DT.lastClue.clue === i;
     return `<div class="dt-clue ${on ? "on" : ""} ${fresh ? "flash" : ""}">
@@ -3257,9 +3333,9 @@ function dtRender() {
       </button>
     </div>
     <div class="dt-hint">${full
-      ? "Ten clues are out. Sign or cut a card to clear its clues and make room."
+      ? `All ${DT_BOARD} clues are out. Sign or cut a card to clear its clues and make room.`
       : "Clues land on a random visible card. Resolving one clears its clues and brings the next unknown onto the board."}</div>
-    <div class="dt-grid">${dtVisibleCards().map(dtCardHtml).join("")}</div>
+    <div class="dt-grid ${full ? "must-act" : ""}">${dtVisibleCards().map(dtCardHtml).join("")}</div>
     ${dtRosterHtml()}
     <div class="dt-opp">
       <div class="dt-opp-head">You are playing</div>
@@ -3290,7 +3366,7 @@ function dtRosterHtml() {
 function dtBoxRow(ti, i, t, adj) {
   const g = t.game;
   const st = k => { const v = (adj[ti] && adj[ti][i] && adj[ti][i][k] !== undefined) ? adj[ti][i][k] : rawG(g, k);
-                    return Math.round(v * 10) / 10; };
+                    return Math.round(v * DT_MIN_SCALE * 10) / 10; };
   const season = formatSeasonYear(g[G.SY]);
   const team = String(TEAMS[g[G.TM]] || "").replace(/\s*\([^)]*\)\s*$/, "");
   return `<tr><td class="dt-bn">${t.name}<i>${season}${team ? " " + team : ""}</i></td>
@@ -3315,7 +3391,7 @@ function dtResultHtml() {
     <div class="dt-record">${r.ptsA}<span>–</span>${r.ptsB}</div>
     <div class="dt-sub">${DT.cluesUsed} clues used
       &nbsp;·&nbsp; roster shape ${r.bal >= 0.985 ? "balanced" : Math.round((1 - r.bal) * 100) + "% penalty"}
-      &nbsp;·&nbsp; over 41 games this twelve wins ${Math.round(dtSimCache().pct * 100)}%</div>
+      &nbsp;·&nbsp; over ${DT_SIM} games this twelve wins ${Math.round(r.rate * 100)}%</div>
     ${r.boxA ? `<div class="dt-boxes">
       ${dtBoxHtml("YOUR TWELVE", 0, r.boxA, r.adj, r.ptsA)}
       ${dtBoxHtml("THE DREAM TEAM", 1, r.boxB, r.adj, r.ptsB)}
