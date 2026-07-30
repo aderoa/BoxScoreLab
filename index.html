@@ -495,6 +495,8 @@ body{background:linear-gradient(145deg,#1a1a3e 0%,#0a0a1a 50%,#ffffff 100%);back
 .dt-rgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:5px}
 .dt-rslot{font-size:.74rem;font-weight:600;padding:5px 8px;border-radius:5px;background:rgba(255,255,255,.03);opacity:.4;display:flex;gap:7px;align-items:center}
 .dt-rslot.filled{background:rgba(255,255,255,.09);opacity:1}
+.dt-rslot i{font-style:normal;opacity:.45;font-size:.62rem;margin-left:auto}
+.dt-row span{opacity:.45;font-weight:500;font-size:.66rem;float:right}
 .dt-rpos{font-size:.58rem;font-weight:800;color:#ffd700;min-width:12px}
 .dt-boxes{display:grid;gap:14px;margin:18px 0 22px;text-align:left}
 .dt-box{border:1px solid rgba(255,255,255,.12);border-radius:9px;overflow:hidden}
@@ -601,7 +603,7 @@ body{background:linear-gradient(145deg,#1a1a3e 0%,#0a0a1a 50%,#ffffff 100%);back
 <div id="app">
   <div class="header">
     <div class="logo-sm">BEAT THE 1992 DREAM TEAM</div>
-    <div style="font:400 10px/1 monospace;color:#5a5a8a;letter-spacing:1px;margin-top:4px">build 2026-07-30 23:32</div>
+    <div style="font:400 10px/1 monospace;color:#5a5a8a;letter-spacing:1px;margin-top:4px">build 2026-07-30 23:45</div>
   </div>
   <div class="mode-tabs">
     <button class="mode-tab" id="modeSandboxTab" onclick="setMode('sandbox')" style="display:none">Sandbox</button>
@@ -2993,7 +2995,7 @@ function dtClueValue(card, i) {
   if (i === 1) return card.award || "No career honours";
   if (i === 2) return String(b[4] || "\u2014");
   if (i === 3) return dtPickLabel(b[6]);
-  if (i === 4) return card.rolledSeason || "\u2014";
+  if (i === 4) return card.entry ? card.entry.label : (card.rolledSeason || "\u2014");
   return "\u2014";
 }
 
@@ -3042,21 +3044,48 @@ function dtSeasonGames(name, season) {
 }
 let DT_MISSING = [];
 
+/* A card is a player-SEASON, not a player. Rookie Kobe and 2005-06 Kobe are
+   different basketball players and the winning twelve has to be built from
+   the seasons that actually win, not from a career average. */
+const DT_MIN_GP = 15;                 // games needed for a season to qualify
+function dtSeasonsOf(name) {
+  const gs = (playerIndex[name] || []).filter(isPlayableGame);
+  const by = new Map();
+  for (const g of gs) {
+    const sy = g[G.SY];
+    if (sy == null || sy === "") continue;
+    if (!by.has(sy)) by.set(sy, []);
+    by.get(sy).push(g);
+  }
+  const out = [];
+  for (const [sy, games] of by) {
+    if (games.length < DT_MIN_GP) continue;
+    const team = String(TEAMS[games[0][G.TM]] || "").replace(/\s*\([^)]*\)\s*$/, "").trim();
+    out.push({ name, sy, games, season: formatSeasonYear(sy), team,
+               label: formatSeasonYear(sy) + (team ? ": " + team : "") });
+  }
+  return out;
+}
+const dtEntryKey = e => e.name + "|" + e.sy;
+const dtEntryName = e => e.name + " " + e.season;
+
 function dtBuildOpponent() {
   DT_MISSING = [];
-  return DREAM_TEAM.map(([n, s]) => ({ name: n, games: dtSeasonGames(n, s), season: s }))
-                   .filter(p => p.games.length);
+  return DREAM_TEAM.map(([n, s]) => {
+    const games = dtSeasonGames(n, s);
+    return { name: n, season: s, games, sy: games.length ? games[0][G.SY] : null,
+             label: s, team: "" };
+  }).filter(p => p.games.length);
 }
 
 /* ── simulation ─────────────────────────────────────────────── */
 function dtRollFrom(games) { return games[Math.floor(Math.random() * games.length)]; }
 
-function dtSim(squadNames, opp, nGames, keepBoard) {
+function dtSim(squad, opp, nGames, keepBoard) {
   const savedT = teams, savedA = adjusted;
-  const bal = dtBalance(squadNames).mult;
+  const bal = dtBalance(squad.map(e => e.name)).mult;
   let wins = 0, ptsA = 0, ptsB = 0, lastA = null, lastB = null;
-  const pool = squadNames.map(n => ({ name: n, games: (playerIndex[n] || []).filter(isPlayableGame) }))
-                         .filter(p => p.games.length);
+  const pool = squad.filter(p => p.games && p.games.length);
   for (let g = 0; g < nGames; g++) {
     const tA = pool.map(p => ({ name: p.name, game: dtRollFrom(p.games) }));
     const tB = opp.map(p => ({ name: p.name, game: dtRollFrom(p.games) }));
@@ -3080,9 +3109,9 @@ function dtSim(squadNames, opp, nGames, keepBoard) {
   return out;
 }
 
-/* Cheap per-36 production score, used only to rank a pool internally. */
-function dtQuality(name) {
-  const gs = (playerIndex[name] || []).filter(isPlayableGame);
+/* Cheap per-36 production score for one SEASON, used only to rank internally. */
+function dtQuality(entry) {
+  const gs = entry.games || [];
   if (!gs.length) return -1;
   let s = 0; const n = Math.min(gs.length, 25);
   for (let i = 0; i < n; i++) {
@@ -3104,52 +3133,72 @@ function dtQuality(name) {
    that twelve of them actually win, then bury that twelve among filler.
    Finding them through the clues is the game. */
 function dtBuildPool(rng, opp) {
-  const excluded = new Set(DREAM_TEAM.map(d => dtResolveName(d[0])).filter(Boolean));
-  const ok = n => !excluded.has(n) && playerHasPlayableGames(n) && (playerIndex[n] || []).length >= 8;
   const flagsOf = n => { const bi = bioByName[n]; return bi == null ? 0 : (bioData[bi][8] || 0); };
-
+  const ok = n => playerHasPlayableGames(n) && (playerIndex[n] || []).length >= DT_MIN_GP;
   const all = bioEligibleNames().filter(ok);
-  const elite = all.filter(n => (flagsOf(n) & 7) !== 0);          // Top-78 / MVP / All-NBA
-  const filler = all.filter(n => (flagsOf(n) & 7) === 0);
-  const pool = elite.length >= DT_SQUAD ? elite : all;
 
-  // Rank the elite tier once, then draw the core from its strongest slice
-  // so the answer is reachable without being the same twelve every day.
-  const ranked = pool.map(n => ({ n, q: dtQuality(n) })).sort((a, b) => b.q - a.q).map(x => x.n);
-  const tier = ranked.slice(0, Math.max(DT_SQUAD * 4, 40));
+  // The Dream Teamers themselves are signable, but never anywhere near their
+  // Olympic peak: only seasons more than five years either side of 1992, so
+  // 1985-86 Jordan or 2002-03 Jordan, never 1990-91 Jordan. You can put a
+  // Dream Teamer on your side, just not the version standing opposite you.
+  const dtNames = new Set(DREAM_TEAM.map(d => dtResolveName(d[0])).filter(Boolean));
+  const nearPeak = sy => { const y = parseInt(formatSeasonYear(sy)) || 0; return y >= 1987 && y <= 1997; };
+  const seasonOk = e => !dtNames.has(e.name) || !nearPeak(e.sy);
+
+  const eliteNames = all.filter(n => (flagsOf(n) & 7) !== 0);
+  const fillNames  = all.filter(n => (flagsOf(n) & 7) === 0);
+
+  const eliteSeasons = [];
+  for (const n of (eliteNames.length >= DT_SQUAD ? eliteNames : all))
+    for (const e of dtSeasonsOf(n)) if (seasonOk(e)) eliteSeasons.push(e);
+  if (!eliteSeasons.length) for (const n of all) for (const e of dtSeasonsOf(n)) eliteSeasons.push(e);
+
+  // Rank SEASONS, not players -- this is what stops a rookie year sneaking
+  // into the winning twelve on the strength of the name attached to it.
+  const ranked = eliteSeasons.map(e => ({ e, q: dtQuality(e) }))
+                             .sort((x, y) => y.q - x.q).map(x => x.e);
+  const tier = ranked.slice(0, Math.max(DT_SQUAD * 6, 60));
 
   let core = null, corePct = 0;
   for (let attempt = 0; attempt < 25; attempt++) {
     const draw = [], seen = new Set();
     let guard = 0;
-    while (draw.length < DT_SQUAD && guard++ < 400) {
-      const n = tier[Math.floor(rng() * tier.length)];
-      if (!seen.has(n)) { seen.add(n); draw.push(n); }
+    while (draw.length < DT_SQUAD && guard++ < 600) {
+      const e = tier[Math.floor(rng() * tier.length)];
+      if (!e || seen.has(e.name)) continue;      // one season per player
+      seen.add(e.name); draw.push(e);
     }
     if (draw.length < DT_SQUAD) continue;
     const pct = dtSim(draw, opp, 31).pct;
     if (pct >= DT_CORE_BAR) { core = draw; corePct = pct; break; }
     if (pct > corePct) { core = draw; corePct = pct; }
   }
-  // Absolute guarantee: if no random draw cleared the bar, use the twelve
-  // best players available, which certainly does.
-  if (!core || corePct < DT_CORE_BAR) { core = ranked.slice(0, DT_SQUAD); corePct = dtSim(core, opp, 31).pct; }
+  if (!core || corePct < DT_CORE_BAR) {
+    const seen = new Set(); core = [];
+    for (const e of ranked) { if (seen.has(e.name)) continue; seen.add(e.name); core.push(e); if (core.length === DT_SQUAD) break; }
+    corePct = dtSim(core, opp, 31).pct;
+  }
 
+  const used = new Set(core.map(e => e.name));
+  const fillPool = [];
+  for (const n of (fillNames.length >= DT_CARDS ? fillNames : all)) {
+    if (used.has(n)) continue;
+    const ss = dtSeasonsOf(n).filter(seasonOk);
+    if (ss.length) fillPool.push(ss[Math.floor(rng() * ss.length)]);
+  }
   const rest = [];
-  const seen = new Set(core);
-  const fillSrc = filler.length >= DT_CARDS ? filler : all;
   let guard = 0;
-  while (rest.length < DT_CARDS - DT_SQUAD && guard++ < 4000) {
-    const n = fillSrc[Math.floor(rng() * fillSrc.length)];
-    if (!seen.has(n)) { seen.add(n); rest.push(n); }
+  while (rest.length < DT_CARDS - DT_SQUAD && guard++ < 6000 && fillPool.length) {
+    const e = fillPool[Math.floor(rng() * fillPool.length)];
+    if (used.has(e.name)) continue;
+    used.add(e.name); rest.push(e);
   }
-  // Shuffle so the core is not sitting at the front of the queue.
-  const names = [...core, ...rest];
-  for (let i = names.length - 1; i > 0; i--) {
+  const entries = [...core, ...rest];
+  for (let i = entries.length - 1; i > 0; i--) {
     const j = Math.floor(rng() * (i + 1));
-    [names[i], names[j]] = [names[j], names[i]];
+    [entries[i], entries[j]] = [entries[j], entries[i]];
   }
-  return { names, best: core, bestPct: corePct };
+  return { entries, best: core, bestPct: corePct };
 }
 
 /* ── game state ─────────────────────────────────────────────── */
@@ -3176,12 +3225,12 @@ function dtStart() {
   const pool = dtBuildPool(rng, opp);
   DT = {
     seed, rng, opp, bestPossible: pool.best, bestPct: pool.bestPct,
-    cards: pool.names.map((n, i) => {
-      const sc = rollSeasonClue(n);
-      const aw = dtAwardOptions(n);
-      return { id: i, name: n, revealed: [false, false, false, false, false],
+    cards: pool.entries.map((e, i) => {
+      const aw = dtAwardOptions(e.name);
+      return { id: i, name: e.name, entry: e,
+               revealed: [false, false, false, false, false],
                award: aw.length ? aw[Math.floor(rng() * aw.length)] : null,
-               rolledSeason: sc.display, rolledSeasonYear: sc.seasonYr, rolledTeam: sc.team,
+               rolledSeason: e.label, rolledSeasonYear: e.sy, rolledTeam: e.team,
                state: "open" };
     }),
     // Only ten of the thirty are on the board. The rest wait in a queue and
@@ -3209,9 +3258,21 @@ function dtSpendClue(free) {
   // A clue can only land on a card you can actually see.
   const eligible = dtVisibleCards().filter(c => c.state === "open" && c.revealed.some(r => !r));
   if (!eligible.length) return;
-  const card = eligible[Math.floor(Math.random() * eligible.length)];
-  const slots = card.revealed.map((r, i) => (r ? -1 : i)).filter(i => i >= 0);
-  const which = slots[Math.floor(Math.random() * slots.length)];
+  // Honours are the clue that separates a superstar from a journeyman, so the
+  // board is never allowed to sit without one. If none is showing, this
+  // reveal is forced to be an honours clue.
+  const honoursOut = dtVisibleCards().some(c => c.state === "open" && c.revealed[1]);
+  let card, which;
+  const needHonours = !honoursOut && eligible.some(c => !c.revealed[1]);
+  if (needHonours) {
+    const pick = eligible.filter(c => !c.revealed[1]);
+    card = pick[Math.floor(Math.random() * pick.length)];
+    which = 1;
+  } else {
+    card = eligible[Math.floor(Math.random() * eligible.length)];
+    const slots = card.revealed.map((r, i) => (r ? -1 : i)).filter(i => i >= 0);
+    which = slots[Math.floor(Math.random() * slots.length)];
+  }
   card.revealed[which] = true;
   if (!free) DT.cluesUsed++;
   DT.lastClue = { card: card.id, clue: which };
@@ -3225,7 +3286,7 @@ function dtResolve(id, keep) {
   if (keep && DT.picked.length >= DT_SQUAD) return;
   DT.lastClue = null;            // the flash belongs to a reveal, never a resolve
   card.state = keep ? "picked" : "cut";
-  (keep ? DT.picked : DT.cut).push(card.name);
+  (keep ? DT.picked : DT.cut).push(card.entry);
   // Show who it was, with every clue open, before the card leaves. You
   // learn as much from a cut as from a signing.
   card.revealed = [true, true, true, true, true];
@@ -3265,9 +3326,9 @@ function dtFinish() {
   DT.result.best = dtSim(DT.bestPossible, DT.opp, DT_SIM);
   try {
     const prev = JSON.parse(localStorage.getItem(DT_STORAGE_KEY) || "null");
-    const rec = { seed: DT.seed, wins: DT.result.wins, clues: DT.cluesUsed,
-                  names: DT.picked.slice() };
-    if (!prev || prev.seed !== DT.seed || rec.wins > prev.wins)
+    const rec = { seed: DT.seed, wins: DT.result.ptsA > DT.result.ptsB ? 1 : 0,
+                  clues: DT.cluesUsed, names: DT.picked.map(dtEntryName) };
+    if (!prev || rec.wins >= (prev.wins || 0))
       localStorage.setItem(DT_STORAGE_KEY, JSON.stringify(rec));
   } catch (e) {}
   dtRender();
@@ -3346,12 +3407,12 @@ function dtRender() {
 }
 
 function dtRosterHtml() {
-  const b = dtBalance(DT.picked);
+  const b = dtBalance(DT.picked.map(e => e.name));
   const slots = [];
   for (let i = 0; i < DT_SQUAD; i++) {
-    const n = DT.picked[i];
-    slots.push(n
-      ? `<div class="dt-rslot filled"><span class="dt-rpos">${dtPosBucket(n)}</span>${n}</div>`
+    const e = DT.picked[i];
+    slots.push(e
+      ? `<div class="dt-rslot filled"><span class="dt-rpos">${dtPosBucket(e.name)}</span>${e.name}<i>${e.season}</i></div>`
       : `<div class="dt-rslot"><span class="dt-rpos">&nbsp;</span>&mdash;</div>`);
   }
   const shapeOk = b.mult > 0.985;
@@ -3366,7 +3427,7 @@ function dtRosterHtml() {
 function dtBoxRow(ti, i, t, adj) {
   const g = t.game;
   const st = k => { const v = (adj[ti] && adj[ti][i] && adj[ti][i][k] !== undefined) ? adj[ti][i][k] : rawG(g, k);
-                    return Math.round(v * DT_MIN_SCALE * 10) / 10; };
+                    return Math.round(v * DT_MIN_SCALE); };
   const season = formatSeasonYear(g[G.SY]);
   const team = String(TEAMS[g[G.TM]] || "").replace(/\s*\([^)]*\)\s*$/, "");
   return `<tr><td class="dt-bn">${t.name}<i>${season}${team ? " " + team : ""}</i></td>
@@ -3398,20 +3459,21 @@ function dtResultHtml() {
     </div>` : ""}
     <div class="dt-cols">
       <div><div class="dt-col-head">Your twelve</div>
-        ${DT.picked.map(n => `<div class="dt-row">${n}</div>`).join("")}</div>
+        ${DT.picked.map(e => `<div class="dt-row">${e.name}<span>${e.season}</span></div>`).join("")}</div>
       <div><div class="dt-col-head">The best twelve in the pool</div>
-        ${DT.bestPossible.map(n => `<div class="dt-row ${DT.picked.includes(n) ? "got" : ""}">${n}</div>`).join("")}
+        ${DT.bestPossible.map(e => `<div class="dt-row ${DT.picked.some(p => dtEntryKey(p) === dtEntryKey(e)) ? "got" : ""}">${e.name}<span>${e.season}</span></div>`).join("")}
         <div class="dt-bestpct">wins ${(b.pct * 100).toFixed(0)}% of the time</div></div>
     </div>
-    ${best && best.seed === DT.seed ? `<div class="dt-best">Your best today: ${best.wins} wins</div>` : ""}
+    ${best && best.wins ? `<div class="dt-best">You have beaten them before</div>` : ""}
     <button class="dt-b dt-again" onclick="dtStart()">NEW POOL</button>
   </div>`;
 }
 
 let _dtSimCache = null;
 function dtSimCache() {
-  if (!_dtSimCache || _dtSimCache.key !== DT.picked.join()) {
-    _dtSimCache = { key: DT.picked.join(), pct: dtSim(DT.picked, DT.opp, 41).pct };
+  const k = DT.picked.map(dtEntryKey).join();
+  if (!_dtSimCache || _dtSimCache.key !== k) {
+    _dtSimCache = { key: k, pct: dtSim(DT.picked, DT.opp, DT_SIM).pct };
   }
   return _dtSimCache;
 }
@@ -3420,7 +3482,7 @@ function dtShowIntro() {
   const el = document.getElementById("blitzMode");
   if (!el) return;
   const best = dtLoadBest();
-  const todays = best && best.seed === dtSeedToday();
+  const todays = best && best.wins;
   el.innerHTML = `<div class="dt-intro">
     <div class="dt-intro-title">BEAT THE DREAM TEAM</div>
     <div class="dt-intro-sub">Thirty unknown players. Sign twelve of them.</div>
@@ -3432,7 +3494,7 @@ function dtShowIntro() {
       <li>Signing or cutting reveals who they were &mdash; you learn from both.</li>
       <li>Somewhere in the thirty is a twelve that beats the 1992 Dream Team. Find it.</li>
     </ol>
-    ${todays ? `<div class="dt-best">Your best today: ${best.wins} wins</div>` : ""}
+    ${todays ? `<div class="dt-best">You have beaten them before</div>` : ""}
     <button class="dt-b dt-again" onclick="dtStart()">DEAL THE POOL</button>
     <div class="dt-hint" style="margin-top:10px">Building the pool takes a moment — it simulates until it finds one that is winnable but not easy.</div>
   </div>`;
