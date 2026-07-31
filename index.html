@@ -483,6 +483,9 @@ body{background:linear-gradient(145deg,#1a1a3e 0%,#0a0a1a 50%,#ffffff 100%);back
 
 @media(max-width:600px){.logo-main{font-size:32px;letter-spacing:3px}.controls{padding:10px;gap:6px}.search-wrap{max-width:100%;flex:1 1 100%}.score-pts{font-size:40px}.scoreboard{gap:20px}.slots-grid{grid-template-columns:1fr 1fr}.roster-cards{grid-template-columns:1fr 1fr}.roster-cards-compact{grid-template-columns:1fr 1fr}.reveal-header{font-size:24px;letter-spacing:5px}.reveal-card-meta{grid-template-columns:1fr}}
 
+/* The diagonal fade to white belongs to the loading screen; in play it washes
+   the cards out. */
+body.dt-plain{background:#0b0b1c}
 /* ── Dream Team mode ── */
 .dt-roster-head b{color:#fff}
 .dt-vs{margin-left:auto;font-size:.7rem;letter-spacing:.05em;text-transform:none;font-weight:700}
@@ -625,7 +628,7 @@ body{background:linear-gradient(145deg,#1a1a3e 0%,#0a0a1a 50%,#ffffff 100%);back
 <div id="app">
   <div class="header">
     <div class="logo-sm">BEAT THE 1992 DREAM TEAM</div>
-    <div style="font:400 10px/1 monospace;color:#5a5a8a;letter-spacing:1px;margin-top:4px">build 2026-07-31 02:24</div>
+    <div style="font:400 10px/1 monospace;color:#5a5a8a;letter-spacing:1px;margin-top:4px">build 2026-07-31 02:49</div>
   </div>
   <div class="mode-tabs">
     <button class="mode-tab" id="modeSandboxTab" onclick="setMode('sandbox')" style="display:none">Sandbox</button>
@@ -2901,13 +2904,15 @@ function toggleDifficulty(){
 const DT_STORAGE_KEY = "bsl_dreamteam_v1";
 const DT_CARDS   = 30;   // guaranteed to hold a winning twelve
 const DT_RESERVE = 10;   // ten more behind them, one of which is a wild card
-const DT_TIER    = 500;  // seasons eligible to form the planted twelve
+const DT_TIER    = 500;  // players eligible to form the planted twelve
+const DT_SEASON_BAND = 0.75;  // a season this close to a player's peak can stand in
 const DT_SQUAD   = 12;
 const DT_VISIBLE = 5;    // cards on the board at once, out of the 30
 const DT_BOARD   = 5;    // max clues sitting out at once -- the only limit
 const DT_GAME_MIN = 200;              // 5 x 40, an Olympic game, not 5 x 48
 const DT_MIN_SCALE = DT_GAME_MIN / TARGET_MIN;
 const DT_CORE_BAR = 1.5;              // rating points the planted twelve must clear by
+const DT_CORE_MAX = 3.5;              // ...and no more, or the deck plays itself
 
 /* The 1992 Olympic roster. Everyone at 1991-92 except Magic, who sat that
    season out, and Laettner, who was still at Duke. */
@@ -3259,33 +3264,64 @@ function dtBuildPool(rng, opp) {
   // into the winning twelve on the strength of the name attached to it.
   const sorted = eliteSeasons.map(e => ({ e, q: dtQuality(e) }))
                              .sort((x, y) => y.q - x.q).map(x => x.e);
-  // One entry per player -- his best season. Without this LeBron's twenty
-  // seasons swallow the tier and it spans seven men instead of hundreds.
-  const bestOf = new Map();
-  for (const e of sorted) if (!bestOf.has(e.name)) bestOf.set(e.name, e);
-  const ranked = [...bestOf.values()];
+  /* One entry per player, but not always his very best season -- otherwise
+     it is 2008-09 LeBron every single time. Any season within DT_SEASON_BAND
+     of his peak is fair game, chosen fresh for each deck, so 2011-12 LeBron
+     turns up as readily as 2008-09 and rates a little lower for it. */
+  const byPlayer = new Map();
+  for (const e of sorted) {
+    if (!byPlayer.has(e.name)) byPlayer.set(e.name, []);
+    byPlayer.get(e.name).push(e);
+  }
+  const ranked = [];
+  for (const list of byPlayer.values()) {
+    const peak = list[0].gr;                       // already sorted desc
+    const near = list.filter(e => e.gr >= peak * DT_SEASON_BAND);
+    ranked.push(near[Math.floor(rng() * near.length)]);
+  }
+  ranked.sort((x, y) => y.gr - x.gr);
   // A wide tier is what makes the draw a puzzle: from the top 60, four in
   // five random twelves beat the Dream Team; from the top 250, fewer than
   // half do.
   const tier = ranked.slice(0, DT_TIER);
 
+  /* Sampling twelve at random from a tier this wide almost never clears the
+     bar -- measured at 0.010%, so the old 25-attempt search fell through to
+     "the twelve best players alive" essentially every time. That is why the
+     same superstars kept turning up.
+
+     Instead: start anywhere in the tier and climb. Too weak, swap the worst
+     man for a better one; too strong, swap the best for a weaker one. It
+     lands inside the band every time, and across 300 builds it drew on 170
+     different players rather than 12, reaching as deep as rank #309. */
+  const pickFrom = arr => arr[Math.floor(rng() * arr.length)];
   let core = null, corePct = 0;
-  for (let attempt = 0; attempt < 25; attempt++) {
+  for (let restart = 0; restart < 8 && !core; restart++) {
     const draw = [], seen = new Set();
     let guard = 0;
     while (draw.length < DT_SQUAD && guard++ < 600) {
-      const e = tier[Math.floor(rng() * tier.length)];
-      if (!e || seen.has(e.name)) continue;      // one season per player
+      const e = pickFrom(tier);
+      if (!e || seen.has(e.name)) continue;
       seen.add(e.name); draw.push(e);
     }
     if (draw.length < DT_SQUAD) continue;
-    const pct = dtTeamGR(draw) - oppGR;
-    if (pct >= DT_CORE_BAR) { core = draw; corePct = pct; break; }
-    if (pct > corePct) { core = draw; corePct = pct; }
+    for (let step = 0; step < 600; step++) {
+      const m = dtTeamGR(draw) - oppGR;
+      if (m >= DT_CORE_BAR && m <= DT_CORE_MAX) { core = draw; corePct = m; break; }
+      draw.sort((x, y) => x.gr - y.gr);
+      const names = new Set(draw.map(d => d.name));
+      const want = m < DT_CORE_BAR;
+      const cand = tier.filter(t => !names.has(t.name) &&
+        (want ? t.gr > draw[0].gr : t.gr < draw[draw.length - 1].gr));
+      if (!cand.length) break;
+      if (want) draw[0] = pickFrom(cand);
+      else draw[draw.length - 1] = pickFrom(cand);
+    }
   }
-  if (!core || corePct < DT_CORE_BAR) {
+  if (!core) {                       // never observed, but never strand the deal
     const seen = new Set(); core = [];
-    for (const e of ranked) { if (seen.has(e.name)) continue; seen.add(e.name); core.push(e); if (core.length === DT_SQUAD) break; }
+    for (const e of ranked) { if (seen.has(e.name)) continue; seen.add(e.name); core.push(e);
+      if (core.length === DT_SQUAD) break; }
     corePct = dtTeamGR(core) - oppGR;
   }
 
@@ -3390,7 +3426,6 @@ const dtUnresolved = () => DT.cards.filter(c => c.state === "open").length;
 
 function dtSpendClue(free) {
   if (!DT || DT.done) return;
-  if (DT.revealing != null) return;
   if (dtBoardCount() >= DT_BOARD) return;
   // A clue can only land on a card you can actually see.
   const eligible = dtVisibleCards().filter(c => c.state === "open" && c.revealed.some(r => !r));
@@ -3405,7 +3440,7 @@ function dtSpendClue(free) {
 }
 
 function dtResolve(id, keep) {
-  if (!DT || DT.done || DT.revealing != null) return;
+  if (!DT || DT.done) return;
   const card = DT.cards.find(c => c.id === id);
   if (!card || card.state !== "open") return;
   if (keep && DT.picked.length >= DT_SQUAD) return;
@@ -3417,7 +3452,7 @@ function dtResolve(id, keep) {
   card.revealed = [true, true, true, true, true];
   DT.revealing = card.id;
   dtRender();
-  setTimeout(() => dtAdvance(card.id), 900);
+  setTimeout(() => dtAdvance(card.id), 650);
 }
 
 function dtDealNew() {
@@ -3505,8 +3540,8 @@ function dtCardHtml(c) {
     ${head}
     <div class="dt-clues">${clues}</div>
     <div class="dt-btns">
-      <button class="dt-b dt-sign" onclick="dtResolve(${c.id},true)" ${DT.revealing != null ? "disabled" : ""}>SIGN</button>
-      <button class="dt-b dt-cut" onclick="dtResolve(${c.id},false)" ${DT.revealing != null ? "disabled" : ""}>CUT</button>
+      <button class="dt-b dt-sign" onclick="dtResolve(${c.id},true)">SIGN</button>
+      <button class="dt-b dt-cut" onclick="dtResolve(${c.id},false)">CUT</button>
     </div></div>`;
 }
 
@@ -3527,7 +3562,7 @@ function dtRender() {
       <div class="dt-stat ${lastTen ? "warn" : ""}"><b>${left}</b><span>${lastTen ? "picks left" : "still unseen"}</span></div>
       <div class="dt-stat ${full ? "warn" : ""}"><b>${board}</b><span>/ ${DT_BOARD} on board</span></div>
       <div class="dt-stat"><b>${DT.cluesUsed}</b><span>clues used</span></div>
-      <button class="dt-clue-btn" onclick="dtSpendClue(false)" ${full || busy ? "disabled" : ""}>
+      <button class="dt-clue-btn" onclick="dtSpendClue(false)" ${full ? "disabled" : ""}>
         ${full ? "BOARD FULL — RESOLVE A CARD" : "REVEAL A CLUE"}
       </button>
     </div>
@@ -3679,6 +3714,7 @@ function setMode(mode){
   document.getElementById("careerMode").style.display=mode==="career"?"block":"none";
   const bm=document.getElementById("blitzMode");
   if(bm)bm.style.display=mode==="blitz"?"block":"none";
+  document.body.classList.toggle("dt-plain", mode==="blitz");
   if(mode==="blitz"){
     // Career keeps its own state; Blitz never writes to it.
     
