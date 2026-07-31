@@ -514,17 +514,27 @@ body.dt-plain{background:#0b0b1c}
   /* The header sits above the board, so pinning the board itself to 100dvh
      would push its last row off-screen. Make the whole app one viewport-tall
      column instead and let the board take whatever the header leaves. */
-  body.dt-plain{overflow:hidden}
-  body.dt-plain #app{height:100dvh;display:flex;flex-direction:column;overflow:hidden}
+  body.dt-board{overflow:hidden}
+  body.dt-board #app{height:100dvh;display:flex;flex-direction:column;overflow:hidden}
   body.dt-plain .rings-sm{width:44px;height:20px;margin-bottom:2px}
   body.dt-plain .logo-sm{font-size:15px;letter-spacing:2px}
   body.dt-plain .mode-tabs{margin-bottom:6px}
   body.dt-plain .mode-tab{padding:6px 12px;font-size:12px}
-  #blitzMode{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;overflow:hidden;
-    padding:6px 6px 0;max-width:100%;gap:0}
+  body.dt-board #blitzMode{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;
+    overflow:hidden;padding:6px 6px 0;max-width:100%;gap:0}
+
+  /* rules + result: compact, and always scrollable so the button is reachable */
+  #blitzMode{padding:8px 10px 28px}
+  .dt-intro{padding:10px 4px 18px}
+  .dt-intro-title{font-size:1.5rem;line-height:1.1}
+  .dt-intro .rings-sm{width:52px;height:24px;margin-bottom:6px}
+  .dt-intro-sub{font-size:.82rem;margin:6px 0 12px}
+  .dt-rules{font-size:.76rem;line-height:1.45;padding-left:16px;margin-bottom:14px}
+  .dt-rules li{margin-bottom:4px}
+  .dt-again{font-size:.8rem;padding:13px;position:sticky;bottom:8px}
   .dt-bar,.dt-hint,.dt-lastten{display:none}
 
-  .dt-grid{flex:1 1 auto;min-height:0;display:grid;
+  body.dt-board .dt-grid{flex:1 1 auto;min-height:0;display:grid;
     grid-template-columns:1fr 1fr;grid-template-rows:repeat(3,minmax(0,1fr));gap:5px}
   .dt-card{min-height:0;padding:6px;overflow:hidden}
   .dt-card-top{margin-bottom:3px}
@@ -3800,10 +3810,19 @@ function dtStatsCellHtml(board, full, left, lastTen) {
 }
 function dtToggleRoster(){ document.body.classList.toggle("dt-roster-open"); }
 
+/* The one-screen lock belongs to the live board and nothing else. The rules
+   screen and the result screen are taller than a phone, so leaving the lock on
+   clipped them -- the DEAL THE POOL button sat below the fold with no way to
+   scroll to it. */
+function dtBoardLock(on){
+  document.body.classList.toggle("dt-board", !!on);
+}
+
 function dtRender() {
   const el = document.getElementById("blitzMode");
   if (!el || !DT) return;
-  if (DT.done) { el.innerHTML = dtResultHtml(); return; }
+  if (DT.done) { dtBoardLock(false); el.innerHTML = dtResultHtml(); return; }
+  dtBoardLock(true);
 
   const board = dtBoardCount();
   const full = board >= DT_BOARD;
@@ -3975,6 +3994,7 @@ function dtConfetti() {
 function dtShowIntro() {
   const el = document.getElementById("blitzMode");
   if (!el) return;
+  dtBoardLock(false);
 
   el.innerHTML = `<div class="dt-intro">
     <svg class="rings rings-sm" viewBox="0 0 220 100" aria-hidden="true"><g fill="none" stroke-width="7"><circle cx="45" cy="40" r="28" stroke="#0081C8"/><circle cx="110" cy="40" r="28" stroke="#000000"/><circle cx="175" cy="40" r="28" stroke="#EE334E"/><circle cx="77" cy="68" r="28" stroke="#FCB131"/><circle cx="143" cy="68" r="28" stroke="#00A651"/></g></svg>
@@ -4009,6 +4029,7 @@ function setMode(mode){
   const bm=document.getElementById("blitzMode");
   if(bm)bm.style.display=mode==="blitz"?"block":"none";
   document.body.classList.toggle("dt-plain", mode==="blitz");
+  if(mode!=="blitz") document.body.classList.remove("dt-board");
   if(mode==="blitz"){
     // Career keeps its own state; Blitz never writes to it.
     
