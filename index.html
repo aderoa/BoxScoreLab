@@ -487,6 +487,84 @@ body{background:linear-gradient(145deg,#1a1a3e 0%,#0a0a1a 50%,#ffffff 100%);back
    the cards out. */
 body.dt-plain{background:#0b0b1c}
 /* ── Dream Team mode ── */
+/* ── labels: full width has room for the long form, a phone does not ── */
+.dt-clue span i{font-style:normal}
+.dt-clue span .l-abbr{display:none}
+
+/* ── the sixth grid cell: counters + the two actions (phone only) ── */
+.dt-statcell{display:none;flex-direction:column;gap:5px;padding:8px;border-radius:9px;
+  background:rgba(74,144,226,.10);border:1px solid rgba(74,144,226,.35)}
+.dt-sc-top{display:grid;grid-template-columns:1fr 1fr;gap:4px 6px}
+.dt-sc-n{display:flex;align-items:baseline;gap:3px;line-height:1}
+.dt-sc-n b{font-size:1rem;font-weight:800;font-variant-numeric:tabular-nums}
+.dt-sc-n span{font-size:.5rem;letter-spacing:.04em;text-transform:uppercase;opacity:.55}
+.dt-sc-n.warn b{color:#e63946}
+.dt-sc-shape{font-size:.6rem;font-weight:800;letter-spacing:.06em;text-align:center;
+  padding:3px;border-radius:5px;background:rgba(255,255,255,.06)}
+.dt-sc-shape.ok{color:#4ade80}.dt-sc-shape.bad{color:#ffb020}
+.dt-sc-btn,.dt-sc-roster{font-family:inherit;border:none;border-radius:6px;cursor:pointer;
+  font-weight:800;letter-spacing:.05em;padding:9px 4px;font-size:.64rem}
+.dt-sc-btn{background:#4a90e2;color:#fff;margin-top:auto}
+.dt-sc-btn:disabled{background:rgba(255,255,255,.09);color:rgba(255,255,255,.45)}
+.dt-sc-roster{background:rgba(255,255,255,.09);color:#fff;font-size:.56rem;padding:7px 4px}
+.dt-sheet-close{display:none}
+
+/* ── phone: the whole game on one screen, nothing scrolls ── */
+@media(max-width:640px){
+  /* The header sits above the board, so pinning the board itself to 100dvh
+     would push its last row off-screen. Make the whole app one viewport-tall
+     column instead and let the board take whatever the header leaves. */
+  body.dt-plain{overflow:hidden}
+  body.dt-plain #app{height:100dvh;display:flex;flex-direction:column;overflow:hidden}
+  body.dt-plain .rings-sm{width:44px;height:20px;margin-bottom:2px}
+  body.dt-plain .logo-sm{font-size:15px;letter-spacing:2px}
+  body.dt-plain .mode-tabs{margin-bottom:6px}
+  body.dt-plain .mode-tab{padding:6px 12px;font-size:12px}
+  #blitzMode{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;overflow:hidden;
+    padding:6px 6px 0;max-width:100%;gap:0}
+  .dt-bar,.dt-hint,.dt-lastten{display:none}
+
+  .dt-grid{flex:1 1 auto;min-height:0;display:grid;
+    grid-template-columns:1fr 1fr;grid-template-rows:repeat(3,minmax(0,1fr));gap:5px}
+  .dt-card{min-height:0;padding:6px;overflow:hidden}
+  .dt-card-top{margin-bottom:3px}
+  .dt-pos{font-size:.52rem;padding:0 4px}
+  .dt-dots i{width:4px;height:4px}
+  .dt-clues{gap:1px;margin-bottom:4px}
+  .dt-clue{flex-direction:row;align-items:center;justify-content:space-between;
+    gap:4px;padding:1px 4px;min-height:0}
+  .dt-clue span{flex:0 0 auto}
+  .dt-clue span .l-full{display:none}
+  .dt-clue span .l-abbr{display:inline;font-size:.45rem;letter-spacing:.03em}
+  .dt-clue b{font-size:.6rem;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:right}
+  .dt-reveal-name{font-size:.7rem;margin:1px 0 3px}
+  .dt-wild{font-size:.48rem;padding:0 4px}
+  .dt-btns{gap:4px}
+  .dt-b{font-size:.56rem;padding:6px 2px}
+  .dt-tag{font-size:.5rem;margin-top:2px}
+
+  .dt-statcell{display:flex}
+
+  /* roster + opponent slide up over the board instead of living below it */
+  .dt-sheet{position:fixed;left:0;right:0;bottom:0;z-index:70;max-height:78dvh;overflow:auto;
+    background:#0f0f24;border-top:1px solid rgba(255,255,255,.18);
+    border-radius:14px 14px 0 0;padding:12px 12px 16px;
+    transform:translateY(101%);transition:transform .22s ease-out;
+    box-shadow:0 -10px 30px rgba(0,0,0,.5)}
+  body.dt-roster-open .dt-sheet{transform:none}
+  .dt-sheet .dt-roster{margin-top:0}
+  .dt-sheet-close{display:block;width:100%;margin-top:12px;padding:11px;border:none;border-radius:8px;
+    background:rgba(255,255,255,.1);color:#fff;font-family:inherit;font-weight:800;
+    letter-spacing:.1em;font-size:.68rem;cursor:pointer}
+  .dt-dchart{grid-template-columns:repeat(3,1fr)}
+  .dt-rslot{font-size:.66rem;padding:3px 6px}
+}
+@media(max-width:640px) and (max-height:620px){
+  .dt-clue b{font-size:.55rem}
+  .dt-clue span .l-abbr{font-size:.42rem}
+  .dt-b{padding:5px 2px}
+}
+
 .dt-split{font-size:.55rem;letter-spacing:.14em;text-transform:uppercase;opacity:.4;
   margin:9px 0 5px;padding-top:7px;border-top:1px dashed rgba(255,255,255,.18)}
 .dt-row.extra{background:rgba(255,255,255,.03);opacity:.65}
@@ -960,6 +1038,9 @@ let pendingBonusName=null;   // bonus teammate to add after a correct guess
 let pendingDismissedNames=null; // 4 mystery-slot names dismissed by the current pick (shown to user)
 const CLUE_LABELS=["STATE/COUNTRY","STATUS","PRE-DRAFT TEAM","PICK","TEAM / SEASON"];
 const DT_CLUE_LABELS=["STATE/COUNTRY","RANDOM CAREER HONOR","PRE-DRAFT TEAM","DRAFT PICK","TEAM / SEASON","PLAYED ALONGSIDE"];
+/* On a phone a card is ~180px wide; the full labels do not fit beside their
+   values, so each row carries both and CSS shows whichever suits the width. */
+const DT_CLUE_SHORT =["STATE","HONOR","PRE-DRAFT","PICK","SEASON","PLAYED W/"];
 // Mapping from clue index → display value. POSITION lives in the slot
 // header (always visible). BIRTH YEAR was dropped in v6, DRAFT YEAR in v7.
 // COLLEGE was relabeled to "Pre-Draft Team" since the field also holds
@@ -3674,7 +3755,8 @@ function dtCardHtml(c) {
     const on = c.revealed[i];
     const fresh = !resolved && DT.lastClue && DT.lastClue.card === c.id && DT.lastClue.clue === i;
     return `<div class="dt-clue ${on ? "on" : ""} ${fresh ? "flash" : ""}">
-      <span>${lab}</span><b>${on ? dtClueValue(c, i) : "&mdash;"}</b></div>`;
+      <span><i class="l-full">${lab}</i><i class="l-abbr">${DT_CLUE_SHORT[i] || lab}</i></span>
+      <b>${on ? dtClueValue(c, i) : "&mdash;"}</b></div>`;
   }).join("");
   const head = `<div class="dt-card-top">
       <span class="dt-num">${c.id + 1}</span>
@@ -3696,6 +3778,27 @@ function dtCardHtml(c) {
       <button class="dt-b dt-cut" onclick="dtResolve(${c.id},false)">CUT</button>
     </div></div>`;
 }
+
+/* Five cards in two columns leaves the sixth cell empty, which is where the
+   counters and the reveal button go on a phone. That keeps the whole game --
+   board, stats, action -- inside one screen with nothing to scroll. */
+function dtStatsCellHtml(board, full, left, lastTen) {
+  const cov = dtCoverage(DT.picked.map(e => e.name));
+  const shapeOk = !cov.over.length;
+  return `<div class="dt-statcell">
+    <div class="dt-sc-top">
+      <div class="dt-sc-n"><b>${DT.picked.length}</b><span>/${DT_SQUAD} signed</span></div>
+      <div class="dt-sc-n ${full ? "warn" : ""}"><b>${board}</b><span>/${DT_BOARD} clues</span></div>
+      <div class="dt-sc-n"><b>${DT.cut.length}</b><span>cut</span></div>
+      <div class="dt-sc-n ${lastTen ? "warn" : ""}"><b>${left}</b><span>${lastTen ? "left" : "unseen"}</span></div>
+    </div>
+    <div class="dt-sc-shape ${shapeOk ? "ok" : "bad"}">${cov.have.G}G &middot; ${cov.have.F}F &middot; ${cov.have.C}C</div>
+    <button class="dt-sc-btn" onclick="dtSpendClue(false)" ${full ? "disabled" : ""}>
+      ${full ? "BOARD FULL" : "REVEAL CLUE"}</button>
+    <button class="dt-sc-roster" onclick="dtToggleRoster()">ROSTER &amp; OPPONENT</button>
+  </div>`;
+}
+function dtToggleRoster(){ document.body.classList.toggle("dt-roster-open"); }
 
 function dtRender() {
   const el = document.getElementById("blitzMode");
@@ -3723,13 +3826,17 @@ function dtRender() {
     <div class="dt-hint">${full
       ? `All ${DT_BOARD} clues are out. Sign or cut a card to clear its clues and make room.`
       : "Clues land on a random visible card. Resolving one clears its clues and brings the next unknown onto the board."}</div>
-    <div class="dt-grid ${full ? "must-act" : ""}">${dtVisibleCards().map(dtCardHtml).join("")}</div>
-    ${dtRosterHtml()}
-    <div class="dt-opp">
-      <div class="dt-opp-head">You are playing</div>
-      <div class="dt-opp-name">THE DREAM TEAM</div>
-      <div class="dt-opp-list">${DT.opp.map(p =>
-        `<span>${p.name}<i>${p.season}</i></span>`).join("")}</div>
+    <div class="dt-grid ${full ? "must-act" : ""}">${dtVisibleCards().map(dtCardHtml).join("")}
+      ${dtStatsCellHtml(board, full, left, lastTen)}</div>
+    <div class="dt-sheet">
+      ${dtRosterHtml()}
+      <div class="dt-opp">
+        <div class="dt-opp-head">You are playing</div>
+        <div class="dt-opp-name">THE DREAM TEAM</div>
+        <div class="dt-opp-list">${DT.opp.map(p =>
+          `<span>${p.name}<i>${p.season}</i></span>`).join("")}</div>
+      </div>
+      <button class="dt-sheet-close" onclick="dtToggleRoster()">CLOSE</button>
     </div>`;
 }
 
