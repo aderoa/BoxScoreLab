@@ -487,6 +487,12 @@ body{background:linear-gradient(145deg,#1a1a3e 0%,#0a0a1a 50%,#ffffff 100%);back
    the cards out. */
 body.dt-plain{background:#0b0b1c}
 /* ── Dream Team mode ── */
+.dt-mustsign{text-align:center;font-size:.72rem;font-weight:800;letter-spacing:.12em;color:#e63946;
+  background:rgba(230,57,70,.12);border:1px solid rgba(230,57,70,.4);border-radius:8px;
+  padding:7px;margin-bottom:10px}
+.dt-b:disabled{opacity:.35;cursor:not-allowed}
+.dt-b.dt-cut:disabled:hover{background:rgba(255,255,255,.09);color:rgba(255,255,255,.8)}
+
 
 .dt-split{font-size:.55rem;letter-spacing:.14em;text-transform:uppercase;opacity:.4;
   margin:9px 0 5px;padding-top:7px;border-top:1px dashed rgba(255,255,255,.18)}
@@ -1074,10 +1080,10 @@ let pendingResult=null;      // {pA, pB, justRevealedSlotIdx} held between game 
 let pendingBonusName=null;   // bonus teammate to add after a correct guess
 let pendingDismissedNames=null; // 4 mystery-slot names dismissed by the current pick (shown to user)
 const CLUE_LABELS=["STATE/COUNTRY","STATUS","PRE-DRAFT TEAM","PICK","TEAM / SEASON"];
-const DT_CLUE_LABELS=["STATE/COUNTRY","RANDOM CAREER HONOR","PRE-DRAFT TEAM","DRAFT PICK","TEAM / SEASON","PLAYED ALONGSIDE"];
+const DT_CLUE_LABELS=["RANDOM CAREER HONOR","PRE-DRAFT TEAM","DRAFT PICK","TEAM / SEASON","PLAYED ALONGSIDE"];
 /* On a phone a card is ~180px wide; the full labels do not fit beside their
    values, so each row carries both and CSS shows whichever suits the width. */
-const DT_CLUE_SHORT =["STATE","HONOR","PRE-DRAFT","PICK","SEASON","PLAYED W/"];
+const DT_CLUE_SHORT =["HONOR","PRE-DRAFT","PICK","SEASON","PLAYED W/"];
 // Mapping from clue index → display value. POSITION lives in the slot
 // header (always visible). BIRTH YEAR was dropped in v6, DRAFT YEAR in v7.
 // COLLEGE was relabeled to "Pre-Draft Team" since the field also holds
@@ -3138,13 +3144,11 @@ function dtPickLabel(raw) {
 /* Own clue renderer so Career's version is left exactly as it is. */
 function dtClueValue(card, i) {
   const b = dtBio(card.name); if (!b) return "\u2014";
-  if (i === 0) { const v = String(b[2] || "").trim(); const ab = (typeof STATE_ABBR !== "undefined") && STATE_ABBR[v];
-                 return v ? (ab ? v + " (" + ab + ")" : v) : "\u2014"; }
-  if (i === 1) return card.award || "No career honours";
-  if (i === 2) return String(b[4] || "\u2014");
-  if (i === 3) return dtPickLabel(b[6]);
-  if (i === 4) return card.entry ? card.entry.label : (card.rolledSeason || "\u2014");
-  if (i === 5) {
+  if (i === 0) return card.award || "No career honours";
+  if (i === 1) return String(b[4] || "\u2014");
+  if (i === 2) return dtPickLabel(b[6]);
+  if (i === 3) return card.entry ? card.entry.label : (card.rolledSeason || "\u2014");
+  if (i === 4) {
     if (card.mate === undefined) card.mate = dtRandomTeammate(card.name);
     return card.mate || "No recorded teammate";
   }
@@ -3603,7 +3607,7 @@ function dtStart() {
     cards: pool.entries.map((e, i) => {
       const aw = dtAwardOptions(e.name);
       return { id: i, name: e.name, entry: e,
-               revealed: [false, false, false, false, false, false],
+               revealed: [false, false, false, false, false],
                award: aw.length ? aw[Math.floor(rng() * aw.length)] : null,
                rolledSeason: e.label, rolledSeasonYear: e.sy, rolledTeam: e.team,
                state: "open" };
@@ -3625,6 +3629,14 @@ const dtBoardCount = () => dtVisibleCards()
   .filter(c => c.state === "open")
   .reduce((n, c) => n + c.revealed.filter(Boolean).length, 0);
 const dtUnresolved = () => DT.cards.filter(c => c.state === "open").length;
+/* Cards still gettable: what is on the board plus what is behind it. Once that
+   equals the slots you have left, every one of them has to be signed -- cutting
+   even a single card would leave the roster short, and the game has no way to
+   finish twelve without twelve players. So CUT is locked out rather than the
+   twelve being auto-signed for you: you still resolve each card yourself and
+   still see who it was. */
+const dtAvailable = () => dtVisibleCards().filter(c => c.state === "open").length + DT.queue.length;
+const dtMustSign = () => (DT_SQUAD - DT.picked.length) >= dtAvailable() && DT.picked.length < DT_SQUAD;
 
 function dtSpendClue(free) {
   if (!DT || DT.done) return;
@@ -3646,12 +3658,13 @@ function dtResolve(id, keep) {
   const card = DT.cards.find(c => c.id === id);
   if (!card || card.state !== "open") return;
   if (keep && DT.picked.length >= DT_SQUAD) return;
+  if (!keep && dtMustSign()) return;        // no cards to spare -- must sign
   DT.lastClue = null;            // the flash belongs to a reveal, never a resolve
   card.state = keep ? "picked" : "cut";
   (keep ? DT.picked : DT.cut).push(card.entry);
   // Show who it was, with every clue open, before the card leaves. You
   // learn as much from a cut as from a signing.
-  card.revealed = [true, true, true, true, true, true];
+  card.revealed = [true, true, true, true, true];
   DT.revealing = card.id;
   dtRender();
   setTimeout(() => dtAdvance(card.id), 650);
@@ -3662,7 +3675,7 @@ function dtDealNew() {
   if (!e) return null;
   const aw = dtAwardOptions(e.name);
   const card = { id: DT.cards.length, name: e.name, entry: e,
-                 revealed: [false, false, false, false, false, false],
+                 revealed: [false, false, false, false, false],
                  award: aw.length ? aw[Math.floor(Math.random() * aw.length)] : null,
                  rolledSeason: e.label, rolledSeasonYear: e.sy, rolledTeam: e.team,
                  state: "open" };
@@ -3678,14 +3691,6 @@ function dtAdvance(id) {
   const next = DT.queue.length ? DT.queue.shift() : dtDealNew();
   if (next != null) DT.visible[at] = next;
   else DT.visible.splice(at, 1);
-  // Only if the deck is genuinely exhausted does anyone get signed for us,
-  // and they are signed as season ENTRIES -- pushing a bare name here is
-  // what produced the "undefined" rows on the result screen.
-  if (DT.picked.length < DT_SQUAD && !DT.queue.length && !DT.extra.length
-      && dtUnresolved() === DT_SQUAD - DT.picked.length) {
-    DT.cards.filter(c => c.state === "open").forEach(c => { c.state = "picked"; DT.picked.push(c.entry); });
-    DT.visible = []; DT.queue = [];
-  }
   if (DT.picked.length >= DT_SQUAD) { dtFinish(); return; }
   dtRender();
 }
@@ -3750,6 +3755,7 @@ function dtToggleRow(i) {
 /* Dream Team mode — rendering. */
 
 function dtCardHtml(c) {
+  const mustSign = dtMustSign();
   const bi = bioByName[c.name];
   const player = bi != null ? bioData[bi] : null;
   const pos = player ? (player[3] || "?") : "?";
@@ -3781,7 +3787,8 @@ function dtCardHtml(c) {
     <div class="dt-clues">${clues}</div>
     <div class="dt-btns">
       <button class="dt-b dt-sign" onclick="dtResolve(${c.id},true)">SIGN</button>
-      <button class="dt-b dt-cut" onclick="dtResolve(${c.id},false)">CUT</button>
+      <button class="dt-b dt-cut" onclick="dtResolve(${c.id},false)" ${mustSign ? "disabled" : ""}
+        ${mustSign ? 'title="No cards to spare — you need every one of them"' : ""}>CUT</button>
     </div></div>`;
 }
 
@@ -3798,7 +3805,8 @@ function dtStatsCellHtml(board, full, left, lastTen) {
       <div class="dt-sc-n"><b>${DT.cut.length}</b><span>cut</span></div>
       <div class="dt-sc-n ${lastTen ? "warn" : ""}"><b>${left}</b><span>${lastTen ? "left" : "unseen"}</span></div>
     </div>
-    <div class="dt-sc-shape ${shapeOk ? "ok" : "bad"}">${cov.have.G}G &middot; ${cov.have.F}F &middot; ${cov.have.C}C</div>
+    ${dtMustSign() ? '<div class="dt-sc-shape bad">MUST SIGN ALL</div>'
+      : `<div class="dt-sc-shape ${shapeOk ? "ok" : "bad"}">${cov.have.G}G &middot; ${cov.have.F}F &middot; ${cov.have.C}C</div>`}
     <button class="dt-sc-btn" onclick="dtSpendClue(false)" ${full ? "disabled" : ""}>
       ${full ? "BOARD FULL" : "REVEAL CLUE"}</button>
     <button class="dt-sc-roster" onclick="dtToggleRoster()">ROSTER &amp; OPPONENT</button>
@@ -3845,6 +3853,7 @@ function dtRender() {
   const left = DT.queue.length + DT.extra.length;
   const lastTen = left <= DT_COUNTDOWN;
   const phone = dtIsPhone();
+  const mustSign = dtMustSign();
   el.innerHTML = `
     <div class="dt-bar">
       <div class="dt-stat"><b>${DT.picked.length}</b><span>/ ${DT_SQUAD} signed</span></div>
@@ -3858,6 +3867,9 @@ function dtRender() {
     </div>
     ${lastTen ? `<div class="dt-lastten">${left} ${left === 1 ? "CARD" : "CARDS"} LEFT
       &mdash; ${DT_CARDS} in the deck, nothing behind them</div>` : ""}
+    ${mustSign ? `<div class="dt-mustsign">${DT_SQUAD - DT.picked.length}
+      ${DT_SQUAD - DT.picked.length === 1 ? "SLOT" : "SLOTS"} LEFT, ${dtAvailable()}
+      ${dtAvailable() === 1 ? "CARD" : "CARDS"} LEFT &mdash; you must sign them all</div>` : ""}
     <div class="dt-hint">${full
       ? `All ${DT_BOARD} clues are out. Sign or cut a card to clear its clues and make room.`
       : "Clues land on a random visible card. Resolving one clears its clues and brings the next unknown onto the board."}</div>
