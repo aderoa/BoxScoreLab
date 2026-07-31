@@ -619,6 +619,7 @@ body.dt-plain{background:#0b0b1c}
 <div id="loadScreen">
   <div class="logo-main">BEAT THE 1992<br>DREAM TEAM</div>
   <div class="subtitle">Build your roster. Beat every era.</div>
+  <div style="font:400 11px/1 monospace;color:#5a5a8a;letter-spacing:1px;margin-top:10px">build 2026-07-31 03:00</div>
   <div id="progressWrap">
     <div id="progressLabel">Downloading game logs...</div>
     <div id="progressBar"><div id="progressFill"></div></div>
@@ -628,7 +629,7 @@ body.dt-plain{background:#0b0b1c}
 <div id="app">
   <div class="header">
     <div class="logo-sm">BEAT THE 1992 DREAM TEAM</div>
-    <div style="font:400 10px/1 monospace;color:#5a5a8a;letter-spacing:1px;margin-top:4px">build 2026-07-31 02:49</div>
+    <div style="font:400 10px/1 monospace;color:#5a5a8a;letter-spacing:1px;margin-top:4px">build 2026-07-31 03:00</div>
   </div>
   <div class="mode-tabs">
     <button class="mode-tab" id="modeSandboxTab" onclick="setMode('sandbox')" style="display:none">Sandbox</button>
@@ -2911,8 +2912,9 @@ const DT_VISIBLE = 5;    // cards on the board at once, out of the 30
 const DT_BOARD   = 5;    // max clues sitting out at once -- the only limit
 const DT_GAME_MIN = 200;              // 5 x 40, an Olympic game, not 5 x 48
 const DT_MIN_SCALE = DT_GAME_MIN / TARGET_MIN;
-const DT_CORE_BAR = 1.5;              // rating points the planted twelve must clear by
-const DT_CORE_MAX = 3.5;              // ...and no more, or the deck plays itself
+const DT_CORE_BAR = 0.5;              // rating points the planted twelve must clear by
+const DT_CORE_MAX = 3.0;              // ...and no more, or the deck plays itself
+const DT_CORE_SKIP = 10;              // the all-time top ten never form the answer
 
 /* The 1992 Olympic roster. Everyone at 1991-92 except Magic, who sat that
    season out, and Laettner, who was still at Duke. */
@@ -3147,7 +3149,13 @@ function dtRollFrom(games) { return games[Math.floor(Math.random() * games.lengt
    nine good ones matters more than signing twelve adequate ones.
    Per-minute rates are capped so a two-minute cameo cannot be stretched
    across thirty-six minutes. */
-const DT_ROTATION = [32, 29, 27, 24, 21, 17, 13, 10, 8, 7, 6, 6];  // 200 min, nobody idle
+/* Flattened deliberately. A top-heavy curve meant only the immortals could
+   carry a twelve past the Dream Team -- with 32 minutes at the top, the best
+   twelve excluding the all-time top 20 finished BELOW the bar and the answer
+   was always the same handful of legends. Spreading the minutes lets depth
+   count: the bar drops from 24.03 to 23.13 and a twelve built from ranks
+   #10-500 can now beat them. */
+const DT_ROTATION = [24, 23, 22, 20, 19, 18, 16, 15, 14, 13, 9, 7];  // 200 min, nobody under 7
 const DT_RATE_CAP = { PTS:1.10, REB:0.60, AST:0.45, STL:0.14, BLK:0.16,
                       FGM:0.45, FGA:0.95, "3PM":0.22, "3PA":0.55,
                       FTM:0.35, FTA:0.45, ORB:0.22, DRB:0.45, TOV:0.22, PF:0.18 };
@@ -3294,13 +3302,17 @@ function dtBuildPool(rng, opp) {
      man for a better one; too strong, swap the best for a weaker one. It
      lands inside the band every time, and across 300 builds it drew on 170
      different players rather than 12, reaching as deep as rank #309. */
+  /* The all-time top ten are held back from the PLANTED twelve -- they can
+     still be dealt as ordinary cards, they just are not the answer. Without
+     this the core kept converging on the same immortals. */
+  const coreTier = tier.slice(DT_CORE_SKIP);
   const pickFrom = arr => arr[Math.floor(rng() * arr.length)];
   let core = null, corePct = 0;
-  for (let restart = 0; restart < 8 && !core; restart++) {
+  for (let restart = 0; restart < 12 && !core; restart++) {
     const draw = [], seen = new Set();
     let guard = 0;
     while (draw.length < DT_SQUAD && guard++ < 600) {
-      const e = pickFrom(tier);
+      const e = pickFrom(coreTier);
       if (!e || seen.has(e.name)) continue;
       seen.add(e.name); draw.push(e);
     }
@@ -3311,7 +3323,7 @@ function dtBuildPool(rng, opp) {
       draw.sort((x, y) => x.gr - y.gr);
       const names = new Set(draw.map(d => d.name));
       const want = m < DT_CORE_BAR;
-      const cand = tier.filter(t => !names.has(t.name) &&
+      const cand = coreTier.filter(t => !names.has(t.name) &&
         (want ? t.gr > draw[0].gr : t.gr < draw[draw.length - 1].gr));
       if (!cand.length) break;
       if (want) draw[0] = pickFrom(cand);
