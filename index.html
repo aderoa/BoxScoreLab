@@ -603,7 +603,7 @@ body{background:linear-gradient(145deg,#1a1a3e 0%,#0a0a1a 50%,#ffffff 100%);back
 <div id="app">
   <div class="header">
     <div class="logo-sm">BEAT THE 1992 DREAM TEAM</div>
-    <div style="font:400 10px/1 monospace;color:#5a5a8a;letter-spacing:1px;margin-top:4px">build 2026-07-30 23:57</div>
+    <div style="font:400 10px/1 monospace;color:#5a5a8a;letter-spacing:1px;margin-top:4px">build 2026-07-31 00:09</div>
   </div>
   <div class="mode-tabs">
     <button class="mode-tab" id="modeSandboxTab" onclick="setMode('sandbox')" style="display:none">Sandbox</button>
@@ -3164,7 +3164,24 @@ function dtBuildPool(rng, opp) {
     const j = Math.floor(rng() * (i + 1));
     [entries[i], entries[j]] = [entries[j], entries[i]];
   }
-  return { entries, best: core, bestPct: corePct };
+
+  // Beyond the thirty the deck simply keeps going. The guarantee that a
+  // winning twelve exists covers the FIRST thirty only -- everything after
+  // is an ordinary draw, so playing on might turn up another All-Star or
+  // might turn up nothing. It means running out of cards can never strand
+  // you with unfilled slots.
+  const extra = [];
+  const spare = new Set(entries.map(e => e.name));
+  let g2 = 0;
+  while (extra.length < 400 && g2++ < 20000) {
+    const n = all[Math.floor(rng() * all.length)];
+    if (spare.has(n)) continue;
+    const ss = dtSeasonsOf(n).filter(seasonOk);
+    if (!ss.length) continue;
+    spare.add(n);
+    extra.push(ss[Math.floor(rng() * ss.length)]);
+  }
+  return { entries, best: core, bestPct: corePct, extra };
 }
 
 /* ── game state ─────────────────────────────────────────────── */
@@ -3202,7 +3219,7 @@ function dtStart() {
     // Only ten of the thirty are on the board. The rest wait in a queue and
     // step forward one at a time as you resolve, so signing or cutting is
     // also how you get to see anybody new.
-    visible: [], queue: [], revealing: null,
+    visible: [], queue: [], extra: pool.extra || [], revealing: null,
     cluesUsed: 0, picked: [], cut: [], done: false, result: null, lastClue: null,
   };
   DT.visible = DT.cards.slice(0, DT_VISIBLE).map(c => c.id);
@@ -3249,15 +3266,33 @@ function dtResolve(id, keep) {
   setTimeout(() => dtAdvance(card.id), 1800);
 }
 
+function dtDealNew() {
+  const e = DT.extra.shift();
+  if (!e) return null;
+  const aw = dtAwardOptions(e.name);
+  const card = { id: DT.cards.length, name: e.name, entry: e,
+                 revealed: [false, false, false, false, false],
+                 award: aw.length ? aw[Math.floor(Math.random() * aw.length)] : null,
+                 rolledSeason: e.label, rolledSeasonYear: e.sy, rolledTeam: e.team,
+                 state: "open" };
+  DT.cards.push(card);
+  return card.id;
+}
+
 function dtAdvance(id) {
   if (!DT) return;
   DT.revealing = null;
   DT.lastClue = null;                      // the flash belongs to the clue, not the swap
   const at = DT.visible.indexOf(id);       // the replacement takes the same slot
-  if (DT.queue.length) DT.visible[at] = DT.queue.shift();
+  const next = DT.queue.length ? DT.queue.shift() : dtDealNew();
+  if (next != null) DT.visible[at] = next;
   else DT.visible.splice(at, 1);
-  if (DT.picked.length < DT_SQUAD && dtUnresolved() === DT_SQUAD - DT.picked.length) {
-    DT.cards.filter(c => c.state === "open").forEach(c => { c.state = "picked"; DT.picked.push(c.name); });
+  // Only if the deck is genuinely exhausted does anyone get signed for us,
+  // and they are signed as season ENTRIES -- pushing a bare name here is
+  // what produced the "undefined" rows on the result screen.
+  if (DT.picked.length < DT_SQUAD && !DT.queue.length && !DT.extra.length
+      && dtUnresolved() === DT_SQUAD - DT.picked.length) {
+    DT.cards.filter(c => c.state === "open").forEach(c => { c.state = "picked"; DT.picked.push(c.entry); });
     DT.visible = []; DT.queue = [];
   }
   if (DT.picked.length >= DT_SQUAD) { dtFinish(); return; }
@@ -3340,7 +3375,7 @@ function dtRender() {
     <div class="dt-bar">
       <div class="dt-stat"><b>${DT.picked.length}</b><span>/ ${DT_SQUAD} signed</span></div>
       <div class="dt-stat"><b>${DT.cut.length}</b><span>cut</span></div>
-      <div class="dt-stat"><b>${DT.queue.length}</b><span>still unseen</span></div>
+      <div class="dt-stat"><b>${DT.queue.length + DT.extra.length}</b><span>still unseen</span></div>
       <div class="dt-stat ${full ? "warn" : ""}"><b>${board}</b><span>/ ${DT_BOARD} on board</span></div>
       <div class="dt-stat"><b>${DT.cluesUsed}</b><span>clues used</span></div>
       <button class="dt-clue-btn" onclick="dtSpendClue(false)" ${full || busy ? "disabled" : ""}>
