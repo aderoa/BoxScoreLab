@@ -3398,13 +3398,17 @@ function dtRollFrom(games) { return games[Math.floor(Math.random() * games.lengt
    nine good ones matters more than signing twelve adequate ones.
    Per-minute rates are capped so a two-minute cameo cannot be stretched
    across thirty-six minutes. */
-/* Flattened deliberately. A top-heavy curve meant only the immortals could
-   carry a twelve past the Dream Team -- with 32 minutes at the top, the best
-   twelve excluding the all-time top 20 finished BELOW the bar and the answer
-   was always the same handful of legends. Spreading the minutes lets depth
-   count: the bar drops from 24.03 to 23.13 and a twelve built from ranks
-   #10-500 can now beat them. */
-const DT_ROTATION = [24, 23, 22, 20, 19, 18, 16, 15, 14, 13, 9, 7];  // 200 min, nobody under 7
+/* Weighted toward the top five, the way a real playoff rotation is. A flat
+   curve made every weak signing cost full price: a twelfth man at 2.7 was
+   given the same 7 minutes as one at 12, and four soft picks in the 5-8 slots
+   sank an otherwise strong twelve.
+
+   This does NOT hand the player an edge -- the Dream Team is scored on the
+   same curve and their top five is excellent, so steepening lifts them too.
+   What it does is shift where a mistake hurts: your best five now decide most
+   of the game, and a bad ninth or tenth man costs a fraction of what he did.
+   Everyone still plays. */
+const DT_ROTATION = [34, 31, 28, 25, 22, 18, 14, 11, 8, 5, 2, 2];  // 200 min, nobody idle
 const DT_RATE_CAP = { PTS:1.10, REB:0.60, AST:0.45, STL:0.14, BLK:0.16,
                       FGM:0.45, FGA:0.95, "3PM":0.22, "3PA":0.55,
                       FTM:0.35, FTA:0.45, ORB:0.22, DRB:0.45, TOV:0.22, PF:0.18 };
