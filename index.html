@@ -518,7 +518,7 @@ body.dt-plain{background:#0b0b1c}
 .dt-bdiff{font-weight:800;min-width:42px;font-variant-numeric:tabular-nums}
 .dt-bdiff.win{color:#4ade80}.dt-bdiff.loss{color:#e63946}
 .dt-bscore{opacity:.75;font-variant-numeric:tabular-nums}
-.dt-bclues{margin-left:auto;opacity:.45;font-size:.68rem}
+.dt-bscore{margin-right:auto}
 .dt-bcaret{opacity:.45;font-size:.7rem}
 .dt-bsquad{display:none;flex-wrap:wrap;gap:4px;padding:6px 10px 10px}
 .dt-bsquad.open{display:flex}
@@ -3711,6 +3711,11 @@ function dtSpendClue(free) {
   const slots = card.revealed.map((r, i) => (r ? -1 : i)).filter(i => i >= 0);
   const which = slots[Math.floor(Math.random() * slots.length)];
   card.revealed[which] = true;
+  /* Still counted, because dtSpendClue needs to know a clue was paid for --
+     but never displayed as a running total. Showing "14 clues used" next to
+     the result read like a score, when nothing about the outcome depends on
+     how many you took. The only clue number a player needs is how many are
+     on the board against the cap. */
   if (!free) DT.cluesUsed++;
   DT.lastClue = { card: card.id, clue: which };
   if (!free) dtRender();
@@ -3800,7 +3805,6 @@ function dtBoardHtml(highlightAt) {
         <span class="dt-brank">${i + 1}</span>
         <span class="dt-bdiff ${b.diff > 0 ? "win" : "loss"}">${b.diff > 0 ? "+" : ""}${b.diff}</span>
         <span class="dt-bscore">${b.you}&ndash;${b.them}</span>
-        <span class="dt-bclues">${b.clues} clues</span>
         <span class="dt-bcaret" id="dtCaret${i}">&#9662;</span>
       </div>
       <div class="dt-bsquad" id="dtSquad${i}">
@@ -3923,7 +3927,6 @@ function dtRender() {
       <div class="dt-stat"><b>${DT.cut.length}</b><span>cut</span></div>
       <div class="dt-stat ${lastTen ? "warn" : ""}"><b>${left}</b><span>${lastTen ? "picks left" : "still unseen"}</span></div>
       <div class="dt-stat ${full ? "warn" : ""}"><b>${board}</b><span>/ ${DT_BOARD} on board</span></div>
-      <div class="dt-stat"><b>${DT.cluesUsed}</b><span>clues used</span></div>
       <button class="dt-clue-btn" onclick="dtSpendClue(false)" ${full ? "disabled" : ""}>
         ${full ? "BOARD FULL — RESOLVE A CARD" : "REVEAL A CLUE"}
       </button>
@@ -4048,8 +4051,7 @@ function dtResultHtml() {
       ? '<span class="medal">&#129351;</span> YOU WON <span class="medal">&#129351;</span>'
       : "YOU LOST"}</div>
     <div class="dt-record">${r.ptsA}<span>–</span>${r.ptsB}</div>
-    <div class="dt-sub">${DT.cluesUsed} clues used
-      ${r.bal >= 0.985 ? "" : "&nbsp;·&nbsp; " + Math.round((1 - r.bal) * 100) + "% shape penalty"}</div>
+    <div class="dt-sub">${r.bal >= 0.985 ? "&nbsp;" : Math.round((1 - r.bal) * 100) + "% shape penalty"}</div>
     <div class="dt-boxes">
       ${dtBoxHtml("YOUR TWELVE", r.boxA, r.ptsA)}
       ${dtBoxHtml("THE DREAM TEAM", r.boxB, r.ptsB)}
