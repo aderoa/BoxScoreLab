@@ -603,7 +603,7 @@ body{background:linear-gradient(145deg,#1a1a3e 0%,#0a0a1a 50%,#ffffff 100%);back
 <div id="app">
   <div class="header">
     <div class="logo-sm">BEAT THE 1992 DREAM TEAM</div>
-    <div style="font:400 10px/1 monospace;color:#5a5a8a;letter-spacing:1px;margin-top:4px">build 2026-07-31 00:09</div>
+    <div style="font:400 10px/1 monospace;color:#5a5a8a;letter-spacing:1px;margin-top:4px">build 2026-07-31 00:35</div>
   </div>
   <div class="mode-tabs">
     <button class="mode-tab" id="modeSandboxTab" onclick="setMode('sandbox')" style="display:none">Sandbox</button>
@@ -3047,6 +3047,35 @@ function dtBuildOpponent() {
 /* ── simulation ─────────────────────────────────────────────── */
 function dtRollFrom(games) { return games[Math.floor(Math.random() * games.length)]; }
 
+/* Even minutes, both sides.
+   normalizeTeam keeps each player's REAL minutes share, so a twelve built
+   around a few stars quietly benched its weak links -- Moses Malone turning
+   up for two minutes, a journeyman for eleven -- and the roster played like
+   an eight-man rotation. Splitting the game evenly means every one of the
+   twelve is on the floor for the same stretch, so a bad twelfth man costs
+   you as much as a good one earns. Per-minute rates are capped because a
+   six-point cameo in two minutes should not extrapolate to a fifty-point
+   game. The Dream Team is normalised exactly the same way. */
+const DT_EVEN_MIN = DT_GAME_MIN / DT_SQUAD;      // 200 / 12
+const DT_RATE_CAP = { PTS:1.10, REB:0.60, AST:0.45, STL:0.14, BLK:0.16,
+                      FGM:0.45, FGA:0.95, "3PM":0.22, "3PA":0.55,
+                      FTM:0.35, FTA:0.45, ORB:0.22, DRB:0.45, TOV:0.22, PF:0.18 };
+function dtNormalizeEven(ti) {
+  const team = teams[ti];
+  adjusted[ti] = team.map(() => ({}));
+  const each = DT_GAME_MIN / Math.max(team.length, 1);
+  team.forEach((p, i) => {
+    const rawMin = Math.max(rawG(p.game, "MIN"), 1);
+    adjusted[ti][i].MIN = Math.round(each);
+    COUNT_STATS.forEach(st => {
+      let rate = rawG(p.game, st) / rawMin;
+      const cap = DT_RATE_CAP[st];
+      if (cap != null && rate > cap) rate = cap;
+      adjusted[ti][i][st] = Math.round(rate * each);
+    });
+  });
+}
+
 function dtSim(squad, opp, nGames, keepBoard) {
   const savedT = teams, savedA = adjusted;
   const bal = dtBalance(squad.map(e => e.name)).mult;
@@ -3057,11 +3086,11 @@ function dtSim(squad, opp, nGames, keepBoard) {
     const tB = opp.map(p => ({ name: p.name, game: dtRollFrom(p.games) }));
     if (tA.length < 5 || tB.length < 5) continue;
     teams = [tA, tB]; adjusted = [[], []];
-    normalizeTeam(0); normalizeTeam(1);
+    dtNormalizeEven(0); dtNormalizeEven(1);
     let a = 0, b = 0;
     tA.forEach((_, i) => { a += av(0, i, "PTS"); });
     tB.forEach((_, i) => { b += av(1, i, "PTS"); });
-    a = Math.round(a * bal * DT_MIN_SCALE); b = Math.round(b * DT_MIN_SCALE);
+    a = Math.round(a * bal); b = Math.round(b);
     if (a === b) (Math.random() < 0.5 ? a++ : b++);
     ptsA += a; ptsB += b;
     if (a > b) wins++;
@@ -3416,7 +3445,7 @@ function dtRosterHtml() {
 function dtBoxRow(ti, i, t, adj) {
   const g = t.game;
   const st = k => { const v = (adj[ti] && adj[ti][i] && adj[ti][i][k] !== undefined) ? adj[ti][i][k] : rawG(g, k);
-                    return Math.round(v * DT_MIN_SCALE); };
+                    return Math.round(v); };
   const season = formatSeasonYear(g[G.SY]);
   const team = String(TEAMS[g[G.TM]] || "").replace(/\s*\([^)]*\)\s*$/, "");
   return `<tr><td class="dt-bn">${t.name}<i>${season}${team ? " " + team : ""}</i></td>
