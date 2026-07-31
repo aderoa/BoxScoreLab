@@ -484,6 +484,25 @@ body{background:linear-gradient(145deg,#1a1a3e 0%,#0a0a1a 50%,#ffffff 100%);back
 @media(max-width:600px){.logo-main{font-size:32px;letter-spacing:3px}.controls{padding:10px;gap:6px}.search-wrap{max-width:100%;flex:1 1 100%}.score-pts{font-size:40px}.scoreboard{gap:20px}.slots-grid{grid-template-columns:1fr 1fr}.roster-cards{grid-template-columns:1fr 1fr}.roster-cards-compact{grid-template-columns:1fr 1fr}.reveal-header{font-size:24px;letter-spacing:5px}.reveal-card-meta{grid-template-columns:1fr}}
 
 /* ── Dream Team mode ── */
+.dt-roster-head b{color:#fff}
+.dt-vs{margin-left:auto;font-size:.7rem;letter-spacing:.05em;text-transform:none;font-weight:700}
+.dt-vs.ok{color:#4ade80}.dt-vs.bad{color:#ffb020}
+.dt-vs i{font-style:normal;opacity:.5;margin:0 3px}
+.dt-dchart{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.dt-dcol{display:flex;flex-direction:column;gap:3px}
+.dt-dhead{display:flex;justify-content:space-between;font-size:.62rem;font-weight:800;letter-spacing:.12em;padding:3px 6px;border-bottom:1px solid rgba(255,255,255,.12);margin-bottom:2px}
+.dt-dhead span{opacity:.5;font-weight:600}
+.dt-dhead.heavy{color:#ffb020;border-color:rgba(255,176,32,.5)}
+.dt-dhead.heavy span{opacity:1;color:#ffb020}
+.dt-dslot{display:flex;align-items:center;gap:6px;background:rgba(255,255,255,.07);border-radius:5px;padding:4px 7px;font-size:.72rem}
+.dt-dgr{font-weight:800;color:#4a90e2;min-width:30px;font-variant-numeric:tabular-nums}
+.dt-dname{font-weight:600;line-height:1.15;flex:1}
+.dt-dname i{display:block;font-style:normal;font-size:.58rem;opacity:.45}
+.dt-dflex{font-size:.54rem;font-weight:800;color:#ffd700;background:rgba(255,215,0,.14);padding:1px 4px;border-radius:3px}
+.dt-dmin{font-size:.62rem;opacity:.55;font-variant-numeric:tabular-nums}
+.dt-dempty{background:rgba(255,255,255,.03);border-radius:5px;padding:4px 7px;font-size:.72rem;opacity:.25}
+@media(max-width:640px){.dt-dchart{grid-template-columns:1fr}}
+
 .dt-lastten{text-align:center;font-size:.72rem;font-weight:800;letter-spacing:.14em;color:#ffb020;background:rgba(255,176,32,.1);border:1px solid rgba(255,176,32,.35);border-radius:8px;padding:7px;margin-bottom:10px}
 .dt-wild{font-size:.58rem;font-weight:800;letter-spacing:.1em;color:#1a1a2e;background:#ffd700;padding:1px 6px;border-radius:4px;vertical-align:middle}
 
@@ -606,7 +625,7 @@ body{background:linear-gradient(145deg,#1a1a3e 0%,#0a0a1a 50%,#ffffff 100%);back
 <div id="app">
   <div class="header">
     <div class="logo-sm">BEAT THE 1992 DREAM TEAM</div>
-    <div style="font:400 10px/1 monospace;color:#5a5a8a;letter-spacing:1px;margin-top:4px">build 2026-07-31 01:54</div>
+    <div style="font:400 10px/1 monospace;color:#5a5a8a;letter-spacing:1px;margin-top:4px">build 2026-07-31 02:24</div>
   </div>
   <div class="mode-tabs">
     <button class="mode-tab" id="modeSandboxTab" onclick="setMode('sandbox')" style="display:none">Sandbox</button>
@@ -2882,6 +2901,7 @@ function toggleDifficulty(){
 const DT_STORAGE_KEY = "bsl_dreamteam_v1";
 const DT_CARDS   = 30;   // guaranteed to hold a winning twelve
 const DT_RESERVE = 10;   // ten more behind them, one of which is a wild card
+const DT_TIER    = 500;  // seasons eligible to form the planted twelve
 const DT_SQUAD   = 12;
 const DT_VISIBLE = 5;    // cards on the board at once, out of the 30
 const DT_BOARD   = 5;    // max clues sitting out at once -- the only limit
@@ -2970,6 +2990,37 @@ function dtClueValue(card, i) {
    A lineup needs guards to create and bigs to rebound, so a squad is scaled
    by how close it sits to a workable 5G/4F/3C shape. */
 const DT_TARGET = { G: 5, F: 4, C: 3 };
+/* bio.json lists a position as G, F, C or a hyphenated pair (G-F, F-C), so a
+   swingman genuinely covers two neighbouring spots. Both are kept: the first
+   is where he sits on the chart, the set is what he can cover if the roster
+   needs it. */
+function dtPosSet(name) {
+  const b = dtBio(name);
+  const p = String((b && b[3]) || "").toUpperCase();
+  const out = [];
+  if (p.indexOf("G") >= 0) out.push("G");
+  if (p.indexOf("F") >= 0) out.push("F");
+  if (p.indexOf("C") >= 0) out.push("C");
+  return out.length ? out : ["F"];
+}
+/* Can these twelve actually cover 5G/4F/3C, using the swingmen? Greedy from
+   the least flexible player upward, which is exact for three buckets. */
+function dtCoverage(names) {
+  const need = { G: 0, F: 0, C: 0 };
+  const have = { G: 0, F: 0, C: 0 };
+  const players = names.map(n => ({ n, pos: dtPosSet(n) }))
+                       .sort((a, b) => a.pos.length - b.pos.length);
+  const cap = { G: DT_TARGET.G, F: DT_TARGET.F, C: DT_TARGET.C };
+  const over = [];
+  for (const pl of players) {
+    let placed = null;
+    for (const q of pl.pos) if (have[q] < cap[q]) { placed = q; break; }
+    if (placed) have[placed]++;
+    else { over.push(pl.n); have[pl.pos[0]]++; }
+    need[pl.pos[0]]++;
+  }
+  return { have, need, over };
+}
 function dtPosBucket(name) {
   const b = dtBio(name);
   const p = String((b && b[3]) || "").toUpperCase();
@@ -3091,7 +3142,7 @@ function dtRollFrom(games) { return games[Math.floor(Math.random() * games.lengt
    nine good ones matters more than signing twelve adequate ones.
    Per-minute rates are capped so a two-minute cameo cannot be stretched
    across thirty-six minutes. */
-const DT_ROTATION = [36, 34, 32, 30, 26, 20, 12, 6, 4, 0, 0, 0];
+const DT_ROTATION = [32, 29, 27, 24, 21, 17, 13, 10, 8, 7, 6, 6];  // 200 min, nobody idle
 const DT_RATE_CAP = { PTS:1.10, REB:0.60, AST:0.45, STL:0.14, BLK:0.16,
                       FGM:0.45, FGA:0.95, "3PM":0.22, "3PA":0.55,
                       FTM:0.35, FTA:0.45, ORB:0.22, DRB:0.45, TOV:0.22, PF:0.18 };
@@ -3216,7 +3267,7 @@ function dtBuildPool(rng, opp) {
   // A wide tier is what makes the draw a puzzle: from the top 60, four in
   // five random twelves beat the Dream Team; from the top 250, fewer than
   // half do.
-  const tier = ranked.slice(0, Math.max(DT_SQUAD * 20, 240));
+  const tier = ranked.slice(0, DT_TIER);
 
   let core = null, corePct = 0;
   for (let attempt = 0; attempt < 25; attempt++) {
@@ -3366,7 +3417,7 @@ function dtResolve(id, keep) {
   card.revealed = [true, true, true, true, true];
   DT.revealing = card.id;
   dtRender();
-  setTimeout(() => dtAdvance(card.id), 1800);
+  setTimeout(() => dtAdvance(card.id), 900);
 }
 
 function dtDealNew() {
@@ -3496,21 +3547,55 @@ function dtRender() {
 }
 
 function dtRosterHtml() {
-  const b = dtBalance(DT.picked.map(e => e.name));
-  const slots = [];
-  for (let i = 0; i < DT_SQUAD; i++) {
-    const e = DT.picked[i];
-    slots.push(e
-      ? `<div class="dt-rslot filled"><span class="dt-rpos">${dtPosBucket(e.name)}</span>${e.name}<i>${e.season}</i></div>`
-      : `<div class="dt-rslot"><span class="dt-rpos">&nbsp;</span>&mdash;</div>`);
-  }
-  const shapeOk = b.mult > 0.985;
+  const picked = DT.picked;
+  const bal = dtBalance(picked.map(e => e.name));
+  const cov = dtCoverage(picked.map(e => e.name));
+  const oppGR = DT.oppGR != null ? DT.oppGR : (DT.oppGR = dtTeamGR(DT.opp));
+  const myGR = picked.length ? dtTeamGR(picked) : 0;
+  const ahead = myGR - oppGR;
+
+  // Minutes follow the rotation, so a player's place on the chart is decided
+  // by where his rating puts him among the twelve.
+  const byGR = picked.slice().sort((x, y) => y.gr - x.gr);
+  const mins = new Map();
+  byGR.forEach((e, i) => mins.set(dtEntryKey(e), DT_ROTATION[i] || 0));
+
+  const col = q => {
+    const men = picked.filter(e => dtPosSet(e.name)[0] === q)
+                      .sort((x, y) => y.gr - x.gr);
+    const cap = DT_TARGET[q];
+    const heavy = men.length > cap;
+    const rows = men.map(e => {
+      const flex = dtPosSet(e.name);
+      return `<div class="dt-dslot">
+        <span class="dt-dgr">${e.gr.toFixed(1)}</span>
+        <span class="dt-dname">${e.name}<i>${e.season}</i></span>
+        ${flex.length > 1 ? `<span class="dt-dflex">${flex.join("/")}</span>` : ""}
+        <span class="dt-dmin">${mins.get(dtEntryKey(e))}'</span></div>`;
+    }).join("");
+    const empty = Math.max(0, cap - men.length);
+    return `<div class="dt-dcol">
+      <div class="dt-dhead ${heavy ? "heavy" : ""}">${q}
+        <span>${men.length}/${cap}${heavy ? " &#9888;" : ""}</span></div>
+      ${rows || '<div class="dt-dempty">&mdash;</div>'}
+      ${Array.from({ length: empty }, () => '<div class="dt-dempty">&mdash;</div>').join("")}
+    </div>`;
+  };
+
+  const note = cov.over.length
+    ? `<span class="dt-shape bad">${cov.over.length} too many for the spots they cover</span>`
+    : (bal.mult > 0.985
+        ? `<span class="dt-shape ok">shape covered</span>`
+        : `<span class="dt-shape bad">lopsided &mdash; ${Math.round((1 - bal.mult) * 100)}% penalty</span>`);
+
   return `<div class="dt-roster">
-    <div class="dt-roster-head">Your roster
-      <span class="dt-shape ${shapeOk ? "ok" : "bad"}">${b.have.G}G / ${b.have.F}F / ${b.have.C}C
-        &nbsp;·&nbsp; ${shapeOk ? "balanced" : "lopsided \u2014 " + Math.round((1 - b.mult) * 100) + "% penalty"}</span>
+    <div class="dt-roster-head">Your rotation &nbsp;<b>${picked.length}/${DT_SQUAD}</b> ${note}
+      <span class="dt-vs ${ahead >= 0 ? "ok" : "bad"}">
+        RATING ${myGR.toFixed(1)} <i>v</i> ${oppGR.toFixed(1)} DREAM TEAM
+        ${picked.length === DT_SQUAD ? (ahead >= 0 ? " &nbsp;LEADING" : " &nbsp;BEHIND") :
+          " &nbsp;(so far)"}</span>
     </div>
-    <div class="dt-rgrid">${slots.join("")}</div></div>`;
+    <div class="dt-dchart">${col("G")}${col("F")}${col("C")}</div></div>`;
 }
 
 function dtBoxRow(t, a) {
@@ -3539,7 +3624,7 @@ function dtResultHtml() {
     <div class="dt-verdict ${won ? "win" : "loss"}">${won ? "YOU BEAT THE DREAM TEAM" : "THE DREAM TEAM HELD"}</div>
     <div class="dt-record">${r.ptsA}<span>–</span>${r.ptsB}</div>
     <div class="dt-sub">${DT.cluesUsed} clues used
-      &nbsp;·&nbsp; your rating <b>${r.grA.toFixed(1)}</b> v their <b>${r.grB.toFixed(1)}</b>
+      &nbsp;·&nbsp; Global Rating <b>${r.grA.toFixed(1)}</b> v <b>${r.grB.toFixed(1)}</b>
       ${r.bal >= 0.985 ? "" : "&nbsp;·&nbsp; " + Math.round((1 - r.bal) * 100) + "% shape penalty"}
       &nbsp;·&nbsp; best available was ${r.bestGR.toFixed(1)}</div>
     <div class="dt-boxes">
