@@ -484,6 +484,9 @@ body{background:linear-gradient(145deg,#1a1a3e 0%,#0a0a1a 50%,#ffffff 100%);back
 @media(max-width:600px){.logo-main{font-size:32px;letter-spacing:3px}.controls{padding:10px;gap:6px}.search-wrap{max-width:100%;flex:1 1 100%}.score-pts{font-size:40px}.scoreboard{gap:20px}.slots-grid{grid-template-columns:1fr 1fr}.roster-cards{grid-template-columns:1fr 1fr}.roster-cards-compact{grid-template-columns:1fr 1fr}.reveal-header{font-size:24px;letter-spacing:5px}.reveal-card-meta{grid-template-columns:1fr}}
 
 /* ── Dream Team mode ── */
+.dt-lastten{text-align:center;font-size:.72rem;font-weight:800;letter-spacing:.14em;color:#ffb020;background:rgba(255,176,32,.1);border:1px solid rgba(255,176,32,.35);border-radius:8px;padding:7px;margin-bottom:10px}
+.dt-wild{font-size:.58rem;font-weight:800;letter-spacing:.1em;color:#1a1a2e;background:#ffd700;padding:1px 6px;border-radius:4px;vertical-align:middle}
+
 .dt-grid.must-act .dt-card{background:rgba(255,255,255,.13);border-color:rgba(255,215,0,.5);box-shadow:0 0 12px rgba(255,215,0,.12)}
 .dt-grid.must-act .dt-clue.on{background:rgba(255,255,255,.12)}
 .dt-grid.must-act .dt-b{filter:brightness(1.15)}
@@ -603,7 +606,7 @@ body{background:linear-gradient(145deg,#1a1a3e 0%,#0a0a1a 50%,#ffffff 100%);back
 <div id="app">
   <div class="header">
     <div class="logo-sm">BEAT THE 1992 DREAM TEAM</div>
-    <div style="font:400 10px/1 monospace;color:#5a5a8a;letter-spacing:1px;margin-top:4px">build 2026-07-31 01:20</div>
+    <div style="font:400 10px/1 monospace;color:#5a5a8a;letter-spacing:1px;margin-top:4px">build 2026-07-31 01:35</div>
   </div>
   <div class="mode-tabs">
     <button class="mode-tab" id="modeSandboxTab" onclick="setMode('sandbox')" style="display:none">Sandbox</button>
@@ -2877,7 +2880,8 @@ function toggleDifficulty(){
    ═══════════════════════════════════════════════════════════════════ */
 
 const DT_STORAGE_KEY = "bsl_dreamteam_v1";
-const DT_CARDS   = 30;
+const DT_CARDS   = 30;   // guaranteed to hold a winning twelve
+const DT_RESERVE = 10;   // ten more behind them, one of which is a wild card
 const DT_SQUAD   = 12;
 const DT_VISIBLE = 5;    // cards on the board at once, out of the 30
 const DT_BOARD   = 5;    // max clues sitting out at once -- the only limit
@@ -3233,21 +3237,31 @@ function dtBuildPool(rng, opp) {
     [entries[i], entries[j]] = [entries[j], entries[i]];
   }
 
-  // Beyond the thirty the deck simply keeps going. The guarantee that a
-  // winning twelve exists covers the FIRST thirty only -- everything after
-  // is an ordinary draw, so playing on might turn up another All-Star or
-  // might turn up nothing. It means running out of cards can never strand
-  // you with unfilled slots.
-  const extra = [];
+  // Ten more behind the thirty, and no further -- forty cards in all. The
+  // guarantee that a winning twelve exists covers the first thirty; the last
+  // ten are an ordinary draw with ONE exception. A single wild card, drawn
+  // from the same elite tier as the core, is hidden among them. Cutting
+  // deep enough to reach it is a gamble that can pay.
   const spare = new Set(entries.map(e => e.name));
+  const wildFrom = tier.filter(e => !spare.has(e.name));
+  const wild = wildFrom.length ? wildFrom[Math.floor(rng() * wildFrom.length)] : null;
+  if (wild) spare.add(wild.name);
+
+  const extra = [];
   let g2 = 0;
-  while (extra.length < 400 && g2++ < 20000) {
+  while (extra.length < (wild ? DT_RESERVE - 1 : DT_RESERVE) && g2++ < 20000) {
     const n = all[Math.floor(rng() * all.length)];
     if (spare.has(n)) continue;
     const ss = dtSeasonsOf(n).filter(seasonOk);
     if (!ss.length) continue;
     spare.add(n);
     extra.push(ss[Math.floor(rng() * ss.length)]);
+  }
+  if (wild) { wild.wild = true; extra.push(wild); }
+  // Shuffle so the wild card is not simply the last one dealt.
+  for (let i = extra.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [extra[i], extra[j]] = [extra[j], extra[i]];
   }
   return { entries, best: core, bestPct: corePct, extra };
 }
@@ -3411,7 +3425,7 @@ function dtCardHtml(c) {
   if (resolved) {
     return `<div class="dt-card ${c.state} ${revealing ? "revealing" : ""}">
       ${head}
-      <div class="dt-reveal-name">${c.name}</div>
+      <div class="dt-reveal-name">${c.name}${c.entry && c.entry.wild ? ' <span class="dt-wild">WILD CARD</span>' : ""}</div>
       <div class="dt-clues">${clues}</div>
       <div class="dt-tag ${c.state}">${c.state === "picked" ? "SIGNED" : "CUT"}</div></div>`;
   }
@@ -3432,17 +3446,21 @@ function dtRender() {
   const board = dtBoardCount();
   const full = board >= DT_BOARD;
   const busy = DT.revealing != null;
+  const left = DT.queue.length + DT.extra.length;
+  const lastTen = left <= DT_RESERVE;
   el.innerHTML = `
     <div class="dt-bar">
       <div class="dt-stat"><b>${DT.picked.length}</b><span>/ ${DT_SQUAD} signed</span></div>
       <div class="dt-stat"><b>${DT.cut.length}</b><span>cut</span></div>
-      <div class="dt-stat"><b>${DT.queue.length + DT.extra.length}</b><span>still unseen</span></div>
+      <div class="dt-stat ${lastTen ? "warn" : ""}"><b>${left}</b><span>${lastTen ? "picks left" : "still unseen"}</span></div>
       <div class="dt-stat ${full ? "warn" : ""}"><b>${board}</b><span>/ ${DT_BOARD} on board</span></div>
       <div class="dt-stat"><b>${DT.cluesUsed}</b><span>clues used</span></div>
       <button class="dt-clue-btn" onclick="dtSpendClue(false)" ${full || busy ? "disabled" : ""}>
         ${full ? "BOARD FULL — RESOLVE A CARD" : "REVEAL A CLUE"}
       </button>
     </div>
+    ${lastTen ? `<div class="dt-lastten">LAST ${left} ${left === 1 ? "PICK" : "PICKS"}
+      &mdash; the deck ends at ${DT_CARDS + DT_RESERVE} cards</div>` : ""}
     <div class="dt-hint">${full
       ? `All ${DT_BOARD} clues are out. Sign or cut a card to clear its clues and make room.`
       : "Clues land on a random visible card. Resolving one clears its clues and brings the next unknown onto the board."}</div>
@@ -3535,7 +3553,9 @@ function dtShowIntro() {
       <li>Signing or cutting reveals who they were &mdash; you learn from both.</li>
       <li>The result is decided by <b>Global Rating</b>, weighted across a real rotation &mdash;
           your best five carry it and the last three never leave the bench.</li>
-      <li>Somewhere in the thirty is a twelve that beats the 1992 Dream Team. Find it.</li>
+      <li>The first <b>${DT_CARDS}</b> hold a twelve that beats the Dream Team. Behind them sit
+          <b>${DT_RESERVE}</b> more &mdash; ordinary players, except for one <b>wild card</b> good
+          enough for any twelve. That is the whole deck: ${DT_CARDS + DT_RESERVE} cards.</li>
     </ol>
     ${todays ? `<div class="dt-best">You have beaten them before</div>` : ""}
     <button class="dt-b dt-again" onclick="dtStart()">DEAL THE POOL</button>
