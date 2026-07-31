@@ -3444,8 +3444,15 @@ function dtPlay(squad, opp) {
   const grA = dtTeamGR(squad), grB = dtTeamGR(opp);
   const bal = dtBalance(squad.map(e => e.name)).mult;
   const edge = (grA * bal - grB) * DT_PTS_PER_GR;
-  const base = DT_BASE_PTS + Math.round(Math.random() * 9);
-  let ptsA = Math.round(base + edge / 2), ptsB = Math.round(base - edge / 2);
+  /* Both scores used to round from the SAME base, so the margin came out as
+     exactly round(edge) every single time -- deterministic, and always even
+     because edge/2 was added to one side and subtracted from the other. Give
+     each side its own centre-weighted swing instead, so the scoreline varies
+     and the margin lands on odd numbers as often as even. */
+  const base = DT_BASE_PTS + Math.floor(Math.random() * 15);
+  const jitter = () => (Math.random() + Math.random() - 1) * 7;
+  let ptsA = Math.round(base + edge / 2 + jitter());
+  let ptsB = Math.round(base - edge / 2 + jitter());
   // The scoreline wanders, the outcome does not.
   if (edge > 0 && ptsA <= ptsB) ptsA = ptsB + 1 + Math.floor(Math.random() * 3);
   if (edge < 0 && ptsB <= ptsA) ptsB = ptsA + 1 + Math.floor(Math.random() * 3);
@@ -3518,9 +3525,16 @@ function dtBuildPool(rng, opp) {
      Always clone before tagging. */
   const clone = e => e && Object.assign({}, e);
   const anySeason = name => { const b = bandOf(name); return b.length ? clone(pick(b)) : null; };
-  const wonSeason = (name, labs) => {
-    const all = dtSeasonsOf(name).filter(e => labs.indexOf(e.season) >= 0 && !nearPeak(e));
-    return all.length ? clone(pick(all)) : null;
+  /* Pinning an award to the exact season it was won made a Rookie of the Year
+     card a rookie season and a Sixth Man card a bench season -- honest, but it
+     capped those slots so low that only 1 deck in 100 was winnable. A card now
+     shows one of the player's FIVE BEST seasons instead: still that player, and
+     he genuinely won the award, but not necessarily in the year shown. Measured
+     over 600 decks that lifts the winnable rate from 1.00% to 2.67%. */
+  const wonSeason = (name) => {
+    const top5 = dtSeasonsOf(name).filter(e => !nearPeak(e))
+                   .sort((x, y) => y.gr - x.gr).slice(0, 5);
+    return top5.length ? clone(pick(top5)) : null;
   };
 
   const cards = [];
@@ -3539,9 +3553,58 @@ function dtBuildPool(rng, opp) {
     const names = [...byCat[c].keys()].filter(n => !used.has(n));
     for (let t = 0; t < 60 && names.length; t++) {
       const n = names[Math.floor(rng() * names.length)];
-      if (take(wonSeason(n, byCat[c].get(n)), label)) return;
+      if (take(wonSeason(n), label)) return;
     }
   });
+
+  /* Award winners skew to guards and wings, so drawing each category blind
+     produced boards like 8G/3F/2C -- and 6% of decks had no centre at all among
+     the guaranteed thirteen. Since every category has many eligible winners,
+     the shape can be fixed without weakening any slot: walk the twelve, and
+     wherever a category is overloading a position, swap in another winner of
+     that same award who plays the position that is short. Only the player
+     changes; the category he represents does not. */
+  const balanceAwards = () => {
+    const target = { G: 5, F: 4, C: 3 };
+    const posOf = e => dtPosSet(e.name)[0];
+    for (let pass = 0; pass < 400; pass++) {
+      const have = { G: 0, F: 0, C: 0 };
+      cards.forEach(e => have[posOf(e)]++);
+      const short = ["C", "F", "G"].find(q => have[q] < target[q]);
+      if (!short) break;                                   // shape is covered
+      const heavy = ["G", "F", "C"].find(q => have[q] > target[q]);
+      if (!heavy) break;
+      // find a card sitting in the overloaded spot whose award has a
+      // replacement who plays the short one
+      let done = false;
+      for (let i = 0; i < cards.length && !done; i++) {
+        const cur = cards[i];
+        if (posOf(cur) !== heavy) continue;
+        const cat = DT_CAT_SEASON.indexOf(cur.award);
+        const alts = [];
+        if (cat >= 0) {
+          for (const [n, labs] of byCat[cat]) {
+            if (used.has(n) || dtPosSet(n)[0] !== short) continue;
+            alts.push(() => wonSeason(n));
+          }
+        } else {
+          const ci = DT_CAT_CAREER.indexOf(cur.award);
+          if (ci >= 0) for (const n of career[ci]) {
+            if (used.has(n) || dtPosSet(n)[0] !== short) continue;
+            alts.push(() => anySeason(n));
+          }
+        }
+        if (!alts.length) continue;
+        const e = alts[Math.floor(rng() * alts.length)]();
+        if (!e) continue;
+        e.award = cur.award;
+        used.delete(cur.name); used.add(e.name);
+        cards[i] = e; done = true;
+      }
+      if (!done) break;                                    // no legal swap left
+    }
+  };
+  balanceAwards();
 
   // the tail card: one more Top-78, held back for the last five
   let tail = null;
