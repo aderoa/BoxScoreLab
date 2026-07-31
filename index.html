@@ -487,6 +487,11 @@ body{background:linear-gradient(145deg,#1a1a3e 0%,#0a0a1a 50%,#ffffff 100%);back
    the cards out. */
 body.dt-plain{background:#0b0b1c}
 /* ── Dream Team mode ── */
+.dt-split{font-size:.55rem;letter-spacing:.14em;text-transform:uppercase;opacity:.4;
+  margin:9px 0 5px;padding-top:7px;border-top:1px dashed rgba(255,255,255,.18)}
+.dt-row.extra{background:rgba(255,255,255,.03);opacity:.65}
+.dt-row.miss{background:rgba(230,57,70,.14);border-left:2px solid rgba(230,57,70,.55)}
+
 .flag{display:inline-block;width:1.05em;height:.55em;vertical-align:.06em;margin:0 .22em;
   border-radius:1px;box-shadow:0 0 0 1px rgba(255,255,255,.25)}
 .logo-main .flag{width:.9em;height:.48em;margin:0 .18em;vertical-align:.1em}
@@ -3795,6 +3800,29 @@ function dtBoxHtml(label, box, pts) {
       <tbody>${box.rows.map((t, i) => dtBoxRow(t, box.stats[i])).join("")}</tbody></table></div>`;
 }
 
+/* Line the two twelves up so the overlap reads at a glance: the ones you got
+   right first, in the same order on both sides, then a rule, then what each
+   side had that the other did not. */
+function dtRecapColumns() {
+  const mine = DT.picked, best = DT.bestPossible;
+  const inBest = e => best.some(b => dtEntryKey(b) === dtEntryKey(e));
+  const inMine = e => mine.some(m => dtEntryKey(m) === dtEntryKey(e));
+  const hit = best.filter(inMine);                 // shared, in the best order
+  const extra = mine.filter(e => !inBest(e));      // yours alone
+  const missed = best.filter(e => !inMine(e));     // the ones you passed on
+  const row = (e, cls) => `<div class="dt-row ${cls}">${e.name}<span>${e.season}</span></div>`;
+  const rule = label => `<div class="dt-split">${label}</div>`;
+  return `
+    <div><div class="dt-col-head">Your twelve &mdash; ${hit.length}/${DT_SQUAD} right</div>
+      ${hit.map(e => row(e, "got")).join("")}
+      ${extra.length ? rule("you took instead") : ""}
+      ${extra.map(e => row(e, "extra")).join("")}</div>
+    <div><div class="dt-col-head">The best twelve in the pool</div>
+      ${hit.map(e => row(e, "got")).join("")}
+      ${missed.length ? rule("you missed") : ""}
+      ${missed.map(e => row(e, "miss")).join("")}</div>`;
+}
+
 function dtResultHtml() {
   const r = DT.result;
   if (r.ptsA > r.ptsB) setTimeout(dtConfetti, 60);
@@ -3811,11 +3839,7 @@ function dtResultHtml() {
       ${dtBoxHtml("THE DREAM TEAM", r.boxB, r.ptsB)}
     </div>
     <div class="dt-cols">
-      <div><div class="dt-col-head">Your twelve</div>
-        ${DT.picked.map(e => `<div class="dt-row">${e.name}<span>${e.season}</span></div>`).join("")}</div>
-      <div><div class="dt-col-head">The best twelve in the pool</div>
-        ${DT.bestPossible.map(e => `<div class="dt-row ${DT.picked.some(p => dtEntryKey(p) === dtEntryKey(e)) ? "got" : ""}">${e.name}<span>${e.season}</span></div>`).join("")}
-</div>
+      ${dtRecapColumns()}
     </div>
     ${dtBoardHtml()}
     <button class="dt-b dt-again" onclick="dtStart()">NEW POOL</button>
