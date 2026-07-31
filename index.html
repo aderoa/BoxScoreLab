@@ -3070,7 +3070,7 @@ const DT_STORAGE_KEY = "bsl_dreamteam_v1";
 const DT_CARDS   = 30;
 const DT_TAIL    = 5;    // the extra HH78 sits in the last five cards
 const DT_COUNTDOWN = 20; // the picks-left counter starts warning here
-const DT_SEASON_BAND = 0.75;  // a career honour may use any season this near a peak
+const DT_TOP_SEASONS = 5;     // every card shows one of a player's five best seasons
 const DT_SQUAD   = 12;
 const DT_VISIBLE = 5;    // cards on the board at once, out of the 30
 const DT_BOARD   = 5;    // max clues sitting out at once -- the only limit
@@ -3175,21 +3175,33 @@ function dtPosSet(name) {
 }
 /* Can these twelve actually cover 5G/4F/3C, using the swingmen? Greedy from
    the least flexible player upward, which is exact for three buckets. */
+/* Assign each man to the spot the ROSTER needs, not the one listed first.
+   A F-G counts as a forward until the forwards are full, then he slides to
+   guard -- so "too many forwards, one of them a F-G" resolves itself instead
+   of reading as lopsided. Least flexible players are placed first, which is
+   exact for three buckets: a pure centre has no choice, so giving him his spot
+   before a swingman claims it can never cost anything.
+
+   `slot` is where each player actually ends up, so the depth chart can show
+   him under the position he is filling. */
 function dtCoverage(names) {
-  const need = { G: 0, F: 0, C: 0 };
   const have = { G: 0, F: 0, C: 0 };
+  const slot = new Map();
   const players = names.map(n => ({ n, pos: dtPosSet(n) }))
                        .sort((a, b) => a.pos.length - b.pos.length);
-  const cap = { G: DT_TARGET.G, F: DT_TARGET.F, C: DT_TARGET.C };
+  const cap = DT_TARGET;
   const over = [];
   for (const pl of players) {
-    let placed = null;
-    for (const q of pl.pos) if (have[q] < cap[q]) { placed = q; break; }
-    if (placed) have[placed]++;
-    else { over.push(pl.n); have[pl.pos[0]]++; }
-    need[pl.pos[0]]++;
+    // prefer the spot that is furthest from full, among the ones he can play
+    let best = null, room = -Infinity;
+    for (const q of pl.pos) {
+      const r = cap[q] - have[q];
+      if (r > 0 && r > room) { room = r; best = q; }
+    }
+    if (best) { have[best]++; slot.set(pl.n, best); }
+    else { over.push(pl.n); have[pl.pos[0]]++; slot.set(pl.n, pl.pos[0]); }
   }
-  return { have, need, over };
+  return { have, over, slot };
 }
 function dtPosBucket(name) {
   const b = dtBio(name);
@@ -3504,38 +3516,50 @@ function dtBuildPool(rng, opp) {
   const pick = arr => arr[Math.floor(rng() * arr.length)];
   const used = new Set();
 
-  /* A Dream Teamer may be signed, but never a version of himself from anywhere
-     near the 1992 team -- otherwise 1991-92 Jordan turns up as a card and plays
-     against himself. Restored here; replacing the old pool builder had dropped
-     it, which quietly lifted the win rate from 0.9% to 3.3%. */
-  const dtNames = new Set(DREAM_TEAM.map(d => d[0]));
-  const nearPeak = e => dtNames.has(e.name) &&
-    (() => { const y = parseInt(e.season) || 0; return y >= 1987 && y <= 1997; })();
+  /* Only the Olympic season itself is off limits for a Dream Teamer -- 1991-92
+     Jordan cannot appear as a card and play against himself, but 1990-91 and
+     1995-96 Jordan are fair game. Blocking a whole decade instead left those
+     twelve with nothing but fringe years (Ewing's best remaining season was
+     2000-01), which made them consistently weak cards rather than merely
+     unavailable at their peak. */
+  const dtSeason = new Map(DREAM_TEAM.map(d => [d[0], d[1]]));
+  const nearPeak = e => dtSeason.get(e.name) === e.season;
 
-  // any season within DT_SEASON_BAND of a player's own best
-  const bandOf = name => {
-    const all = dtSeasonsOf(name).filter(e => !nearPeak(e));
-    if (!all.length) return [];
-    const peak = Math.max(...all.map(e => e.gr));
-    return all.filter(e => e.gr >= peak * DT_SEASON_BAND);
+  /* Every card -- award, career honour or filler -- shows one of the player's
+     five best seasons. The old 75%-of-peak band was wider than that (Ewing got
+     eight, Jordan ten) and drifted into forgettable years. One rule, applied
+     everywhere, keeps a card recognisable as that player at his best.
+
+     Note the interaction with the Dream Teamer rule: a Dream Teamer loses
+     1987-88..1997-98 FIRST, so his "five best" are what is left of a career
+     either side of that. Ewing keeps 1986-87 and 1998-99 onward, and a
+     2000-01 Ewing card is genuinely one of his five best REMAINING seasons --
+     unimpressive, but correct, and the point of putting him out of reach near
+     his peak. */
+  /* Five best seasons -- but if the Olympic season is one of a Dream Teamer's
+     five best, removing it would leave only four, so reach one deeper and keep
+     five real options. Everyone else is simply their top five. */
+  const topFive = name => {
+    const all = dtSeasonsOf(name).slice().sort((x, y) => y.gr - x.gr);
+    const blocked = dtSeason.get(name);
+    if (!blocked) return all.slice(0, DT_TOP_SEASONS);
+    const inTop = all.slice(0, DT_TOP_SEASONS).some(e => e.season === blocked);
+    const depth = inTop ? DT_TOP_SEASONS + 1 : DT_TOP_SEASONS;
+    return all.slice(0, depth).filter(e => e.season !== blocked);
   };
   /* dtSeasonsOf hands back CACHED entry objects shared by every deck, so
      writing .award or .wild onto one leaks into later decks -- categories
      showed up 1.12 times per deck and the tail flag stuck to the wrong card.
      Always clone before tagging. */
   const clone = e => e && Object.assign({}, e);
-  const anySeason = name => { const b = bandOf(name); return b.length ? clone(pick(b)) : null; };
+  const anySeason = name => { const b = topFive(name); return b.length ? clone(pick(b)) : null; };
   /* Pinning an award to the exact season it was won made a Rookie of the Year
      card a rookie season and a Sixth Man card a bench season -- honest, but it
      capped those slots so low that only 1 deck in 100 was winnable. A card now
      shows one of the player's FIVE BEST seasons instead: still that player, and
      he genuinely won the award, but not necessarily in the year shown. Measured
      over 600 decks that lifts the winnable rate from 1.00% to 2.67%. */
-  const wonSeason = (name) => {
-    const top5 = dtSeasonsOf(name).filter(e => !nearPeak(e))
-                   .sort((x, y) => y.gr - x.gr).slice(0, 5);
-    return top5.length ? clone(pick(top5)) : null;
-  };
+  const wonSeason = name => anySeason(name);
 
   const cards = [];
   const take = (e, tag) => { if (e) { e.award = tag; used.add(e.name); cards.push(e); return true; } return false; };
@@ -3967,7 +3991,7 @@ function dtRosterHtml() {
   byGR.forEach((e, i) => mins.set(dtEntryKey(e), DT_ROTATION[i] || 0));
 
   const col = q => {
-    const men = picked.filter(e => dtPosSet(e.name)[0] === q)
+    const men = picked.filter(e => (cov.slot.get(e.name) || dtPosSet(e.name)[0]) === q)
                       .sort((x, y) => y.gr - x.gr);
     const cap = DT_TARGET[q];
     const heavy = men.length > cap;
@@ -4104,7 +4128,6 @@ function dtShowIntro() {
           always shows a season the player actually won it.</li>
       <li>One extra <b>Top-78</b> is buried in the <b>last ${DT_TAIL}</b> cards. He is usually the
           difference between winning and losing, and only deep cutting reaches him.</li>
-      <li>Nothing guarantees a winning twelve exists. Most decks do not have one.</li>
     </ol>
     <button class="dt-b dt-again" onclick="dtStart()">DEAL THE POOL</button>
     ${dtBoardHtml()}
