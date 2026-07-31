@@ -863,7 +863,7 @@ let WAR2016=new Set();   // 2015-16 Warriors, removed from the draftable pool
 let teams=[[],[]], adjusted=[[],[]], teamNames=["YOUR SQUAD","OPPONENT"];
 
 // --- tunable game constants (easy to tweak / move to a config later) ---
-const BUILD      = "v99 · fixed infinite re-spin loop when a re-spin would strand the budget · 2026-07-29";
+const BUILD      = "v100 · server-verified results · 2026-07-30";
 // Where a shared squad link points. This must be a page that serves THIS game's
 // HTML (it reads the ?sq= payload client-side). Until hoopsmatic.com/73-9 serves
 // this file, shared links will 404 — change this one line back to the GitHub Pages
@@ -2842,7 +2842,7 @@ function lbShowClaimGate(panel,onSave,rank){
   handleInput.addEventListener('keydown',e=>{if(e.key==='Enter')save();});
 }
 function _lbApplyWin(w){ if(!_lbBoard)_lbBoard={}; _lbBoard.day=w.day; _lbBoard.week=w.week; _lbBoard.alltime=w.alltime; }
-async function lbInit(pct,record,isPerfect){
+async function lbInit(pct,record,isPerfect,token){
   if(!LB_API)return;
   const panel=document.getElementById('lbPanel');
   const perfPanel=document.getElementById('lbPerfectPanel');
@@ -2874,7 +2874,7 @@ async function lbInit(pct,record,isPerfect){
   if(panel){
     const submitPlay=async(nmVal)=>{
       try{
-        const r=await fetch(_lbBase()+'/claim',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pct:Number(pct.toFixed(2)),record:record,name:nmVal||'',handle:playerHandle()||'',id:playerId()})});
+        const r=await fetch(_lbBase()+'/claim',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pct:Number(pct.toFixed(2)),record:record,name:nmVal||'',handle:playerHandle()||'',id:playerId(),token:token||''})});
         return await r.json();
       }catch(e){ console.warn('[ROULETTE] leaderboard /claim failed:',e); return null; }
     };
@@ -2950,6 +2950,28 @@ async function lbInit(pct,record,isPerfect){
 // live site; localStorage is only off-limits inside Claude artifacts).
 function perfectCount(){try{return parseInt(localStorage.getItem('h99_perfect')||'0',10)||0;}catch(e){return 0;}}
 function bumpPerfect(){try{const n=perfectCount()+1;localStorage.setItem('h99_perfect',String(n));return n;}catch(e){return 0;}}
+// ── Server-authoritative verification (v100) ──
+// Sends the five picks to the gameserver, which recomputes the score itself
+// and returns it signed. Nothing here asserts a result any more — the browser
+// only reports which players it signed. Aborts after 8s and returns null on
+// any failure, so the results screen can always fall back to local numbers
+// and a server outage never breaks the game.
+const GS_BASE='https://hoopsmatic-73-9-gameserver.thejorgesierra.workers.dev';
+async function verifyWithServer(rosterArr){
+  const picks=rosterArr.filter(Boolean).map(p=>({key:p.key,name:p.name}));
+  if(picks.length<3)return null;
+  const ctl=new AbortController();
+  const t=setTimeout(()=>{try{ctl.abort()}catch(e){}},8000);
+  try{
+    const r=await fetch(GS_BASE+'/game/verify',{method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({picks:picks,respinSpent:respinSpent||0}),
+      signal:ctl.signal});
+    const d=await r.json();
+    return (d&&d.ok)?d:null;
+  }catch(e){return null}
+  finally{clearTimeout(t)}
+}
 function showResults(){
   if(spinning)return;
   if(rosterCount()<3){alert("Sign at least 3 players before simulating.");return}
@@ -2958,20 +2980,39 @@ function showResults(){
   el.innerHTML='<div class="res-record"><div class="rl">Simulating your season &amp; the alternatives…</div>'+
     '<div class="rv"><span class="spinner-mini"></span></div></div>';
 
-  // defer so the spinner paints before the (sync) sim work runs
-  setTimeout(()=>{
+  // defer so the spinner paints before the sim work runs (v100: no longer
+  // purely sync — it now awaits the server's verification too, which the
+  // spinner already covers)
+  setTimeout(async ()=>{
     const gauntlet=buildGauntlet();
     const found=findBestSquad(gauntlet);
     let opt=found.best, optRec=found.bestRec;
     const yoursRec=found.yoursRec;
-    const yours=yoursRec||expectedRecord(roster,[gauntlet]);
+    let yours=yoursRec||expectedRecord(roster,[gauntlet]);
+    // Server's numbers become the ones DISPLAYED as well as submitted. The
+    // client re-samples its Warriors wall every session while the server's is
+    // fixed and shared, so the two disagree slightly — and a player
+    // screenshotting one set while the leaderboard stores another is exactly
+    // the "scores don't match" complaint this change exists to end. This sits
+    // above gradeFor(yours.w) on purpose, so the grade badge comes from the
+    // same record that gets shown.
+    let __srvWar=null,__srvToken=null,__srvBest=null;
+    {
+      const sv=await verifyWithServer(roster);
+      if(sv&&sv.record&&sv.vsWarriors){
+        __srvToken=sv.token||null;
+        if(sv.bestPossible)__srvBest=!!sv.bestPossible.isBestPossible;
+        __srvWar={winPct:sv.vsWarriors.winPct/100,margin:sv.vsWarriors.margin};
+        yours=Object.assign({},yours,{w:sv.record.w,l:sv.record.l,ppg:sv.record.ppg,oppg:sv.record.oppg});
+      }
+    }
 
     const spent=roster.reduce((s,p)=>s+(p?p.cost:0),0);
     const yourRtg=roster.reduce((s,p)=>s+(p?p.rating:0),0);
     const g=gradeFor(yours.w);
 
     // 73-9 Warriors wall
-    const war=vsWarriors(roster);
+    const war=__srvWar||vsWarriors(roster);
     const fmtPct=p=>{const v=p*100;return v<0.01?'<0.01%':v.toFixed(2)+'%';};
     const winPctStr=fmtPct(war.winPct);
     const marginStr=(war.margin>=0?'+':'')+war.margin.toFixed(1)+' pts/game';
@@ -3025,7 +3066,7 @@ function showResults(){
     // tie OR the displayed metric tying/losing — covers the original
     // record-vs-% mismatch, the arrangement-only case, and this one, without
     // reintroducing any of them.
-    const samePicks = found.sameFive || sameRecord || !bestWar || bestWar.winPct <= war.winPct + 1e-9;
+    const samePicks = (__srvBest!==null) ? __srvBest : (found.sameFive || sameRecord || !bestWar || bestWar.winPct <= war.winPct + 1e-9);
     const warNote=beatWall
       ? 'You cracked the wall. Only about 1 in 1,000 drawn teams beats the 2015-16 Warriors.'
       : 'Beating them takes a top 0.1% team. You are '+(-war.margin).toFixed(1)+' pts/game short.';
@@ -3115,7 +3156,7 @@ function showResults(){
     el.innerHTML=html;
     window.__LAST_WP__=winPctStr;
     if(window.__CHALLENGE__){ try{ renderChallengePanel(winPctStr); }catch(e){} }
-    try{ lbInit(war.winPct*100, yours.w+'\u2013'+yours.l, samePicks); }catch(e){}
+    try{ lbInit(war.winPct*100, yours.w+'\u2013'+yours.l, samePicks, __srvToken); }catch(e){}
     try{ lbShowSetNameLink(); }catch(e){}
     if(samePicks){ try{ fireConfetti(); }catch(e){} }
   },40);
