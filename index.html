@@ -487,6 +487,30 @@ body{background:linear-gradient(145deg,#1a1a3e 0%,#0a0a1a 50%,#ffffff 100%);back
    the cards out. */
 body.dt-plain{background:#0b0b1c}
 /* ── Dream Team mode ── */
+.rings{display:block;width:110px;height:50px;margin:0 auto 14px;opacity:.95}
+.rings-sm{width:74px;height:34px;margin-bottom:8px}
+.medal{font-size:1.6rem;vertical-align:-2px;margin:0 6px}
+.dt-confetti{position:fixed;inset:0;pointer-events:none;z-index:9999;overflow:hidden}
+.dt-confetti i{position:absolute;top:-14px;width:9px;height:14px;border-radius:2px;display:block;animation:dtfall linear forwards}
+@keyframes dtfall{to{transform:translateY(104vh) rotate(680deg);opacity:.15}}
+.dt-board{margin:20px auto 4px;max-width:520px;text-align:left}
+.dt-board-head{font-size:.62rem;letter-spacing:.14em;text-transform:uppercase;opacity:.55;margin-bottom:7px}
+.dt-brow{display:flex;align-items:center;gap:10px;padding:7px 10px;background:rgba(255,255,255,.05);border-radius:6px;margin-bottom:3px;cursor:pointer;font-size:.78rem}
+.dt-brow:hover{background:rgba(255,255,255,.1)}
+.dt-brow.fresh{outline:1px solid rgba(255,215,0,.5)}
+.dt-brank{opacity:.4;min-width:16px;font-weight:700}
+.dt-bdiff{font-weight:800;min-width:42px;font-variant-numeric:tabular-nums}
+.dt-bdiff.win{color:#4ade80}.dt-bdiff.loss{color:#e63946}
+.dt-bscore{opacity:.75;font-variant-numeric:tabular-nums}
+.dt-bclues{margin-left:auto;opacity:.45;font-size:.68rem}
+.dt-bcaret{opacity:.45;font-size:.7rem}
+.dt-bsquad{display:none;flex-wrap:wrap;gap:4px;padding:6px 10px 10px}
+.dt-bsquad.open{display:flex}
+.dt-bsquad span{font-size:.68rem;background:rgba(255,255,255,.06);border-radius:4px;padding:3px 7px}
+.dt-bsquad i{font-style:normal;font-weight:800;color:#ffd700;margin-right:5px;font-size:.6rem}
+.dt-bsquad em{font-style:normal;opacity:.45;margin-left:5px;font-size:.6rem}
+@media(prefers-reduced-motion:reduce){.dt-confetti{display:none}}
+
 .dt-roster-head b{color:#fff}
 .dt-vs{margin-left:auto;font-size:.7rem;letter-spacing:.05em;text-transform:none;font-weight:700}
 .dt-vs.ok{color:#4ade80}.dt-vs.bad{color:#ffb020}
@@ -617,9 +641,9 @@ body.dt-plain{background:#0b0b1c}
 </head>
 <body>
 <div id="loadScreen">
-  <div class="logo-main">BEAT THE 1992<br>DREAM TEAM</div>
-  <div class="subtitle">Build your roster. Beat every era.</div>
-  <div style="font:400 11px/1 monospace;color:#5a5a8a;letter-spacing:1px;margin-top:10px">build 2026-07-31 16:23</div>
+  <svg class="rings" viewBox="0 0 220 100" aria-hidden="true"><g fill="none" stroke-width="7"><circle cx="45" cy="40" r="28" stroke="#0081C8"/><circle cx="110" cy="40" r="28" stroke="#000000"/><circle cx="175" cy="40" r="28" stroke="#EE334E"/><circle cx="77" cy="68" r="28" stroke="#FCB131"/><circle cx="143" cy="68" r="28" stroke="#00A651"/></g></svg>
+  <div class="logo-main">BEAT THE 1992<br>&#127482;&#127480; DREAM TEAM &#127482;&#127480;</div>
+  <div class="subtitle">Build your roster against the most legendary team ever.</div>
   <div id="progressWrap">
     <div id="progressLabel">Downloading game logs...</div>
     <div id="progressBar"><div id="progressFill"></div></div>
@@ -628,8 +652,8 @@ body.dt-plain{background:#0b0b1c}
 </div>
 <div id="app">
   <div class="header">
-    <div class="logo-sm">BEAT THE 1992 DREAM TEAM</div>
-    <div style="font:400 10px/1 monospace;color:#5a5a8a;letter-spacing:1px;margin-top:4px">build 2026-07-31 16:23</div>
+    <svg class="rings rings-sm" viewBox="0 0 220 100" aria-hidden="true"><g fill="none" stroke-width="7"><circle cx="45" cy="40" r="28" stroke="#0081C8"/><circle cx="110" cy="40" r="28" stroke="#000000"/><circle cx="175" cy="40" r="28" stroke="#EE334E"/><circle cx="77" cy="68" r="28" stroke="#FCB131"/><circle cx="143" cy="68" r="28" stroke="#00A651"/></g></svg>
+    <div class="logo-sm">BEAT THE 1992 &#127482;&#127480; DREAM TEAM &#127482;&#127480;</div>
   </div>
   <div class="mode-tabs">
     <button class="mode-tab" id="modeSandboxTab" onclick="setMode('sandbox')" style="display:none">Sandbox</button>
@@ -3577,17 +3601,54 @@ function dtFinish() {
   r.boxB = dtBoxFor(DT.opp, r.ptsB);
   r.bestGR = dtTeamGR(DT.bestPossible);
   DT.result = r;
-  try {
-    const prev = JSON.parse(localStorage.getItem(DT_STORAGE_KEY) || "null");
-    const rec = { seed: DT.seed, wins: DT.result.ptsA > DT.result.ptsB ? 1 : 0,
-                  clues: DT.cluesUsed, names: DT.picked.map(dtEntryName) };
-    if (!prev || rec.wins >= (prev.wins || 0))
-      localStorage.setItem(DT_STORAGE_KEY, JSON.stringify(rec));
-  } catch (e) {}
+  dtSaveResult(r);
   dtRender();
 }
-function dtLoadBest() {
-  try { return JSON.parse(localStorage.getItem(DT_STORAGE_KEY) || "null"); } catch (e) { return null; }
+/* Best ten by margin. A loss is still worth keeping if it was close, so the
+   table is ranked on point difference rather than on wins, and every row
+   opens to show the twelve that produced it. */
+function dtLoadBoard() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(DT_STORAGE_KEY) || "null");
+    if (Array.isArray(raw)) return raw;
+    return [];                        // old single-record format: start fresh
+  } catch (e) { return []; }
+}
+function dtSaveResult(r) {
+  try {
+    const board = dtLoadBoard();
+    board.push({
+      diff: r.ptsA - r.ptsB, you: r.ptsA, them: r.ptsB,
+      clues: DT.cluesUsed, at: Date.now(),
+      squad: DT.picked.map(e => ({ n: e.name, s: e.season, p: dtPosSet(e.name)[0] })),
+    });
+    board.sort((a, b) => b.diff - a.diff);
+    localStorage.setItem(DT_STORAGE_KEY, JSON.stringify(board.slice(0, 10)));
+  } catch (e) {}
+}
+function dtBoardHtml(highlightAt) {
+  const board = dtLoadBoard();
+  if (!board.length) return "";
+  return `<div class="dt-board">
+    <div class="dt-board-head">Your best ten &mdash; by margin</div>
+    ${board.map((b, i) => `
+      <div class="dt-brow ${b.at === highlightAt ? "fresh" : ""}" onclick="dtToggleRow(${i})">
+        <span class="dt-brank">${i + 1}</span>
+        <span class="dt-bdiff ${b.diff > 0 ? "win" : "loss"}">${b.diff > 0 ? "+" : ""}${b.diff}</span>
+        <span class="dt-bscore">${b.you}&ndash;${b.them}</span>
+        <span class="dt-bclues">${b.clues} clues</span>
+        <span class="dt-bcaret" id="dtCaret${i}">&#9662;</span>
+      </div>
+      <div class="dt-bsquad" id="dtSquad${i}">
+        ${(b.squad || []).map(p => `<span><i>${p.p}</i>${p.n}<em>${p.s}</em></span>`).join("")}
+      </div>`).join("")}
+  </div>`;
+}
+function dtToggleRow(i) {
+  const el = document.getElementById("dtSquad" + i), c = document.getElementById("dtCaret" + i);
+  if (!el) return;
+  const open = el.classList.toggle("open");
+  if (c) c.innerHTML = open ? "&#9652;" : "&#9662;";
 }
 
 /* Dream Team mode — rendering. */
@@ -3707,10 +3768,7 @@ function dtRosterHtml() {
 
   return `<div class="dt-roster">
     <div class="dt-roster-head">Your rotation &nbsp;<b>${picked.length}/${DT_SQUAD}</b> ${note}
-      <span class="dt-vs ${ahead >= 0 ? "ok" : "bad"}">
-        RATING ${myGR.toFixed(1)} <i>v</i> ${oppGR.toFixed(1)} DREAM TEAM
-        ${picked.length === DT_SQUAD ? (ahead >= 0 ? " &nbsp;LEADING" : " &nbsp;BEHIND") :
-          " &nbsp;(so far)"}</span>
+
     </div>
     <div class="dt-dchart">${col("G")}${col("F")}${col("C")}</div></div>`;
 }
@@ -3735,15 +3793,15 @@ function dtBoxHtml(label, box, pts) {
 
 function dtResultHtml() {
   const r = DT.result;
+  if (r.ptsA > r.ptsB) setTimeout(dtConfetti, 60);
   const won = r.ptsA > r.ptsB;
-  const best = dtLoadBest();
   return `<div class="dt-result">
-    <div class="dt-verdict ${won ? "win" : "loss"}">${won ? "YOU BEAT THE DREAM TEAM" : "THE DREAM TEAM HELD"}</div>
+    <div class="dt-verdict ${won ? "win" : "loss"}">${won
+      ? '<span class="medal">&#129351;</span> YOU WON <span class="medal">&#129351;</span>'
+      : "YOU LOST"}</div>
     <div class="dt-record">${r.ptsA}<span>–</span>${r.ptsB}</div>
     <div class="dt-sub">${DT.cluesUsed} clues used
-      &nbsp;·&nbsp; Global Rating <b>${r.grA.toFixed(1)}</b> v <b>${r.grB.toFixed(1)}</b>
-      ${r.bal >= 0.985 ? "" : "&nbsp;·&nbsp; " + Math.round((1 - r.bal) * 100) + "% shape penalty"}
-      &nbsp;·&nbsp; best available was ${r.bestGR.toFixed(1)}</div>
+      ${r.bal >= 0.985 ? "" : "&nbsp;·&nbsp; " + Math.round((1 - r.bal) * 100) + "% shape penalty"}</div>
     <div class="dt-boxes">
       ${dtBoxHtml("YOUR TWELVE", r.boxA, r.ptsA)}
       ${dtBoxHtml("THE DREAM TEAM", r.boxB, r.ptsB)}
@@ -3753,20 +3811,39 @@ function dtResultHtml() {
         ${DT.picked.map(e => `<div class="dt-row">${e.name}<span>${e.season}</span></div>`).join("")}</div>
       <div><div class="dt-col-head">The best twelve in the pool</div>
         ${DT.bestPossible.map(e => `<div class="dt-row ${DT.picked.some(p => dtEntryKey(p) === dtEntryKey(e)) ? "got" : ""}">${e.name}<span>${e.season}</span></div>`).join("")}
-        <div class="dt-bestpct">rating ${r.bestGR.toFixed(1)}</div></div>
+</div>
     </div>
-    ${best && best.wins ? `<div class="dt-best">You have beaten them before</div>` : ""}
+    ${dtBoardHtml()}
     <button class="dt-b dt-again" onclick="dtStart()">NEW POOL</button>
   </div>`;
+}
+
+/* A short burst, then it removes itself. Nothing persistent to clean up. */
+function dtConfetti() {
+  if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  const wrap = document.createElement("div");
+  wrap.className = "dt-confetti";
+  const colors = ["#ffd700", "#ff6b35", "#4a90e2", "#4ade80", "#ee334e", "#ffffff"];
+  for (let i = 0; i < 90; i++) {
+    const p = document.createElement("i");
+    p.style.left = (Math.random() * 100) + "%";
+    p.style.background = colors[Math.floor(Math.random() * colors.length)];
+    p.style.animationDelay = (Math.random() * 0.7) + "s";
+    p.style.animationDuration = (2.2 + Math.random() * 1.6) + "s";
+    p.style.transform = "rotate(" + Math.floor(Math.random() * 360) + "deg)";
+    wrap.appendChild(p);
+  }
+  document.body.appendChild(wrap);
+  setTimeout(() => wrap.remove(), 4200);
 }
 
 function dtShowIntro() {
   const el = document.getElementById("blitzMode");
   if (!el) return;
-  const best = dtLoadBest();
-  const todays = best && best.wins;
+
   el.innerHTML = `<div class="dt-intro">
-    <div class="dt-intro-title">BEAT THE DREAM TEAM</div>
+    <svg class="rings rings-sm" viewBox="0 0 220 100" aria-hidden="true"><g fill="none" stroke-width="7"><circle cx="45" cy="40" r="28" stroke="#0081C8"/><circle cx="110" cy="40" r="28" stroke="#000000"/><circle cx="175" cy="40" r="28" stroke="#EE334E"/><circle cx="77" cy="68" r="28" stroke="#FCB131"/><circle cx="143" cy="68" r="28" stroke="#00A651"/></g></svg>
+    <div class="dt-intro-title">BEAT THE 1992 &#127482;&#127480; DREAM TEAM</div>
     <div class="dt-intro-sub">Thirty unknown players. Sign twelve of them.</div>
     <ol class="dt-rules">
       <li>Thirty hidden candidates. You must sign <b>${DT_SQUAD}</b> and cut the rest.</li>
@@ -3774,13 +3851,13 @@ function dtShowIntro() {
       <li>A clue lands on a <b>random visible</b> card and reveals a <b>random</b> detail. You start with none.</li>
       <li>Only <b>${DT_BOARD}</b> clues can be on the board at once. Signing or cutting a card clears its clues.</li>
       <li>Signing or cutting reveals who they were &mdash; you learn from both.</li>
-      <li>The result is decided by <b>Global Rating</b>, weighted across a real rotation &mdash;
-          your best five carry it and the last three never leave the bench.</li>
+      <li>Both twelves play a real 40-minute rotation &mdash; your best players carry the load,
+          so a strong starting group matters more than twelve steady names.</li>
       <li>The first <b>${DT_CARDS}</b> hold a twelve that beats the Dream Team. Behind them sit
           <b>${DT_RESERVE}</b> more &mdash; ordinary players, except for one <b>wild card</b> good
           enough for any twelve. That is the whole deck: ${DT_CARDS + DT_RESERVE} cards.</li>
     </ol>
-    ${todays ? `<div class="dt-best">You have beaten them before</div>` : ""}
+    ${dtBoardHtml()}
     <button class="dt-b dt-again" onclick="dtStart()">DEAL THE POOL</button>
     <div class="dt-hint" style="margin-top:10px">Building the pool takes a moment — it simulates until it finds one that is winnable but not easy.</div>
   </div>`;
