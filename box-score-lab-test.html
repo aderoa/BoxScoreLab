@@ -606,7 +606,7 @@ body{background:linear-gradient(145deg,#1a1a3e 0%,#0a0a1a 50%,#ffffff 100%);back
 <div id="app">
   <div class="header">
     <div class="logo-sm">BEAT THE 1992 DREAM TEAM</div>
-    <div style="font:400 10px/1 monospace;color:#5a5a8a;letter-spacing:1px;margin-top:4px">build 2026-07-31 01:35</div>
+    <div style="font:400 10px/1 monospace;color:#5a5a8a;letter-spacing:1px;margin-top:4px">build 2026-07-31 01:54</div>
   </div>
   <div class="mode-tabs">
     <button class="mode-tab" id="modeSandboxTab" onclick="setMode('sandbox')" style="display:none">Sandbox</button>
@@ -3013,6 +3013,27 @@ const GR_DATA={"Don Barksdale":"0:6.34,1:7.16,2:4.87,3:6.8","Alex Hannum":"0:4.7
 const DT_MIN_GP = 20;
 const _dtSeasonCache = new Map();
 
+/* data.bin stores a season by its ENDING year: LeBron's 2003-04 rookie
+   season is SY 2004, and his values run 2004-2026 for a 2003-04 debut and a
+   2025-26 finish. The shared formatSeasonYear() reads SY as the STARTING
+   year (SY_IS_START), which shifts every label a year late. Checked against
+   the rating file across 3,412 player-seasons: the ending-year reading
+   matches 100% of them, the starting-year reading 79%.
+
+   That gap was the bug. A fifth of every player's seasons could not be found
+   at all -- LeBron's best years among them, which is why he never appeared --
+   and the four fifths that did match were pairing each rating with the WRONG
+   season's box scores.
+
+   Corrected here rather than by flipping SY_IS_START, because Sandbox and
+   Career never compare a label against an outside source and have been
+   unaffected. Changing the global would move them for no reason. */
+function dtSeasonLabel(sy) {
+  const n = parseInt(sy);
+  if (!n) return "";
+  return (n - 1) + "-" + String(n).slice(-2);
+}
+
 function dtSeasonsOf(name) {
   if (_dtSeasonCache.has(name)) return _dtSeasonCache.get(name);
   const enc = GR_DATA[name];
@@ -3022,7 +3043,7 @@ function dtSeasonsOf(name) {
     for (const bit of enc.split(",")) {
       const p = bit.split(":");
       const season = GR_SEASONS[+p[0]];
-      const games = gs.filter(g => formatSeasonYear(g[G.SY]) === season);
+      const games = gs.filter(g => dtSeasonLabel(g[G.SY]) === season);
       if (games.length < DT_MIN_GP) continue;      // needs games for a box score
       const team = String(TEAMS[games[0][G.TM]] || "").replace(/\s*\([^)]*\)\s*$/, "").trim();
       out.push({ name, season, gr: +p[1], games, sy: games[0][G.SY], team,
@@ -3172,7 +3193,7 @@ function dtBuildPool(rng, opp) {
   // 1985-86 Jordan or 2002-03 Jordan, never 1990-91 Jordan. You can put a
   // Dream Teamer on your side, just not the version standing opposite you.
   const dtNames = new Set(DREAM_TEAM.map(d => dtResolveName(d[0])).filter(Boolean));
-  const nearPeak = sy => { const y = parseInt(formatSeasonYear(sy)) || 0; return y >= 1987 && y <= 1997; };
+  const nearPeak = sy => { const y = parseInt(dtSeasonLabel(sy)) || 0; return y >= 1987 && y <= 1997; };
   const seasonOk = e => !dtNames.has(e.name) || !nearPeak(e.sy);
 
   const eliteNames = all.filter(n => (flagsOf(n) & 7) !== 0);
@@ -3495,7 +3516,7 @@ function dtRosterHtml() {
 function dtBoxRow(t, a) {
   const g = t.game;
   const st = k => Math.round(a[k] || 0);
-  const season = formatSeasonYear(g[G.SY]);
+  const season = dtSeasonLabel(g[G.SY]);
   const team = String(TEAMS[g[G.TM]] || "").replace(/\s*\([^)]*\)\s*$/, "");
   return `<tr><td class="dt-bn">${t.name}<i>${season}${team ? " " + team : ""}</i></td>
     <td>${st("MIN")}</td><td class="dt-bp">${st("PTS")}</td><td>${st("REB")}</td><td>${st("AST")}</td>
