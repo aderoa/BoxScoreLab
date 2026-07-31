@@ -3806,12 +3806,31 @@ function dtStatsCellHtml(board, full, left, lastTen) {
 }
 function dtToggleRoster(){ document.body.classList.toggle("dt-roster-open"); }
 
+/* Crossing the breakpoint changes which DOM is correct, so rebuild it. */
+let _dtWasPhone = null, _dtResizeT = null;
+window.addEventListener("resize", () => {
+  clearTimeout(_dtResizeT);
+  _dtResizeT = setTimeout(() => {
+    const now = dtIsPhone();
+    if (now === _dtWasPhone) return;
+    _dtWasPhone = now;
+    if (DT && !DT.done) { dtBoardLock(true); dtRender(); }
+  }, 180);
+});
+
 /* The one-screen lock belongs to the live board and nothing else. The rules
    screen and the result screen are taller than a phone, so leaving the lock on
    clipped them -- the DEAL THE POOL button sat below the fold with no way to
    scroll to it. */
 function dtBoardLock(on){
-  document.body.classList.toggle("dt-board", !!on);
+  document.body.classList.toggle("dt-board", !!on && dtIsPhone());
+}
+/* The phone board is a different shape, not the same shape restyled: counters
+   move into the sixth grid cell and the roster becomes a slide-up sheet. Rather
+   than emit that markup everywhere and hide it with CSS, only build it on a
+   phone -- desktop then renders exactly the DOM it always did. */
+function dtIsPhone(){
+  return window.matchMedia && window.matchMedia("(max-width: 640px)").matches;
 }
 
 function dtRender() {
@@ -3825,6 +3844,7 @@ function dtRender() {
   const busy = DT.revealing != null;
   const left = DT.queue.length + DT.extra.length;
   const lastTen = left <= DT_COUNTDOWN;
+  const phone = dtIsPhone();
   el.innerHTML = `
     <div class="dt-bar">
       <div class="dt-stat"><b>${DT.picked.length}</b><span>/ ${DT_SQUAD} signed</span></div>
@@ -3842,8 +3862,8 @@ function dtRender() {
       ? `All ${DT_BOARD} clues are out. Sign or cut a card to clear its clues and make room.`
       : "Clues land on a random visible card. Resolving one clears its clues and brings the next unknown onto the board."}</div>
     <div class="dt-grid ${full ? "must-act" : ""}">${dtVisibleCards().map(dtCardHtml).join("")}
-      ${dtStatsCellHtml(board, full, left, lastTen)}</div>
-    <div class="dt-sheet">
+      ${phone ? dtStatsCellHtml(board, full, left, lastTen) : ""}</div>
+    ${phone ? '<div class="dt-sheet">' : ""}
       ${dtRosterHtml()}
       <div class="dt-opp">
         <div class="dt-opp-head">You are playing</div>
@@ -3851,8 +3871,7 @@ function dtRender() {
         <div class="dt-opp-list">${DT.opp.map(p =>
           `<span>${p.name}<i>${p.season}</i></span>`).join("")}</div>
       </div>
-      <button class="dt-sheet-close" onclick="dtToggleRoster()">CLOSE</button>
-    </div>`;
+      ${phone ? '<button class="dt-sheet-close" onclick="dtToggleRoster()">CLOSE</button></div>' : ""}`;
 }
 
 function dtRosterHtml() {
@@ -4012,8 +4031,8 @@ function dtShowIntro() {
           difference between winning and losing, and only deep cutting reaches him.</li>
       <li>Nothing guarantees a winning twelve exists. Most decks do not have one.</li>
     </ol>
-    ${dtBoardHtml()}
     <button class="dt-b dt-again" onclick="dtStart()">DEAL THE POOL</button>
+    ${dtBoardHtml()}
     <div class="dt-hint" style="margin-top:10px">Beating them is rare by design &mdash; roughly one deck in a hundred holds a twelve that can.</div>
   </div>`;
 }
