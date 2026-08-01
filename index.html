@@ -3910,10 +3910,18 @@ function dtOvertime() {
   const r = DT.result;
   if (!r || !r.tied) return;
   const OT_MIN = 5;
-  const swing = 2 + Math.floor(Math.random() * 9);      // 2..10 point period
+  /* Both sides SCORE in an overtime -- the old model gave the loser 0-2 points
+     and the winner the whole margin, so a third of overtimes finished 0-8,
+     which is not a basketball score. Five minutes at the game's own tempo puts
+     both teams around 8-12, then a winner is picked and given the edge. */
+  const per40 = (r.ptsA + r.ptsB) / 2;                  // this game's scoring level
+  const centre = Math.max(6, Math.round(per40 * (OT_MIN / (DT_GAME_MIN / 5))));
+  const roll = () => Math.max(2, centre + Math.round((Math.random() + Math.random() - 1) * 5));
+  let addA = roll(), addB = roll();
   const aWins = Math.random() < 0.5;
-  const addA = aWins ? swing : Math.floor(Math.random() * 3);
-  const addB = aWins ? Math.floor(Math.random() * 3) : swing;
+  const margin = 1 + Math.floor(Math.random() * 7);     // 1..7, as overtimes go
+  if (aWins) { addA = Math.max(addA, addB + margin); }
+  else       { addB = Math.max(addB, addA + margin); }
 
   const otA = dtBoxFor(DT.picked, addA, OT_MIN);   // the PERIOD only
   const otB = dtBoxFor(DT.opp,    addB, OT_MIN);
