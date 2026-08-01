@@ -487,6 +487,10 @@ body{background:linear-gradient(145deg,#1a1a3e 0%,#0a0a1a 50%,#ffffff 100%);back
    the cards out. */
 body.dt-plain{background:#0b0b1c}
 /* ── Dream Team mode ── */
+.dt-perfect{display:inline-block;font-size:.62rem;font-weight:800;letter-spacing:.14em;
+  color:#1a1a2e;background:linear-gradient(135deg,#ffd700,#ffb020);
+  padding:5px 14px;border-radius:999px;margin:2px 0 10px}
+
 .dt-clock{font-family:ui-monospace,Menlo,monospace;font-size:.78rem;letter-spacing:.1em;
   opacity:.5;margin:-4px 0 10px}
 .dt-verdict.tie{color:#ffd700;opacity:1}
@@ -3861,6 +3865,15 @@ function dtAdvance(id) {
   dtRender();
 }
 
+/* Did they find the best twelve the deck held? Compared on the exact
+   player-seasons, so signing the right man in the wrong year does not count. */
+function dtFoundBest() {
+  const best = DT.bestPossible || [];
+  if (best.length !== DT_SQUAD || DT.picked.length !== DT_SQUAD) return false;
+  const mine = new Set(DT.picked.map(dtEntryKey));
+  return best.every(e => mine.has(dtEntryKey(e)));
+}
+
 function dtFinish() {
   DT.done = true;
   const r = dtPlay(DT.picked, DT.opp);
@@ -3868,6 +3881,21 @@ function dtFinish() {
   r.boxB = dtBoxFor(DT.opp, r.ptsB);
   r.bestGR = dtTeamGR(DT.bestPossible);
   r.minutes = DT_GAME_MIN / 5;                // 40:00 played
+  r.perfect = dtFoundBest();
+
+  /* Perfect draft. Most decks simply do not hold a twelve good enough to beat
+     the Dream Team, so a player can read every clue correctly, sign the best
+     twelve available, and still lose on the numbers. Getting all twelve right
+     earns the game a level scoreline and a shot at overtime -- the reward is
+     a chance, not a win, and the coin flip that follows is the same 50-50
+     anyone else gets. */
+  if (r.perfect && r.ptsA < r.ptsB) {
+    r.ptsA = r.ptsB;
+    r.tied = true;
+    r.rescued = true;
+    r.boxA = dtBoxFor(DT.picked, r.ptsA);     // rebuild so the line adds up
+  }
+
   DT.result = r;
   if (!r.tied) dtSaveResult(r);               // a tie is not a result yet
   dtRender();
@@ -4214,9 +4242,11 @@ function dtResultHtml() {
              : "YOU LOST")}</div>
     <div class="dt-record">${r.ptsA}<span>–</span>${r.ptsB}</div>
     <div class="dt-clock">${dtClock(r.minutes)}${r.ot ? " &middot; " + (r.ot > 1 ? r.ot + "OT" : "OT") : ""}</div>
+    ${r.perfect ? `<div class="dt-perfect">PERFECT DRAFT &mdash; you signed the best twelve in the deck</div>` : ""}
     ${r.tied ? `<button class="dt-b dt-ot" onclick="dtOvertime()">PLAY 5 MINUTES OF OVERTIME</button>
-      <div class="dt-hint" style="margin-bottom:14px">Level after ${dtClock(r.minutes)} &mdash; five more minutes,
-        and at this margin it is a coin flip.</div>` : ""}
+      <div class="dt-hint" style="margin-bottom:14px">${r.rescued
+        ? "This deck did not hold a twelve good enough to win &mdash; but you found the best one it had, so they could not put you away. Five more minutes."
+        : "Level after " + dtClock(r.minutes) + " &mdash; five more minutes, and at this margin it is a coin flip."}</div>` : ""}
     <div class="dt-sub">${r.bal >= 0.985 ? "&nbsp;" : Math.round((1 - r.bal) * 100) + "% shape penalty"}</div>
     <div class="dt-boxes">
       ${dtBoxHtml("YOUR TWELVE", r.boxA, r.ptsA)}
