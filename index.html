@@ -4244,9 +4244,7 @@ function dtResultHtml() {
     <div class="dt-clock">${dtClock(r.minutes)}${r.ot ? " &middot; " + (r.ot > 1 ? r.ot + "OT" : "OT") : ""}</div>
     ${r.perfect ? `<div class="dt-perfect">PERFECT DRAFT &mdash; you signed the best twelve in the deck</div>` : ""}
     ${r.tied ? `<button class="dt-b dt-ot" onclick="dtOvertime()">PLAY 5 MINUTES OF OVERTIME</button>
-      <div class="dt-hint" style="margin-bottom:14px">${r.rescued
-        ? "This deck did not hold a twelve good enough to win &mdash; but you found the best one it had, so they could not put you away. Five more minutes."
-        : "Level after " + dtClock(r.minutes) + " &mdash; five more minutes, and at this margin it is a coin flip."}</div>` : ""}
+      <div class="dt-hint" style="margin-bottom:14px">Level after ${dtClock(r.minutes)}.</div>` : ""}
     <div class="dt-sub">${r.bal >= 0.985 ? "&nbsp;" : Math.round((1 - r.bal) * 100) + "% shape penalty"}</div>
     <div class="dt-boxes">
       ${dtBoxHtml("YOUR TWELVE", r.boxA, r.ptsA)}
