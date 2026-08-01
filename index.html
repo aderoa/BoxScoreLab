@@ -487,6 +487,28 @@ body{background:linear-gradient(145deg,#1a1a3e 0%,#0a0a1a 50%,#ffffff 100%);back
    the cards out. */
 body.dt-plain{background:#0b0b1c}
 /* ── Dream Team mode ── */
+.dt-stats{margin:22px auto 4px;max-width:560px;text-align:left}
+.dt-sgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(78px,1fr));gap:6px;margin-bottom:12px}
+.dt-sbox{background:rgba(255,255,255,.05);border-radius:7px;padding:8px 6px;text-align:center}
+.dt-sbox b{display:block;font-size:1.15rem;font-weight:800;font-variant-numeric:tabular-nums}
+.dt-sbox span{font-size:.54rem;letter-spacing:.08em;text-transform:uppercase;opacity:.55}
+.dt-curve{margin:4px 0 14px}
+.dt-curve svg{width:100%;height:46px;display:block}
+.dt-curve-zero{stroke:rgba(255,255,255,.22);stroke-width:1;stroke-dasharray:3 3}
+.dt-curve-line{fill:none;stroke:#4a90e2;stroke-width:1.6;vector-effect:non-scaling-stroke}
+.dt-curve circle.w{fill:#4ade80}.dt-curve circle.l{fill:#e63946}
+.dt-curve-cap{font-size:.58rem;opacity:.45;margin-top:3px;text-align:center}
+.dt-picks{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.dt-prow{display:flex;align-items:baseline;gap:6px;font-size:.72rem;padding:3px 7px;
+  background:rgba(255,255,255,.04);border-radius:5px;margin-bottom:3px}
+.dt-prow span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dt-prow b{font-weight:800;font-variant-numeric:tabular-nums}
+.dt-prow i{font-style:normal;opacity:.4;font-size:.58rem}
+.dt-reset{display:block;margin:14px auto 0;background:none;border:none;color:rgba(255,255,255,.35);
+  font-family:inherit;font-size:.62rem;letter-spacing:.1em;text-transform:uppercase;cursor:pointer}
+.dt-reset:hover{color:#e63946}
+@media(max-width:640px){.dt-picks{grid-template-columns:1fr}}
+
 .dt-perfect{display:inline-block;font-size:.62rem;font-weight:800;letter-spacing:.14em;
   color:#1a1a2e;background:linear-gradient(135deg,#ffd700,#ffb020);
   padding:5px 14px;border-radius:999px;margin:2px 0 10px}
@@ -3078,6 +3100,92 @@ function toggleDifficulty(){
    ═══════════════════════════════════════════════════════════════════ */
 
 const DT_STORAGE_KEY = "bsl_dreamteam_v1";
+const DT_STATS_KEY   = "bsl_dreamteam_stats_v1";
+
+/* Play tracker.
+   Everything is kept in this browser -- nothing is transmitted. It answers
+   two different questions:
+
+   HOW IS THIS PLAYER DOING: games, wins, average margin, and a per-game
+   history so the learning curve is visible -- is the 40th game closer than
+   the 5th? The history stores the play NUMBER alongside each result, so a
+   run can be read as "1st, 10th, 124th" rather than just a date.
+
+   WHAT DO THEY DO WITH A CARD: every card that reaches the board is counted
+   as seen, and counted again if it was signed. The ratio is a pick rate, and
+   it is the interesting one -- a player signed 90% of the time he appears is
+   being recognised; one signed 10% of the time is being misread or is
+   genuinely bad. Cards never dealt are not counted, so the rate is out of
+   chances, not out of games. */
+function dtLoadStats() {
+  try {
+    const s = JSON.parse(localStorage.getItem(DT_STATS_KEY) || "null");
+    if (s && s.v === 1) return s;
+  } catch (e) {}
+  return { v: 1, played: 0, won: 0, tied: 0, otPlayed: 0, perfect: 0,
+           diffSum: 0, forSum: 0, againstSum: 0,
+           players: {}, history: [], first: null, last: null };
+}
+function dtSaveStats(s) {
+  try { localStorage.setItem(DT_STATS_KEY, JSON.stringify(s)); } catch (e) {}
+}
+
+/* Called once per finished game -- after overtime, if there was one, so the
+   margin recorded is the one that actually stood. */
+function dtRecordGame(r) {
+  const st = dtLoadStats();
+  const now = Date.now();
+  st.played++;
+  st.last = now;
+  if (st.first == null) st.first = now;
+  const diff = r.ptsA - r.ptsB;
+  if (diff > 0) st.won++;
+  if (r.ot) st.otPlayed++;
+  if (r.perfect) st.perfect++;
+  st.diffSum += diff;
+  st.forSum += r.ptsA;
+  st.againstSum += r.ptsB;
+
+  // every card this deck ever put on the board, and what became of it
+  const signed = new Set(DT.picked.map(e => e.name));
+  (DT.seen || []).forEach(name => {
+    const p = st.players[name] || (st.players[name] = { seen: 0, signed: 0 });
+    p.seen++;
+    if (signed.has(name)) p.signed++;
+  });
+
+  st.history.push({ n: st.played, d: diff, w: diff > 0 ? 1 : 0,
+                    ot: r.ot || 0, at: now });
+  if (st.history.length > 500) st.history = st.history.slice(-500);
+  dtSaveStats(st);
+  dtPostStats(st, r, [...new Set(DT.seen || [])], [...signed]);
+  return st;
+}
+
+/* Send the same summary to HoopsMatic's activity tracker -- the endpoint the
+   Trade Machine, Roster Manager, Compare and Draft Sim already use, with a
+   `dt` bucket of its own. Only the result and the card names go: how many
+   points apart, whether it was won, which cards were dealt, which were signed,
+   and the visitor's own play count so a learning curve can be read across
+   everybody. No identifiers.
+
+   Fire and forget: a tracker that is down, blocked or absent must never affect
+   the game, so failures are swallowed and the local record stands on its own.
+   The endpoint is relative, so the standalone GitHub copy simply 404s and
+   nothing is sent. */
+function dtPostStats(st, r, seen, signed) {
+  try {
+    fetch("/api/tracker", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tool: "dt", action: "game", extra: {
+        play: st.played, diff: r.ptsA - r.ptsB, pf: r.ptsA, pa: r.ptsB,
+        ot: r.ot || 0, perfect: r.perfect ? 1 : 0, seen, signed
+      }}),
+      keepalive: true
+    }).catch(() => {});
+  } catch (e) {}
+}
 /* The deck is thirty cards and that is the whole deck -- no reserve behind it.
    Nothing guarantees a winning twelve any more. What IS guaranteed is one
    winner from each of twelve award categories, and a thirteenth card: an extra
@@ -3781,10 +3889,12 @@ function dtStart() {
     // step forward one at a time as you resolve, so signing or cutting is
     // also how you get to see anybody new.
     visible: [], queue: [], extra: pool.extra || [], revealing: null,
+    seen: [],                       // names that reached the board this game
     cluesUsed: 0, picked: [], cut: [], done: false, result: null, lastClue: null,
   };
   DT.visible = DT.cards.slice(0, DT_VISIBLE).map(c => c.id);
   DT.queue   = DT.cards.slice(DT_VISIBLE).map(c => c.id);
+  DT.visible.forEach(i => DT.seen.push(DT.cards[i].name));
   dtRender();   // no opening clues -- the board starts blank
 }
 
@@ -3859,7 +3969,7 @@ function dtAdvance(id) {
   DT.lastClue = null;                      // the flash belongs to the clue, not the swap
   const at = DT.visible.indexOf(id);       // the replacement takes the same slot
   const next = DT.queue.length ? DT.queue.shift() : dtDealNew();
-  if (next != null) DT.visible[at] = next;
+  if (next != null) { DT.visible[at] = next; DT.seen.push(DT.cards[next].name); }
   else DT.visible.splice(at, 1);
   if (DT.picked.length >= DT_SQUAD) { dtFinish(); return; }
   dtRender();
@@ -3897,7 +4007,7 @@ function dtFinish() {
   }
 
   DT.result = r;
-  if (!r.tied) dtSaveResult(r);               // a tie is not a result yet
+  if (!r.tied) { dtSaveResult(r); r.stats = dtRecordGame(r); }
   dtRender();
 }
 
@@ -3932,7 +4042,7 @@ function dtOvertime() {
   r.ot = (r.ot || 0) + 1;
   r.minutes = DT_GAME_MIN / 5 + r.ot * OT_MIN;
   r.tied = r.ptsA === r.ptsB;                 // could need another period
-  if (!r.tied) dtSaveResult(r);
+  if (!r.tied) { dtSaveResult(r); r.stats = dtRecordGame(r); }
   dtRender();
 }
 
@@ -3968,6 +4078,74 @@ function dtSaveResult(r) {
     localStorage.setItem(DT_STORAGE_KEY, JSON.stringify(board.slice(0, 10)));
   } catch (e) {}
 }
+function dtOrdinal(n) {
+  const s2 = ["th", "st", "nd", "rd"], v = n % 100;
+  return n + (s2[(v - 20) % 10] || s2[v] || s2[0]);
+}
+
+/* The learning curve, drawn as a sparkline of margin per game. A rising line
+   means later games finish closer, which is the thing worth seeing. */
+function dtCurveHtml(hist) {
+  if (!hist || hist.length < 4) return "";
+  const pts = hist.slice(-40);
+  const ds = pts.map(h => h.d);
+  const lo = Math.min(-1, ...ds), hi = Math.max(1, ...ds);
+  const W = 260, H = 46;
+  const x = i => (i / Math.max(1, pts.length - 1)) * W;
+  const y = d => H - ((d - lo) / (hi - lo)) * H;
+  const path = pts.map((h, i) => (i ? "L" : "M") + x(i).toFixed(1) + " " + y(h.d).toFixed(1)).join(" ");
+  const zero = y(0).toFixed(1);
+  return `<div class="dt-curve">
+    <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">
+      <line x1="0" y1="${zero}" x2="${W}" y2="${zero}" class="dt-curve-zero"/>
+      <path d="${path}" class="dt-curve-line"/>
+      ${pts.map((h, i) => `<circle cx="${x(i).toFixed(1)}" cy="${y(h.d).toFixed(1)}" r="2"
+        class="${h.w ? "w" : "l"}"/>`).join("")}
+    </svg>
+    <div class="dt-curve-cap">margin, last ${pts.length} games &mdash; above the line is a win</div>
+  </div>`;
+}
+
+function dtStatsHtml() {
+  const st = dtLoadStats();
+  if (!st.played) return "";
+  const avg = st.diffSum / st.played;
+  const winPct = 100 * st.won / st.played;
+  // pick rate: only cards that actually reached the board count
+  const rows = Object.entries(st.players)
+    .filter(([, p]) => p.seen >= 2)
+    .map(([n, p]) => ({ n, seen: p.seen, signed: p.signed, pct: 100 * p.signed / p.seen }))
+    .sort((a, b) => b.pct - a.pct || b.seen - a.seen);
+  const most = rows.slice(0, 8);
+  const least = rows.slice(-8).reverse();
+  const cell = r => `<div class="dt-prow"><span>${r.n}</span>
+    <b>${Math.round(r.pct)}%</b><i>${r.signed}/${r.seen}</i></div>`;
+  return `<div class="dt-stats">
+    <div class="dt-board-head">Your record &mdash; ${dtOrdinal(st.played)} game</div>
+    <div class="dt-sgrid">
+      <div class="dt-sbox"><b>${st.played}</b><span>played</span></div>
+      <div class="dt-sbox"><b>${st.won}</b><span>won</span></div>
+      <div class="dt-sbox"><b>${winPct.toFixed(0)}%</b><span>win rate</span></div>
+      <div class="dt-sbox"><b>${avg > 0 ? "+" : ""}${avg.toFixed(1)}</b><span>avg margin</span></div>
+      <div class="dt-sbox"><b>${(st.forSum / st.played).toFixed(0)}</b><span>pts for</span></div>
+      <div class="dt-sbox"><b>${(st.againstSum / st.played).toFixed(0)}</b><span>pts against</span></div>
+      ${st.otPlayed ? `<div class="dt-sbox"><b>${st.otPlayed}</b><span>overtimes</span></div>` : ""}
+      ${st.perfect ? `<div class="dt-sbox"><b>${st.perfect}</b><span>perfect drafts</span></div>` : ""}
+    </div>
+    ${dtCurveHtml(st.history)}
+    ${rows.length >= 4 ? `<div class="dt-picks">
+      <div><div class="dt-col-head">Signed most often</div>${most.map(cell).join("")}</div>
+      <div><div class="dt-col-head">Cut most often</div>${least.map(cell).join("")}</div>
+    </div>` : ""}
+    <button class="dt-reset" onclick="dtResetStats()">Reset tracker</button>
+  </div>`;
+}
+function dtResetStats() {
+  if (!confirm("Clear your record and pick rates? This cannot be undone.")) return;
+  try { localStorage.removeItem(DT_STATS_KEY); } catch (e) {}
+  dtRender();
+}
+
 function dtBoardHtml(highlightAt) {
   const board = dtLoadBoard();
   if (!board.length) return "";
@@ -4262,6 +4440,7 @@ function dtResultHtml() {
       ${dtRecapColumns()}
     </div>
     ${dtBoardHtml()}
+    ${dtStatsHtml()}
     <button class="dt-b dt-again" onclick="dtStart()">NEW POOL</button>
   </div>`;
 }
@@ -4309,6 +4488,7 @@ function dtShowIntro() {
     </ol>
     <button class="dt-b dt-again" onclick="dtStart()">DEAL THE POOL</button>
     ${dtBoardHtml()}
+    ${dtStatsHtml()}
     <div class="dt-hint" style="margin-top:10px">Beating them is rare by design &mdash; roughly one deck in a hundred holds a twelve that can.</div>
   </div>`;
 }
