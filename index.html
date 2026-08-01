@@ -665,17 +665,23 @@ body.dt-plain{background:#0b0b1c}
 .dt-best{font-size:.78rem;opacity:.7;margin-bottom:14px}
 @media(max-width:640px){.dt-cols{grid-template-columns:1fr}.dt-grid{grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}}
 
-/* Rapid tapping on a phone reads as double-tap-to-zoom, so signing two cards
-   quickly kicked the whole page into a zoomed state. touch-action:manipulation
-   turns that gesture off for the controls while leaving pinch-to-zoom alone,
-   which a viewport lock would have taken away too. user-select stops the
-   flicker of selected text under fast taps. */
-.dt-b,.dt-sc-btn,.dt-sc-roster,.dt-again,.dt-clue-btn,.dt-sheet-close,
-.dt-card,.dt-brow,.mode-tab{
+/* Rapid tapping on a phone reads as double-tap-to-zoom. Listing the buttons
+   was not enough: two quick taps that land in the GAP between them -- on the
+   grid, on a card's padding, on the page background -- still counted as a
+   double tap and zoomed the whole page. The rule has to cover everything
+   inside the mode, so it goes on the container and inherits down.
+
+   touch-action:manipulation kills only the double-tap gesture; pinch-to-zoom
+   still works, which a viewport lock would have taken away. */
+#blitzMode, #blitzMode *, .mode-tabs, .mode-tab{
   touch-action:manipulation;
   -webkit-user-select:none;user-select:none;
   -webkit-tap-highlight-color:transparent;
 }
+/* The board is fixed-height, so nothing there needs to scroll or be selected;
+   the intro and result screens still scroll normally because touch-action
+   manipulation permits panning. */
+body.dt-board{touch-action:manipulation}
 
 /* ═══ PHONE LAYOUT ═══════════════════════════════════════════════
    Deliberately LAST in the stylesheet. A media query adds no specificity,
@@ -4011,6 +4017,27 @@ function dtStatsCellHtml(board, full, left, lastTen) {
   </div>`;
 }
 function dtToggleRoster(){ document.body.classList.toggle("dt-roster-open"); }
+
+/* iOS Safari ignores touch-action for double-tap-to-zoom, so CSS alone cannot
+   stop it there. Watch for a second tap inside 350ms and cancel it -- that is
+   the gesture, and nothing in this game needs a double tap. The buttons still
+   fire because their click already ran on the first tap; only the zoom is
+   suppressed. Scoped to the Dream Team container so the rest of the page keeps
+   normal behaviour, and pinch-to-zoom (two fingers) is untouched. */
+(function(){
+  let last = 0;
+  document.addEventListener("touchend", e => {
+    if (!e.target.closest || !e.target.closest("#blitzMode")) return;
+    const now = Date.now();
+    if (now - last <= 350) e.preventDefault();
+    last = now;
+  }, { passive: false });
+  // Safari's own pinch/zoom events on a double tap
+  ["gesturestart", "gesturechange"].forEach(ev =>
+    document.addEventListener(ev, e => {
+      if (document.body.classList.contains("dt-board")) e.preventDefault();
+    }, { passive: false }));
+})();
 
 /* Crossing the breakpoint changes which DOM is correct, so rebuild it. */
 let _dtWasPhone = null, _dtResizeT = null;
