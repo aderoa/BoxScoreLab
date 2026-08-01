@@ -4175,14 +4175,6 @@ function dtRecapColumns() {
 
 /* 40:00, 45:00 -- the scoreboard reading, not a count of minutes. */
 function dtClock(min) { return Math.round(min || 40) + ":00"; }
-function dtDefLabel(d) {
-  if (d == null) return "";
-  if (d >= 5.0) return "Elite";
-  if (d >= 3.5) return "Strong";
-  if (d >= 2.2) return "Solid";
-  if (d >= 1.2) return "Soft";
-  return "Porous";
-}
 
 function dtResultHtml() {
   const r = DT.result;
@@ -4198,8 +4190,7 @@ function dtResultHtml() {
     ${r.tied ? `<button class="dt-b dt-ot" onclick="dtOvertime()">PLAY 5 MINUTES OF OVERTIME</button>
       <div class="dt-hint" style="margin-bottom:14px">Level after ${dtClock(r.minutes)} &mdash; five more minutes,
         and at this margin it is a coin flip.</div>` : ""}
-    <div class="dt-sub">${dtDefLabel(r.defA)} defence
-      ${r.bal >= 0.985 ? "" : "&nbsp;&middot;&nbsp; " + Math.round((1 - r.bal) * 100) + "% shape penalty"}</div>
+    <div class="dt-sub">${r.bal >= 0.985 ? "&nbsp;" : Math.round((1 - r.bal) * 100) + "% shape penalty"}</div>
     <div class="dt-boxes">
       ${dtBoxHtml("YOUR TWELVE", r.boxA, r.ptsA)}
       ${dtBoxHtml("THE DREAM TEAM", r.boxB, r.ptsB)}
