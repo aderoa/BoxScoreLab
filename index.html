@@ -3174,6 +3174,7 @@ function dtLoadStats() {
     if (s && s.v === 1) return s;
   } catch (e) {}
   return { v: 1, played: 0, won: 0, tied: 0, otPlayed: 0, perfect: 0,
+           otGames: 0, otWon: 0,
            diffSum: 0, forSum: 0, againstSum: 0,
            players: {}, history: [], first: null, last: null };
 }
@@ -3191,7 +3192,15 @@ function dtRecordGame(r) {
   if (st.first == null) st.first = now;
   const diff = r.ptsA - r.ptsB;
   if (diff > 0) st.won++;
-  if (r.ot) st.otPlayed++;
+  /* otPlayed is the all-time count and predates any record of HOW those
+     overtimes finished, so splitting it into wins and losses would credit
+     every old one as a loss. Count the decided ones separately from here on
+     and read the record off that pair instead. */
+  if (r.ot) {
+    st.otPlayed++;
+    st.otGames = (st.otGames || 0) + 1;
+    if (diff > 0) st.otWon = (st.otWon || 0) + 1;
+  }
   if (r.perfect) st.perfect++;
   st.diffSum += diff;
   st.forSum += r.ptsA;
@@ -3231,7 +3240,8 @@ function dtPostStats(st, r, seen, signed) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ tool: "dt", action: "game", extra: {
         play: st.played, diff: r.ptsA - r.ptsB, pf: r.ptsA, pa: r.ptsB,
-        ot: r.ot || 0, perfect: r.perfect ? 1 : 0, seen, signed
+        ot: r.ot || 0, otwin: r.ot ? (r.ptsA > r.ptsB ? 1 : 0) : null,
+        perfect: r.perfect ? 1 : 0, seen, signed
       }}),
       keepalive: true
     }).catch(() => {});
@@ -4211,6 +4221,8 @@ function dtStatsHtml() {
       <div class="dt-sbox"><b>${(st.forSum / st.played).toFixed(0)}</b><span>pts for</span></div>
       <div class="dt-sbox"><b>${(st.againstSum / st.played).toFixed(0)}</b><span>pts against</span></div>
       ${st.otPlayed ? `<div class="dt-sbox"><b>${st.otPlayed}</b><span>overtimes</span></div>` : ""}
+      ${st.otGames ? `<div class="dt-sbox"><b>${st.otWon || 0}&ndash;${st.otGames - (st.otWon || 0)}</b>
+        <span>overtime record</span></div>` : ""}
       ${st.perfect ? `<div class="dt-sbox"><b>${st.perfect}</b><span>perfect drafts</span></div>` : ""}
     </div>
     ${dtCurveHtml(st.history)}
