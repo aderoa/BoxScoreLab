@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Beat the 1992 Dream Team</title>
+<!-- build 2026-08-02 · footer + leftover cards + mobile sheet close -->
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏀</text></svg>">
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
@@ -544,6 +545,9 @@ body.dt-plain{background:#0b0b1c}
 .dt-confetti i{position:absolute;top:-14px;width:9px;height:14px;border-radius:2px;display:block;animation:dtfall linear forwards}
 @keyframes dtfall{to{transform:translateY(104vh) rotate(680deg);opacity:.15}}
 .dt-board{margin:20px auto 4px;max-width:520px;text-align:left}
+.dt-left{margin:18px auto 4px;max-width:520px;text-align:left}
+.dt-left-note{font-size:.62rem;letter-spacing:.08em;text-transform:uppercase;
+  opacity:.5;margin-top:7px}
 .dt-board-head{font-size:.62rem;letter-spacing:.14em;text-transform:uppercase;opacity:.55;margin-bottom:7px}
 .dt-brow{display:flex;align-items:center;gap:10px;padding:7px 10px;background:rgba(255,255,255,.05);border-radius:6px;margin-bottom:3px;cursor:pointer;font-size:.78rem}
 .dt-brow:hover{background:rgba(255,255,255,.1)}
@@ -709,6 +713,16 @@ body.dt-plain{background:#0b0b1c}
    manipulation permits panning. */
 body.dt-board{touch-action:manipulation}
 
+/* ===== Page footer (same wording as the 73-9 game) ===== */
+.app-footer{font-size:11px;color:#5c5c82;text-align:center;letter-spacing:.3px;
+  margin:36px 0 16px;padding-top:16px;border-top:1px solid #ffffff0f}
+.app-footer a{color:#8f8fc0;text-decoration:underline}
+.app-footer a:hover{color:#c2c2e8}
+/* The live Dream Team board locks itself to one phone screen -- #app is a
+   100dvh flex column there, so a footer inside it would eat the board. It has
+   nothing to do during a game anyway; it comes back on the result screen. */
+body.dt-board .app-footer{display:none}
+
 /* ═══ PHONE LAYOUT ═══════════════════════════════════════════════
    Deliberately LAST in the stylesheet. A media query adds no specificity,
    so when this block sat at the top of the Dream Team styles its
@@ -796,9 +810,26 @@ body.dt-board{touch-action:manipulation}
     box-shadow:0 -10px 30px rgba(0,0,0,.5)}
   body.dt-roster-open .dt-sheet{transform:none}
   .dt-sheet .dt-roster{margin-top:0}
-  .dt-sheet-close{display:block;width:100%;margin-top:12px;padding:11px;border:none;border-radius:8px;
-    background:rgba(255,255,255,.1);color:#fff;font-family:inherit;font-weight:800;
-    letter-spacing:.1em;font-size:.68rem;cursor:pointer}
+  /* The sheet scrolls, and CLOSE used to sit at the very bottom of it in a
+     near-invisible grey -- on a long roster you had to scroll to find the way
+     out. Now there are two exits that are always on screen: a tappable X
+     pinned to the top of the sheet, and the full-width button pinned to the
+     bottom in the accent colour. */
+  .dt-sheet{padding:0 12px 12px}
+  .dt-sheet-bar{position:sticky;top:0;z-index:2;display:flex;align-items:center;
+    justify-content:space-between;gap:10px;margin:0 -12px 10px;padding:10px 12px;
+    background:#0f0f24;border-bottom:1px solid rgba(255,255,255,.12)}
+  .dt-sheet-bar span{font-size:.6rem;letter-spacing:.14em;text-transform:uppercase;opacity:.6}
+  .dt-sheet-x{flex:0 0 auto;width:40px;height:40px;border:1px solid rgba(255,255,255,.28);
+    border-radius:10px;background:rgba(255,255,255,.1);color:#fff;font-size:1.5rem;
+    line-height:1;font-family:inherit;cursor:pointer;padding:0}
+  .dt-sheet-x:active{background:rgba(255,255,255,.2)}
+  .dt-sheet-close{display:block;position:sticky;bottom:0;z-index:2;width:100%;
+    margin:14px 0 0;padding:15px;border:none;border-radius:10px;
+    background:#ff6b35;color:#fff;font-family:inherit;font-weight:900;
+    letter-spacing:.12em;font-size:.78rem;cursor:pointer;
+    box-shadow:0 -10px 20px rgba(15,15,36,.92)}
+  .dt-sheet-close:active{background:#e35a28}
   .dt-dchart{grid-template-columns:repeat(3,1fr)}
   .dt-rslot{font-size:.66rem;padding:3px 6px}
 }
@@ -999,6 +1030,8 @@ body.dt-board{touch-action:manipulation}
     <div class="icon">🏀</div>
     Search and add players to build your fantasy team
   </div>
+
+  <div class="app-footer">Anything wrong with the game? Email us at <a href="mailto:hoopshype@hoopshype.com">hoopshype@hoopshype.com</a><br>For business inquiries, contact us at <a href="mailto:ads@hoopshype.com">ads@hoopshype.com</a></div>
 </div>
 
 <!-- =========== Replace-player modal =========== -->
@@ -3968,10 +4001,19 @@ function dtAdvance(id) {
   DT.revealing = null;
   DT.lastClue = null;                      // the flash belongs to the clue, not the swap
   const at = DT.visible.indexOf(id);       // the replacement takes the same slot
+  /* The twelfth signing ENDS the game, so there is nothing for a replacement
+     to do. Dealing one anyway put a card on the table that was never in play
+     and then immediately showed it as a leftover. Clear the slot instead: what
+     stays on the board is exactly what was sitting there when the roster
+     filled. */
+  if (DT.picked.length >= DT_SQUAD) {
+    if (at >= 0) DT.visible.splice(at, 1);
+    dtFinish();
+    return;
+  }
   const next = DT.queue.length ? DT.queue.shift() : dtDealNew();
   if (next != null) { DT.visible[at] = next; DT.seen.push(DT.cards[next].name); }
   else DT.visible.splice(at, 1);
-  if (DT.picked.length >= DT_SQUAD) { dtFinish(); return; }
   dtRender();
 }
 
@@ -3986,6 +4028,12 @@ function dtFoundBest() {
 
 function dtFinish() {
   DT.done = true;
+  /* Whoever was still face-up when the roster filled. Those cards were never
+     resolved, so this is the last thing the deck has left to tell you --
+     including, sometimes, that you signed one man too early. */
+  DT.leftover = (DT.visible || []).map(i => DT.cards[i])
+    .filter(c => c && c.state === "open")
+    .map(c => c.entry);
   const r = dtPlay(DT.picked, DT.opp);
   r.boxA = dtBoxFor(DT.picked, r.ptsA);
   r.boxB = dtBoxFor(DT.opp, r.ptsB);
@@ -4313,7 +4361,10 @@ function dtRender() {
       : "Clues land on a random visible card. Resolving one clears its clues and brings the next unknown onto the board."}</div>
     <div class="dt-grid ${full ? "must-act" : ""}">${dtVisibleCards().map(dtCardHtml).join("")}
       ${phone ? dtStatsCellHtml(board, full, left, lastTen) : ""}</div>
-    ${phone ? '<div class="dt-sheet">' : ""}
+    ${phone ? `<div class="dt-sheet"><div class="dt-sheet-bar">
+        <span>Roster &amp; opponent</span>
+        <button class="dt-sheet-x" onclick="dtToggleRoster()" aria-label="Close">&times;</button>
+      </div>` : ""}
       ${dtRosterHtml()}
       <div class="dt-opp">
         <div class="dt-opp-head">You are playing</div>
@@ -4439,9 +4490,26 @@ function dtResultHtml() {
     <div class="dt-cols">
       ${dtRecapColumns()}
     </div>
+    ${dtLeftoverHtml()}
     ${dtBoardHtml()}
     ${dtStatsHtml()}
     <button class="dt-b dt-again" onclick="dtStart()">NEW POOL</button>
+  </div>`;
+}
+
+/* The cards still on the table when the twelfth man signed. Any of them worth
+   more than your weakest signing is flagged -- that is the cost of filling the
+   roster a card too soon. */
+function dtLeftoverHtml() {
+  const left = DT.leftover || [];
+  if (!left.length) return "";
+  const worst = DT.picked.length ? Math.min(...DT.picked.map(e => e.gr)) : Infinity;
+  const better = left.filter(e => e.gr > worst).length;
+  return `<div class="dt-left">
+    <div class="dt-col-head">Left on the table &mdash; ${left.length}
+      ${left.length === 1 ? "card was" : "cards were"} still face-up when you signed your twelfth</div>
+    ${left.map(e => `<div class="dt-row ${e.gr > worst ? "miss" : ""}">${e.name}<span>${e.season}</span></div>`).join("")}
+    ${better ? `<div class="dt-left-note">${better} of them rated higher than your weakest signing</div>` : ""}
   </div>`;
 }
 
