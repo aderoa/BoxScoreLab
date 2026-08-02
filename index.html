@@ -545,14 +545,6 @@ body.dt-plain{background:#0b0b1c}
 .dt-confetti i{position:absolute;top:-14px;width:9px;height:14px;border-radius:2px;display:block;animation:dtfall linear forwards}
 @keyframes dtfall{to{transform:translateY(104vh) rotate(680deg);opacity:.15}}
 .dt-board{margin:20px auto 4px;max-width:520px;text-align:left}
-.dt-left{margin:22px auto 4px;max-width:820px;text-align:left}
-.dt-left-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(158px,1fr));gap:8px}
-/* A card discarded mid-game fades to 40% because it is on its way out. These
-   are the last thing the deck has to say, so they are turned back up to full
-   -- same markup, same CUT tag, just legible. */
-.dt-left .dt-card.cut{opacity:1}
-.dt-left-note{font-size:.62rem;letter-spacing:.08em;text-transform:uppercase;
-  opacity:.5;margin-top:9px}
 .dt-board-head{font-size:.62rem;letter-spacing:.14em;text-transform:uppercase;opacity:.55;margin-bottom:7px}
 .dt-brow{display:flex;align-items:center;gap:10px;padding:7px 10px;background:rgba(255,255,255,.05);border-radius:6px;margin-bottom:3px;cursor:pointer;font-size:.78rem}
 .dt-brow:hover{background:rgba(255,255,255,.1)}
@@ -4066,7 +4058,6 @@ function dtRevealLeft() {
     c.revealed = [true, true, true, true, true];
     c.leftover = true;                                // ...and the reveal highlight
   });
-  DT.leftover = left.map(c => Object.assign({}, c));  // a copy for the result screen
   DT.showingLeft = true;
   DT.revealing = null;
   dtRender();
@@ -4076,7 +4067,6 @@ function dtRevealLeft() {
 
 function dtFinish() {
   DT.done = true;
-  DT.leftover = DT.leftover || [];
   const r = dtPlay(DT.picked, DT.opp);
   r.boxA = dtBoxFor(DT.picked, r.ptsA);
   r.boxB = dtBoxFor(DT.opp, r.ptsB);
@@ -4543,26 +4533,9 @@ function dtResultHtml() {
     <div class="dt-cols">
       ${dtRecapColumns()}
     </div>
-    ${dtLeftoverHtml()}
     ${dtBoardHtml()}
     ${dtStatsHtml()}
     <button class="dt-b dt-again" onclick="dtStart()">NEW POOL</button>
-  </div>`;
-}
-
-/* The cards still on the table when the twelfth man signed. Any of them worth
-   more than your weakest signing is flagged -- that is the cost of filling the
-   roster a card too soon. */
-function dtLeftoverHtml() {
-  const left = DT.leftover || [];
-  if (!left.length) return "";
-  const worst = DT.picked.length ? Math.min(...DT.picked.map(e => e.gr)) : Infinity;
-  const better = left.filter(c => c.entry && c.entry.gr > worst).length;
-  return `<div class="dt-left">
-    <div class="dt-col-head">Left on the table &mdash; ${left.length}
-      ${left.length === 1 ? "card was" : "cards were"} still face-up when you signed your twelfth</div>
-    <div class="dt-left-grid">${left.map(dtCardHtml).join("")}</div>
-    ${better ? `<div class="dt-left-note">${better} of them rated higher than your weakest signing</div>` : ""}
   </div>`;
 }
 
