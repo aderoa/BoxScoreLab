@@ -718,27 +718,30 @@ body.dt-plain{background:#0b0b1c}
    manipulation permits panning. */
 body.dt-board{touch-action:manipulation}
 
-/* ===== Page footer (same wording as the 73-9 game) ===== */
-.app-footer{font-size:11px;color:#5c5c82;text-align:center;letter-spacing:.3px;
-  margin:36px 0 16px;padding-top:16px;border-top:1px solid #ffffff0f}
-.app-footer a{color:#8f8fc0;text-decoration:underline}
-.app-footer a:hover{color:#c2c2e8}
+/* ===== Page footer (same wording as the 73-9 game) =====
+   ONE format everywhere -- load screen, rules, result. The page background is
+   a gradient running from near-black at the top to WHITE at the bottom, and
+   the footer lands at a different point on it depending on the screen, so a
+   plain grey-on-transparent block read fine on the rules screen and washed out
+   completely lower down. The translucent dark plate carries its own contrast,
+   so it looks the same wherever it lands. */
+.app-footer{font-size:11px;line-height:1.55;color:#d2d2e8;text-align:center;
+  letter-spacing:.3px;margin:36px auto 16px;max-width:34rem;
+  padding:10px 14px;border-radius:10px;
+  background:rgba(8,8,20,.5);border:1px solid rgba(255,255,255,.12)}
+.app-footer a{color:#ffd700;text-decoration:underline}
+.app-footer a:hover{color:#fff}
 /* The live Dream Team board locks itself to one phone screen -- #app is a
    100dvh flex column there, so a footer inside it would eat the board. It has
    nothing to do during a game anyway; it comes back on the result screen. */
 body.dt-board .app-footer{display:none}
 /* Pinning this to the bottom of the load screen put it OFF-SCREEN: the screen
    is min-height:100vh and the injected nav sits above it, so its bottom edge
-   is already past the fold before the footer is placed. Keep it in the flow,
-   directly under the progress bar, where it is visible whatever the nav does.
-   The translucent backing is what makes it readable -- this gradient runs from
-   near-black to white, so no single ink colour works down its whole length. */
-#loadScreen .app-footer{margin:26px auto 0;max-width:34rem;
-  padding:10px 14px;border-top:none;border-radius:10px;
-  background:rgba(8,8,20,.5);border:1px solid rgba(255,255,255,.12);
-  color:#d2d2e8}
-#loadScreen .app-footer a{color:#ffd700}
-#loadScreen .app-footer a:hover{color:#fff}
+   is already past the fold before the footer is placed. It stays in the flow,
+   under the progress bar, where it is visible whatever the nav does. Styling
+   is inherited from .app-footer -- only the spacing differs, because there is
+   no content below it here. */
+#loadScreen .app-footer{margin:26px auto 0}
 
 /* ═══ PHONE LAYOUT ═══════════════════════════════════════════════
    Deliberately LAST in the stylesheet. A media query adds no specificity,
