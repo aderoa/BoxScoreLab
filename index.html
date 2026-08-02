@@ -722,6 +722,16 @@ body.dt-board{touch-action:manipulation}
    100dvh flex column there, so a footer inside it would eat the board. It has
    nothing to do during a game anyway; it comes back on the result screen. */
 body.dt-board .app-footer{display:none}
+/* On the load screen the footer is pinned to the bottom rather than sitting in
+   the centred stack, and it needs darker ink: that gradient finishes WHITE at
+   the bottom, where the dark-panel grey and the pale link colour both wash
+   out. Padding is reserved below the centred content so the two cannot meet on
+   a short viewport. */
+#loadScreen{position:relative;padding-bottom:66px}
+#loadScreen .app-footer{position:absolute;left:0;right:0;bottom:10px;
+  margin:0;padding:0 16px;border-top:none;color:#4a4a6a}
+#loadScreen .app-footer a{color:#3b3b8a}
+#loadScreen .app-footer a:hover{color:#1f1f6e}
 
 /* ═══ PHONE LAYOUT ═══════════════════════════════════════════════
    Deliberately LAST in the stylesheet. A media query adds no specificity,
@@ -850,6 +860,7 @@ body.dt-board .app-footer{display:none}
     <div id="progressBar"><div id="progressFill"></div></div>
     <div id="progressText">Connecting...</div>
   </div>
+  <div class="app-footer">Anything wrong with the game? Email us at <a href="mailto:hoopshype@hoopshype.com">hoopshype@hoopshype.com</a><br>For business inquiries, contact us at <a href="mailto:ads@hoopshype.com">ads@hoopshype.com</a></div>
 </div>
 <div id="app">
   <div class="header">
