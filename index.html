@@ -3750,6 +3750,28 @@ function dtBoxFor(squad, targetPts, minutes) {
     if (a.FTM > a.FTA) a.FTM = a.FTA;
     a.PTS = (a.FGM - a["3PM"]) * 2 + a["3PM"] * 3 + a.FTM;   // keep the line honest
   });
+  /* ...but honest lines do not add up. PTS is rebuilt from FGM/3PM/FTM, each
+     of which was rounded on its own after scaling, and those errors do not
+     cancel: a twelve scaled to 103 prints a box score totalling 101. The
+     scoreline is the truth, so push the difference back into the box a point
+     at a time -- free throws first, then a two -- cycling through the players
+     in scoring order so it does not all land on one man. Regulation and the
+     overtime period are both built here, so both come out exact and the merged
+     line therefore does too. */
+  const ptsOf = a => (a.FGM - a["3PM"]) * 2 + a["3PM"] * 3 + a.FTM;
+  const order = box.map((a, i) => i).sort((x, y) => box[y].PTS - box[x].PTS);
+  let total = box.reduce((n, a) => n + a.PTS, 0), guard = 0, at = 0;
+  while (total !== targetPts && guard++ < 400 && order.length) {
+    const a = box[order[at++ % order.length]];
+    let moved = false;
+    if (total < targetPts)          { a.FTA++; a.FTM++;            moved = true; }
+    else if (a.FTM > 0)             { a.FTM--;                     moved = true; }
+    else if (a.FGM > a["3PM"])      { a.FGM--;                     moved = true; }
+    if (!moved) continue;
+    const was = a.PTS;
+    a.PTS = ptsOf(a);
+    total += a.PTS - was;
+  }
   teams = savedT; adjusted = savedA;
   return { rows: tA, stats: box };
 }
