@@ -3171,7 +3171,18 @@ const DT_STATS_KEY   = "bsl_dreamteam_stats_v1";
 function dtLoadStats() {
   try {
     const s = JSON.parse(localStorage.getItem(DT_STATS_KEY) || "null");
-    if (s && s.v === 1) return s;
+    if (s && s.v === 1) {
+      /* The overtime split was added later, but it does not have to begin at
+         zero: every history row already carries `ot` and `w`, so the record is
+         read back out of it once and then maintained forward. */
+      if (s.otGames == null) {
+        s.otGames = 0; s.otWon = 0;
+        (s.history || []).forEach(g => {
+          if (g && g.ot) { s.otGames++; if (g.w) s.otWon++; }
+        });
+      }
+      return s;
+    }
   } catch (e) {}
   return { v: 1, played: 0, won: 0, tied: 0, otPlayed: 0, perfect: 0,
            otGames: 0, otWon: 0,
