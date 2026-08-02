@@ -3973,7 +3973,7 @@ const dtAvailable = () => dtVisibleCards().filter(c => c.state === "open").lengt
 const dtMustSign = () => (DT_SQUAD - DT.picked.length) >= dtAvailable() && DT.picked.length < DT_SQUAD;
 
 function dtSpendClue(free) {
-  if (!DT || DT.done) return;
+  if (!DT || DT.done || DT.showingLeft) return;
   if (dtBoardCount() >= DT_BOARD) return;
   // A clue can only land on a card you can actually see.
   const eligible = dtVisibleCards().filter(c => c.state === "open" && c.revealed.some(r => !r));
@@ -4034,7 +4034,7 @@ function dtAdvance(id) {
      filled. */
   if (DT.picked.length >= DT_SQUAD) {
     if (at >= 0) DT.visible.splice(at, 1);
-    dtFinish();
+    dtRevealLeft();
     return;
   }
   const next = DT.queue.length ? DT.queue.shift() : dtDealNew();
@@ -4052,19 +4052,31 @@ function dtFoundBest() {
   return best.every(e => mine.has(dtEntryKey(e)));
 }
 
+/* Whoever was still face-up when the roster filled. The twelfth signing ends
+   the game, and the result screen used to replace the board in the same tick --
+   so these were turned over and swept away far too fast to read. Flip them ON
+   THE BOARD first, exactly the way a card discarded by hand is shown, hold it
+   long enough to take in, and only then play the game out. The hold scales
+   with how many are left. */
+function dtRevealLeft() {
+  const left = (DT.visible || []).map(i => DT.cards[i]).filter(c => c && c.state === "open");
+  if (!left.length) { dtFinish(); return; }
+  left.forEach(c => {
+    c.state = "cut";                                  // exactly what dtResolve sets
+    c.revealed = [true, true, true, true, true];
+    c.leftover = true;                                // ...and the reveal highlight
+  });
+  DT.leftover = left.map(c => Object.assign({}, c));  // a copy for the result screen
+  DT.showingLeft = true;
+  DT.revealing = null;
+  dtRender();
+  setTimeout(() => { DT.showingLeft = false; dtFinish(); },
+             1100 + 350 * Math.min(left.length, 5));
+}
+
 function dtFinish() {
   DT.done = true;
-  /* Whoever was still face-up when the roster filled. Those cards were never
-     resolved, so this is the last thing the deck has left to tell you --
-     including, sometimes, that you signed one man too early. */
-  /* Clones, not the live cards: every clue forced open and the state set to
-     cut, which is exactly what dtResolve does to a card you discard by hand.
-     dtCardHtml then renders them through the same path, so they look like any
-     other discard. The originals are left untouched. */
-  DT.leftover = (DT.visible || []).map(i => DT.cards[i])
-    .filter(c => c && c.state === "open")
-    .map(c => Object.assign({}, c, { state: "cut",
-                                     revealed: [true, true, true, true, true] }));
+  DT.leftover = DT.leftover || [];
   const r = dtPlay(DT.picked, DT.opp);
   r.boxA = dtBoxFor(DT.picked, r.ptsA);
   r.boxB = dtBoxFor(DT.opp, r.ptsB);
@@ -4256,7 +4268,8 @@ function dtCardHtml(c) {
   const bi = bioByName[c.name];
   const player = bi != null ? bioData[bi] : null;
   const pos = player ? (player[3] || "?") : "?";
-  const revealing = DT.revealing === c.id;
+  // `leftover` cards are the end-of-game reveal: same treatment as a discard.
+  const revealing = DT.revealing === c.id || !!c.leftover;
   const resolved = c.state !== "open";
   // Every row is present from the first moment, empty, so you can see what
   // there is to learn before you learn any of it.
