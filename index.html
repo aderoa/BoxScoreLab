@@ -3152,6 +3152,11 @@ function toggleDifficulty(){
 
 const DT_STORAGE_KEY = "bsl_dreamteam_v1";
 const DT_STATS_KEY   = "bsl_dreamteam_stats_v1";
+/* How many finished games the tracker remembers one by one. A row is about 50
+   bytes, so 5,000 of them is a quarter of a megabyte -- against a localStorage
+   allowance of roughly five. The old limit of 500 was set well below what
+   there is room for, and a regular player simply ran off the end of it. */
+const DT_HIST_MAX    = 5000;
 
 /* Play tracker.
    Everything is kept in this browser -- nothing is transmitted. It answers
@@ -3189,8 +3194,33 @@ function dtLoadStats() {
            diffSum: 0, forSum: 0, againstSum: 0,
            players: {}, history: [], first: null, last: null };
 }
+/* Saving used to swallow every error. If the browser ever refused -- storage
+   full, a strict privacy mode -- the tracker carried on as though it had
+   written, and the history quietly stopped growing with nothing to show why.
+   Shed the oldest games and try again instead, then the least useful card
+   counts, and only give up when there is genuinely nowhere to put it. The
+   totals are what most of the panel is built from, so they are the last thing
+   to go. */
 function dtSaveStats(s) {
-  try { localStorage.setItem(DT_STATS_KEY, JSON.stringify(s)); } catch (e) {}
+  const put = () => { localStorage.setItem(DT_STATS_KEY, JSON.stringify(s)); return true; };
+  try { return put(); } catch (e) {}
+
+  for (const keep of [2000, 750, 250, 60]) {
+    if (!s.history || s.history.length <= keep) continue;
+    s.history = s.history.slice(-keep);
+    try { return put(); } catch (e) {}
+  }
+  // a card dealt once says very little; drop those before anything else
+  if (s.players) {
+    const thin = Object.keys(s.players).filter(n => (s.players[n].seen || 0) <= 1);
+    if (thin.length) {
+      thin.forEach(n => delete s.players[n]);
+      try { return put(); } catch (e) {}
+    }
+  }
+  try { return put(); } catch (e) {}
+  console.warn("Dream Team tracker could not be saved \u2014 storage is full or blocked.");
+  return false;
 }
 
 /* Called once per finished game -- after overtime, if there was one, so the
@@ -3227,7 +3257,7 @@ function dtRecordGame(r) {
 
   st.history.push({ n: st.played, d: diff, w: diff > 0 ? 1 : 0,
                     ot: r.ot || 0, at: now });
-  if (st.history.length > 500) st.history = st.history.slice(-500);
+  if (st.history.length > DT_HIST_MAX) st.history = st.history.slice(-DT_HIST_MAX);
   dtSaveStats(st);
   dtPostStats(st, r, [...new Set(DT.seen || [])], [...signed]);
   return st;
@@ -4211,10 +4241,15 @@ function dtOrdinal(n) {
    means later games finish closer, which is the thing worth seeing. */
 function dtCurveHtml(hist) {
   if (!hist || hist.length < 4) return "";
-  const pts = hist.slice(-40);
+  /* Forty games was a short window on a long record. Show a hundred and fifty,
+     on a wider canvas, and drop the per-game dots once they would be closer
+     together than they are wide -- past that the line carries the shape and
+     the dots are just noise. */
+  const pts = hist.slice(-150);
+  const dots = pts.length <= 60;
   const ds = pts.map(h => h.d);
   const lo = Math.min(-1, ...ds), hi = Math.max(1, ...ds);
-  const W = 260, H = 46;
+  const W = 380, H = 46;
   const x = i => (i / Math.max(1, pts.length - 1)) * W;
   const y = d => H - ((d - lo) / (hi - lo)) * H;
   const path = pts.map((h, i) => (i ? "L" : "M") + x(i).toFixed(1) + " " + y(h.d).toFixed(1)).join(" ");
@@ -4223,8 +4258,8 @@ function dtCurveHtml(hist) {
     <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">
       <line x1="0" y1="${zero}" x2="${W}" y2="${zero}" class="dt-curve-zero"/>
       <path d="${path}" class="dt-curve-line"/>
-      ${pts.map((h, i) => `<circle cx="${x(i).toFixed(1)}" cy="${y(h.d).toFixed(1)}" r="2"
-        class="${h.w ? "w" : "l"}"/>`).join("")}
+      ${dots ? pts.map((h, i) => `<circle cx="${x(i).toFixed(1)}" cy="${y(h.d).toFixed(1)}" r="2"
+        class="${h.w ? "w" : "l"}"/>`).join("") : ""}
     </svg>
     <div class="dt-curve-cap">margin, last ${pts.length} games &mdash; above the line is a win</div>
   </div>`;
