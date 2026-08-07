@@ -4,6 +4,24 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Beat the 1992 Dream Team — studio</title>
+<!-- What a shared LINK unfurls to. The 73-9 game shows a Curry photo this way
+     and this page had no tags at all, so every link posted anywhere rendered
+     as a bare grey box. Separate from the share CARD: the card is the PNG the
+     player downloads or copies, this is what X, Facebook and iMessage fetch
+     when they see the URL. Both are wanted -- the card carries the roster, the
+     unfurl makes the link worth clicking. -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="HoopsMatic">
+<meta property="og:title" content="Beat the 1992 Dream Team">
+<meta property="og:description" content="Draft twelve player-seasons from a 30-card deck and see if they can take down the greatest team ever assembled.">
+<meta property="og:image" content="https://hoopsmatic.com/dream-team-game/og-dream-team.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:url" content="https://hoopsmatic.com/dream-team-game">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Beat the 1992 Dream Team">
+<meta name="twitter:description" content="Draft twelve player-seasons from a 30-card deck and see if they can take down the greatest team ever assembled.">
+<meta name="twitter:image" content="https://hoopsmatic.com/dream-team-game/og-dream-team.png">
 <!-- build 2026-08-02 · footer + leftover cards + mobile sheet close -->
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏀</text></svg>">
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -721,18 +739,18 @@ body.dt-plain{background:#0b0b1c}
 /* DEAL THE POOL and NEW POOL are the same button class -- the one thing a
    player must find on the rules screen and on the recap. Sized to be the
    obvious target rather than one control among several. */
-.dt-again{max-width:430px;margin:10px auto 0;display:block;font-size:1.28rem;padding:24px 18px;
+.dt-again{max-width:500px;margin:12px auto 0;display:block;font-size:1.5rem;padding:28px 20px;
   background:#4a90e2;color:#fff;letter-spacing:.1em;border-radius:10px;
   box-shadow:0 3px 0 rgba(0,0,0,.35)}
 .dt-again:active{transform:translateY(2px);box-shadow:0 1px 0 rgba(0,0,0,.35)}
 /* Share sits ABOVE New Pool: the moment the result lands is when someone wants
    to post it, and New Pool wipes the thing they would be sharing. */
 .dt-endbtns{display:flex;flex-direction:column;align-items:center;gap:8px;margin-top:10px}
-.dt-share{max-width:430px;width:100%;display:block;font-size:1.1rem;padding:18px 16px;
+.dt-share{max-width:500px;width:100%;display:block;font-size:1.22rem;padding:20px 16px;
   border-radius:10px;background:linear-gradient(135deg,#3d6fd9,#2b4fa8);color:#fff;
   box-shadow:0 3px 0 rgba(0,0,0,.35)}
 .dt-share:active{transform:translateY(2px);box-shadow:0 1px 0 rgba(0,0,0,.35)}
-@media(max-width:640px){.dt-share{font-size:1rem;padding:17px 14px;max-width:100%}}
+@media(max-width:640px){.dt-share{font-size:1.1rem;padding:19px 14px;max-width:100%}}
 .dt-result{text-align:center;padding:18px 6px;max-width:760px;margin:0 auto}
 .dt-verdict{font-size:.72rem;letter-spacing:.18em;text-transform:uppercase;opacity:.6}
 .dt-verdict.win{color:#4ade80;opacity:1}.dt-verdict.loss{color:#e63946;opacity:1}
@@ -857,7 +875,7 @@ body.dt-board .app-footer a{white-space:nowrap}
   .dt-intro-sub{font-size:.82rem;margin:6px 0 12px}
   .dt-rules{font-size:.76rem;line-height:1.45;padding-left:16px;margin-bottom:14px}
   .dt-rules li{margin-bottom:4px}
-  .dt-again{font-size:1.16rem;padding:23px 14px;position:sticky;bottom:10px;max-width:100%}
+  .dt-again{font-size:1.32rem;padding:26px 14px;position:sticky;bottom:10px;max-width:100%}
   .dt-bar,.dt-hint,.dt-lastten{display:none}
 
   body.dt-board .dt-grid{flex:1 1 auto;min-height:0;display:grid;
@@ -4868,18 +4886,41 @@ function dtBuildShareCard() {
 
   let y = 452;
   for (let i = 0; i < Math.min(rows.length, 12); i++) {
-    const st = stats[i] || {};
+    const t = rows[i] || {}, st = stats[i] || {};
+    // A row is {name, game, quality} and the stat keys are UPPERCASE. Reading
+    // the row as a string printed "[object Object]" twelve times, and st.pts
+    // silently gave nothing -- both on the image people were about to post.
+    let nm = typeof t === "string" ? t : String(t.name || "");
+    const pts = st.PTS != null ? Math.round(st.PTS) : "";
+
+    // The season and club are the whole point of a player-season game: Jordan
+    // 1990-91 is a different card from Jordan 1997-98, and the roster reads as
+    // a set of choices rather than a list of names.
+    let sub = "";
+    try {
+      const g = t.game;
+      if (g) {
+        const team = String(TEAMS[g[G.TM]] || "").replace(/\s*\([^)]*\)\s*$/, "");
+        sub = (dtSeasonLabel(g[G.SY]) + (team ? " " + team : "")).trim();
+      }
+    } catch (e) { sub = ""; }
+
     c.textAlign = "left";
     c.fillStyle = i < 5 ? "#ffffff" : "#c8c8e4";
-    c.font = (i < 5 ? "600 " : "400 ") + "26px Oswald, sans-serif";
-    let nm = String(rows[i] || "");
-    // trim rather than overlap the points column
-    while (c.measureText(nm).width > W - 260 && nm.length > 4) nm = nm.slice(0, -2);
+    c.font = (i < 5 ? "600 " : "400 ") + "27px Oswald, sans-serif";
+    while (c.measureText(nm).width > 560 && nm.length > 4) nm = nm.slice(0, -2);
     c.fillText(nm, 70, y);
+    if (sub) {
+      c.fillStyle = "#6f6f9c";
+      c.font = "400 19px 'JetBrains Mono', monospace";
+      let sw = sub;
+      while (c.measureText(sw).width > 300 && sw.length > 4) sw = sw.slice(0, -2);
+      c.fillText(sw, 70 + Math.min(c.measureText(nm).width, 560) + 14, y);
+    }
     c.textAlign = "right";
     c.fillStyle = "#8a8ab8";
-    c.font = "400 24px 'JetBrains Mono', monospace";
-    c.fillText(String(st.pts != null ? st.pts : ""), W - 70, y);
+    c.font = "400 25px 'JetBrains Mono', monospace";
+    c.fillText(String(pts), W - 70, y);
     y += 44;
   }
 
