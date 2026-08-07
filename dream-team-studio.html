@@ -541,6 +541,43 @@ body.dt-plain{background:#0b0b1c}
 .rings{display:block;width:110px;height:50px;margin:0 auto 14px;opacity:.95}
 .rings-sm{width:74px;height:34px;margin-bottom:8px}
 .medal{font-size:1.6rem;vertical-align:-2px;margin:0 6px}
+/* ===== SHARE RESULT =====
+   Ported from the 73-9 game so the two share sheets look and behave the same.
+   The class names are kept identical on purpose: anyone who has read one file
+   can read the other, and a fix to the layout can be applied to both by
+   copying the block across. */
+.share-modal{position:fixed;inset:0;z-index:10000;background:rgba(5,5,16,.82);
+  backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;padding:20px}
+.share-box{position:relative;max-width:min(92vw,440px);display:flex;
+  flex-direction:column;align-items:center;gap:14px}
+.share-img{width:100%;max-height:52vh;object-fit:contain;border-radius:14px;
+  box-shadow:0 18px 50px rgba(0,0,0,.6)}
+.share-btns{display:flex;gap:8px;flex-wrap:nowrap;justify-content:center}
+.share-btns .dt-b{flex:0 1 auto;padding:13px 14px;font-size:12px;letter-spacing:.5px;
+  white-space:nowrap;border-radius:8px}
+.share-x{position:absolute;top:-16px;right:-16px;width:40px;height:40px;border-radius:50%;
+  border:none;background:#1a1a3e;color:#fff;font-size:22px;line-height:1;cursor:pointer}
+.share-msg{font-family:'JetBrains Mono',ui-monospace,monospace;font-size:12px;
+  color:#4ade80;min-height:16px;text-align:center}
+.share-link{display:flex;width:100%;gap:8px}
+.share-url{flex:1;min-width:0;background:#0f0f24;border:1px solid #2a2a52;border-radius:10px;
+  color:#cfcff0;font-family:'JetBrains Mono',ui-monospace,monospace;font-size:11px;padding:0 10px;height:40px}
+.share-copybtn{flex:0 0 auto;background:#ffd700;color:#1a1a2e;border:none;border-radius:10px;
+  padding:0 16px;font-family:'Oswald',sans-serif;font-weight:700;letter-spacing:1px;
+  font-size:12px;cursor:pointer}
+.share-social{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;width:100%}
+.share-social .soc{display:flex;align-items:center;justify-content:center;gap:7px;
+  height:42px;border-radius:10px;border:1px solid #2a2a52;background:#12122b;color:#cfcff0;
+  font-family:'Oswald',sans-serif;font-size:11px;letter-spacing:1px;text-transform:uppercase;
+  cursor:pointer}
+.share-social .soc:hover{border-color:#4a4a80;color:#fff}
+.share-social .soc svg{width:15px;height:15px;flex:none}
+@media(max-width:640px){
+  .share-social{grid-template-columns:repeat(2,1fr)}
+  .share-social .soc span{display:none}
+  .share-btns .dt-b{padding:13px 10px;font-size:11px}
+}
+
 .dt-confetti{position:fixed;inset:0;pointer-events:none;z-index:9999;overflow:hidden}
 .dt-confetti i{position:absolute;top:-14px;width:9px;height:14px;border-radius:2px;display:block;animation:dtfall linear forwards}
 @keyframes dtfall{to{transform:translateY(104vh) rotate(680deg);opacity:.15}}
@@ -654,7 +691,14 @@ body.dt-plain{background:#0b0b1c}
 .dt-dots i.on{background:#4a90e2}
 .dt-clues{flex:1;display:flex;flex-direction:column;gap:3px;margin-bottom:7px}
 .dt-clue{display:flex;flex-direction:column;line-height:1.2}
-.dt-clue span{font-size:.53rem;letter-spacing:.08em;text-transform:uppercase;opacity:.5}
+/* The category names are how you read a card at a glance -- which row is the
+   pre-draft team, which is who he played with. At .5 opacity on a dark card
+   they blurred into each other, so they are brighter and slightly tinted
+   rather than grey-on-grey. */
+.dt-clue span{font-size:.55rem;letter-spacing:.09em;text-transform:uppercase;
+  opacity:.95;color:#b9c4e8;font-weight:600}
+/* an unrevealed row still recedes, but its label stays legible */
+.dt-clue:not(.on) span{opacity:.72}
 .dt-clue b{font-size:.8rem;font-weight:700}
 .dt-blank{font-size:.66rem;opacity:.28;font-style:italic;padding:6px 0}
 .dt-name{font-size:.82rem;font-weight:700}
@@ -674,10 +718,21 @@ body.dt-plain{background:#0b0b1c}
 .dt-intro-sub{opacity:.65;margin:8px 0 20px}
 .dt-rules{text-align:left;max-width:540px;margin:0 auto 22px;font-size:.85rem;line-height:1.6;opacity:.85;padding-left:20px}
 .dt-rules li{margin-bottom:6px}
-.dt-again{max-width:340px;margin:6px auto 0;display:block;font-size:1.02rem;padding:19px 16px;
+/* DEAL THE POOL and NEW POOL are the same button class -- the one thing a
+   player must find on the rules screen and on the recap. Sized to be the
+   obvious target rather than one control among several. */
+.dt-again{max-width:430px;margin:10px auto 0;display:block;font-size:1.28rem;padding:24px 18px;
   background:#4a90e2;color:#fff;letter-spacing:.1em;border-radius:10px;
   box-shadow:0 3px 0 rgba(0,0,0,.35)}
 .dt-again:active{transform:translateY(2px);box-shadow:0 1px 0 rgba(0,0,0,.35)}
+/* Share sits ABOVE New Pool: the moment the result lands is when someone wants
+   to post it, and New Pool wipes the thing they would be sharing. */
+.dt-endbtns{display:flex;flex-direction:column;align-items:center;gap:8px;margin-top:10px}
+.dt-share{max-width:430px;width:100%;display:block;font-size:1.1rem;padding:18px 16px;
+  border-radius:10px;background:linear-gradient(135deg,#3d6fd9,#2b4fa8);color:#fff;
+  box-shadow:0 3px 0 rgba(0,0,0,.35)}
+.dt-share:active{transform:translateY(2px);box-shadow:0 1px 0 rgba(0,0,0,.35)}
+@media(max-width:640px){.dt-share{font-size:1rem;padding:17px 14px;max-width:100%}}
 .dt-result{text-align:center;padding:18px 6px;max-width:760px;margin:0 auto}
 .dt-verdict{font-size:.72rem;letter-spacing:.18em;text-transform:uppercase;opacity:.6}
 .dt-verdict.win{color:#4ade80;opacity:1}.dt-verdict.loss{color:#e63946;opacity:1}
@@ -718,7 +773,14 @@ body.dt-board{touch-action:manipulation}
 /* The live Dream Team board locks itself to one phone screen -- #app is a
    100dvh flex column there, so a footer inside it would eat the board. It has
    nothing to do during a game anyway; it comes back on the result screen. */
-body.dt-board .app-footer{display:none}
+/* The footer carries the contact addresses, and hiding it for the whole game
+   meant a player on a phone -- who never sees the rules screen again after
+   the first deal -- had no way to reach them. It stays, compact, below the
+   board. It costs about 26px of grid height, which the six cards absorb. */
+body.dt-board .app-footer{display:block;flex:0 0 auto;font-size:10px;
+  margin:6px 0 4px;padding:0 8px;line-height:1.35}
+body.dt-board .app-footer br{display:none}
+body.dt-board .app-footer a{white-space:nowrap}
 /* Pinning this to the bottom of the load screen put it OFF-SCREEN: the screen
    is min-height:100vh and the injected nav sits above it, so its bottom edge
    is already past the fold before the footer is placed. It stays in the flow,
@@ -795,7 +857,7 @@ body.dt-board .app-footer{display:none}
   .dt-intro-sub{font-size:.82rem;margin:6px 0 12px}
   .dt-rules{font-size:.76rem;line-height:1.45;padding-left:16px;margin-bottom:14px}
   .dt-rules li{margin-bottom:4px}
-  .dt-again{font-size:1rem;padding:20px 14px;position:sticky;bottom:10px;max-width:100%}
+  .dt-again{font-size:1.16rem;padding:23px 14px;position:sticky;bottom:10px;max-width:100%}
   .dt-bar,.dt-hint,.dt-lastten{display:none}
 
   body.dt-board .dt-grid{flex:1 1 auto;min-height:0;display:grid;
@@ -3421,7 +3483,7 @@ function dtPickLabel(raw) {
 /* Own clue renderer so Career's version is left exactly as it is. */
 function dtClueValue(card, i) {
   const b = dtBio(card.name); if (!b) return "\u2014";
-  if (i === 0) return card.award || "No career honours";
+  if (i === 0) return card.award || "No career honors";
   if (i === 1) return String(b[4] || "\u2014");
   if (i === 2) return dtPickLabel(b[6]);
   if (i === 3) return card.entry ? card.entry.label : (card.rolledSeason || "\u2014");
@@ -4664,8 +4726,251 @@ function dtResultHtml() {
     </div>
     ${dtBoardHtml()}
     ${dtStatsHtml()}
-    <button class="dt-b dt-again" onclick="dtStart()">NEW POOL</button>
+    <div class="dt-endbtns">
+      ${r.tied ? "" :
+        `<button class="dt-b dt-share" onclick="dtShareResult()">SHARE RESULT</button>`}
+      <button class="dt-b dt-again" onclick="dtStart()">NEW POOL</button>
+    </div>
   </div>`;
+}
+
+/* ============================================================
+   SHARE RESULT  --  ported from the 73-9 game (roulette).
+
+   Same shape as that one: draw a PNG on a canvas, show it in a modal, and
+   offer Download / Copy / native share / the six social composers. The helper
+   names and CSS classes match the other game deliberately, so the two can be
+   compared side by side and a fix carried across.
+
+   ONE DELIBERATE DIFFERENCE. The 73-9 encodes the whole squad into the link
+   so a friend can open your exact result, which works because a Worker route
+   unfurls it. Nothing decodes a Dream Team link yet, so the link here is the
+   plain game URL and the ROSTER TRAVELS IN THE IMAGE. Promising a replay the
+   page cannot deliver would be worse than not offering one.
+   ============================================================ */
+
+const DT_SHARE_URL = "https://hoopsmatic.com/dream-team-game";
+
+/* No tie case anywhere below. A level score sends the game to overtime, so
+   the only states a player can ever share are a win or a loss -- and the
+   score shared after OT is the score after OT. The share button is withheld
+   while r.tied is set, because at that moment the game is not over. */
+function dtShareText(platform) {
+  const r = DT.result || {};
+  const won = r.ptsA > r.ptsB;
+  const ot = r.ot ? (r.ot > 1 ? ` after ${r.ot}OT` : " in overtime") : "";
+  let t = won
+    ? `I beat the 1992 Dream Team ${r.ptsA}-${r.ptsB}${ot}. Can you?`
+    : `The 1992 Dream Team beat me ${r.ptsB}-${r.ptsA}${ot}. Think you can do better?`;
+  if (platform === "x") t += " @hoopshype";
+  else if (platform === "bsky") t += " @hoopshypeofficial.bsky.social";
+  return t;
+}
+
+function dtEsc(x) {
+  return String(x == null ? "" : x).replace(/[&<>"']/g, c =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+function dtDataURLtoBlob(d) {
+  const parts = d.split(",");
+  const mime = (parts[0].match(/:(.*?);/) || [])[1] || "image/png";
+  const bin = atob(parts[1]);
+  const u = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
+  return new Blob([u], { type: mime });
+}
+
+function dtDownloadBlob(blob) {
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "dream-team-result.png";
+  document.body.appendChild(a); a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1500);
+}
+
+function dtCanShareFile(blob) {
+  if (!navigator.canShare) return false;
+  try { return navigator.canShare({ files: [new File([blob], "x.png", { type: "image/png" })] }); }
+  catch (e) { return false; }
+}
+
+function dtSocialURL(kind) {
+  const url = DT_SHARE_URL, text = dtShareText(kind);
+  const u = encodeURIComponent(url), t = encodeURIComponent(text),
+        tu = encodeURIComponent(text + " " + url);
+  switch (kind) {
+    case "x":        return "https://twitter.com/intent/tweet?text=" + t + "&url=" + u;
+    case "bsky":     return "https://bsky.app/intent/compose?text=" + tu;
+    case "fb":       return "https://www.facebook.com/sharer/sharer.php?u=" + u + "&quote=" + t;
+    case "wa":       return "https://wa.me/?text=" + tu;
+    case "reddit":   return "https://www.reddit.com/submit?url=" + u + "&title=" + t;
+    case "telegram": return "https://t.me/share/url?url=" + u + "&text=" + t;
+  }
+  return url;
+}
+
+/* The card. 1080x1080 -- square posts well everywhere, and the roster is the
+   point, so it gets the room rather than the box score. Drawn at 2x and
+   scaled, or the text goes soft on a phone. */
+function dtBuildShareCard() {
+  const r = DT.result;
+  const W = 1080, H = 1080, DPR = 2;
+  const cv = document.createElement("canvas");
+  cv.width = W * DPR; cv.height = H * DPR;
+  const c = cv.getContext("2d");
+  c.scale(DPR, DPR);
+
+  const g = c.createLinearGradient(0, 0, 0, H);
+  g.addColorStop(0, "#12122b"); g.addColorStop(1, "#0a0a1c");
+  c.fillStyle = g; c.fillRect(0, 0, W, H);
+
+  const won = r.ptsA > r.ptsB;
+  const accent = won ? "#4ade80" : "#ff6b6b";
+  c.fillStyle = accent; c.fillRect(0, 0, W, 8);
+
+  c.textAlign = "center";
+  c.fillStyle = "#8a8ab8";
+  c.font = "600 26px Oswald, sans-serif";
+  c.fillText("BEAT THE 1992 DREAM TEAM", W / 2, 78);
+
+  c.fillStyle = accent;
+  c.font = "700 62px Oswald, sans-serif";
+  c.fillText(won ? "I WON" : "I LOST", W / 2, 154);
+
+  c.fillStyle = "#fff";
+  c.font = "700 108px Oswald, sans-serif";
+  c.fillText(`${r.ptsA} - ${r.ptsB}`, W / 2, 268);
+
+  c.fillStyle = "#6f6f9c";
+  c.font = "400 24px 'JetBrains Mono', monospace";
+  c.fillText(dtClock(r.minutes) + (r.ot ? "  ·  " + (r.ot > 1 ? r.ot + "OT" : "OT") : ""),
+             W / 2, 308);
+
+  if (r.perfect) {
+    c.fillStyle = "#ffd700";
+    c.font = "600 22px Oswald, sans-serif";
+    c.fillText("PERFECT DRAFT", W / 2, 344);
+  }
+
+  // The twelve, in rotation order -- the roster IS the result, and it is what
+  // someone reading the post will argue with.
+  const rows = (r.boxA && r.boxA.rows) || [];
+  const stats = (r.boxA && r.boxA.stats) || [];
+  c.textAlign = "left";
+  c.fillStyle = "#8a8ab8";
+  c.font = "600 20px Oswald, sans-serif";
+  c.fillText("YOUR TWELVE", 70, 400);
+  c.textAlign = "right";
+  c.fillText("PTS", W - 70, 400);
+  c.strokeStyle = "#2a2a52"; c.lineWidth = 1;
+  c.beginPath(); c.moveTo(70, 414); c.lineTo(W - 70, 414); c.stroke();
+
+  let y = 452;
+  for (let i = 0; i < Math.min(rows.length, 12); i++) {
+    const st = stats[i] || {};
+    c.textAlign = "left";
+    c.fillStyle = i < 5 ? "#ffffff" : "#c8c8e4";
+    c.font = (i < 5 ? "600 " : "400 ") + "26px Oswald, sans-serif";
+    let nm = String(rows[i] || "");
+    // trim rather than overlap the points column
+    while (c.measureText(nm).width > W - 260 && nm.length > 4) nm = nm.slice(0, -2);
+    c.fillText(nm, 70, y);
+    c.textAlign = "right";
+    c.fillStyle = "#8a8ab8";
+    c.font = "400 24px 'JetBrains Mono', monospace";
+    c.fillText(String(st.pts != null ? st.pts : ""), W - 70, y);
+    y += 44;
+  }
+
+  c.textAlign = "center";
+  c.fillStyle = "#5c5c82";
+  c.font = "400 22px 'JetBrains Mono', monospace";
+  c.fillText("hoopsmatic.com/dream-team-game", W / 2, H - 46);
+  return cv;
+}
+
+function dtShareResult() {
+  if (!DT || !DT.result) return;
+  let durl, blob;
+  try {
+    const cv = dtBuildShareCard();
+    durl = cv.toDataURL("image/png");
+    blob = dtDataURLtoBlob(durl);
+  } catch (e) {
+    console.warn("share card failed", e);
+    alert("Could not build the image.");
+    return;
+  }
+  dtOpenShareModal(durl, blob);
+}
+
+function dtOpenShareModal(durl, blob) {
+  const ex = document.getElementById("shareModal"); if (ex) ex.remove();
+  const ov = document.createElement("div");
+  ov.id = "shareModal"; ov.className = "share-modal";
+  const canCopy = !!(navigator.clipboard && window.ClipboardItem);
+  const canShare = dtCanShareFile(blob);
+  const SOC = [["x", "X"], ["bsky", "Bluesky"], ["fb", "Facebook"],
+               ["wa", "WhatsApp"], ["reddit", "Reddit"], ["telegram", "Telegram"]];
+  const ICON = {
+    x: '<svg viewBox="0 0 24 24"><path fill="currentColor" d="M18.9 1.15h3.68l-8.04 9.19L24 22.85h-7.41l-5.8-7.58-6.64 7.58H.47l8.6-9.83L0 1.15h7.59l5.24 6.93zm-1.29 19.5h2.04L6.49 3.24H4.3z"/></svg>',
+    bsky: '<svg viewBox="0 0 24 24"><path fill="currentColor" d="M12 10.8C10.91 8.69 7.95 4.75 5.2 2.81 2.57.94 1.56 1.27.9 1.57.14 1.91 0 3.08 0 3.77c0 .69.38 5.66.63 6.49.82 2.75 3.73 3.68 6.41 3.38-3.93.58-7.42 2.01-2.84 7.13 5.03 5.2 6.89-1.11 7.85-4.31.95 3.2 2.05 9.29 7.72 4.31 4.28-4.31 1.18-6.55-2.75-7.13 2.68.3 5.59-.63 6.41-3.38.25-.83.63-5.8.63-6.49 0-.69-.14-1.86-.9-2.2-.66-.3-1.67-.63-4.3 1.24C16.05 4.75 13.09 8.69 12 10.8z"/></svg>',
+    fb: '<svg viewBox="0 0 24 24"><path fill="currentColor" d="M24 12.07C24 5.4 18.63 0 12 0S0 5.4 0 12.07c0 6.02 4.39 11.01 10.13 11.93v-8.44H7.08v-3.49h3.05V9.41c0-3.01 1.79-4.67 4.53-4.67 1.31 0 2.68.24 2.68.24v2.96h-1.51c-1.49 0-1.96.93-1.96 1.89v2.24h3.33l-.53 3.49h-2.8v8.44C19.61 23.08 24 18.09 24 12.07z"/></svg>',
+    wa: '<svg viewBox="0 0 24 24"><path fill="currentColor" d="M12.04 2a9.9 9.9 0 0 0-8.5 15l-1.1 4.1 4.2-1.1A9.9 9.9 0 1 0 12.04 2zm0 1.8a8.1 8.1 0 1 1-4.3 14.9l-.3-.2-2.5.7.7-2.4-.2-.3a8.1 8.1 0 0 1 6.6-12.7zm4.6 10.4c-.25-.13-1.47-.72-1.7-.8-.22-.09-.39-.13-.55.12s-.63.8-.78.96c-.14.17-.29.19-.53.07a6.6 6.6 0 0 1-3.3-2.88c-.25-.43.25-.4.71-1.33.08-.16.04-.3-.02-.42s-.55-1.33-.76-1.82c-.2-.47-.4-.4-.55-.41h-.47c-.16 0-.42.06-.64.3-.22.25-.84.82-.84 2s.86 2.32.98 2.48c.12.16 1.7 2.6 4.13 3.64 1.54.67 2.14.72 2.91.61.47-.07 1.47-.6 1.68-1.18.2-.58.2-1.07.15-1.18-.06-.1-.22-.16-.47-.28z"/></svg>',
+    reddit: '<svg viewBox="0 0 24 24"><path fill="currentColor" d="M12 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0zm5.01 4.74c.69 0 1.25.56 1.25 1.25a1.25 1.25 0 0 1-2.5.06l-2.6-.55-.8 3.77c1.83.07 3.48.63 4.68 1.49.3-.31.73-.5 1.2-.5.97 0 1.76.79 1.76 1.76 0 .72-.43 1.33-1.01 1.61a3.1 3.1 0 0 1 .04.52c0 2.7-3.13 4.87-6.99 4.87s-6.99-2.17-6.99-4.87c0-.18.01-.36.04-.53A1.75 1.75 0 0 1 4.03 12c0-.97.79-1.76 1.76-1.76.47 0 .9.19 1.21.5 1.21-.86 2.87-1.42 4.72-1.48l.89-4.17a.33.33 0 0 1 .4-.26l2.9.62a1.25 1.25 0 0 1 1.1-.71zM9.25 12a1.25 1.25 0 1 0 0 2.5 1.25 1.25 0 0 0 0-2.5zm5.5 0a1.25 1.25 0 1 0 0 2.5 1.25 1.25 0 0 0 0-2.5zm-5.47 3.99a.33.33 0 0 0-.23.57c.9.9 2.61.97 3.11.97.5 0 2.21-.07 3.11-.97a.33.33 0 1 0-.47-.47c-.57.57-1.79.77-2.64.77s-2.07-.2-2.64-.77a.33.33 0 0 0-.24-.1z"/></svg>',
+    telegram: '<svg viewBox="0 0 24 24"><path fill="currentColor" d="M11.94 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0zm5.5 8.2-1.84 8.66c-.14.62-.5.77-1.02.48l-2.82-2.08-1.36 1.31c-.15.15-.28.28-.57.28l.2-2.87 5.23-4.72c.23-.2-.05-.32-.35-.12l-6.46 4.07-2.78-.87c-.6-.19-.62-.6.13-.9l10.87-4.19c.5-.18.94.12.77.95z"/></svg>',
+  };
+  ov.innerHTML = '<div class="share-box">'
+    + '<button class="share-x" aria-label="Close">\u00d7</button>'
+    + '<img class="share-img" alt="Your Dream Team result" src="' + durl + '">'
+    + '<div class="share-link"><input class="share-url" readonly value="'
+      + dtEsc(DT_SHARE_URL) + '"><button class="share-copybtn" data-act="copylink">Copy</button></div>'
+    + '<div class="share-social">'
+      + SOC.map(x => '<button class="soc soc-' + x[0] + '" data-soc="' + x[0]
+        + '" aria-label="Share on ' + x[1] + '">' + ICON[x[0]] + '<span>' + x[1] + '</span></button>').join("")
+    + '</div>'
+    + '<div class="share-btns">'
+      + '<button class="dt-b" data-act="download">Download</button>'
+      + (canCopy ? '<button class="dt-b" data-act="copy">Copy image</button>' : "")
+      + (canShare ? '<button class="dt-b" data-act="share">More\u2026</button>' : "")
+    + '</div>'
+    + '<div class="share-msg"></div></div>';
+  document.body.appendChild(ov);
+
+  const msg = ov.querySelector(".share-msg");
+  const close = () => { ov.remove(); document.removeEventListener("keydown", onKey); };
+  const onKey = e => { if (e.key === "Escape") close(); };
+  document.addEventListener("keydown", onKey);
+  ov.addEventListener("click", e => { if (e.target === ov) close(); });
+  ov.querySelector(".share-x").onclick = close;
+  ov.querySelectorAll("[data-soc]").forEach(b => {
+    b.onclick = () => window.open(dtSocialURL(b.getAttribute("data-soc")),
+                                  "_blank", "noopener,noreferrer");
+  });
+  const urlField = ov.querySelector(".share-url");
+  if (urlField) urlField.onclick = () => urlField.select();
+  ov.querySelectorAll("[data-act]").forEach(b => {
+    b.onclick = async () => {
+      const act = b.getAttribute("data-act");
+      if (act === "download") { dtDownloadBlob(blob); msg.textContent = "Saved to your downloads."; }
+      else if (act === "copy") {
+        try { await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
+              msg.textContent = "Image copied. Paste it anywhere."; }
+        catch (e) { msg.textContent = "Copy blocked here. Use Download."; }
+      } else if (act === "copylink") {
+        try { await navigator.clipboard.writeText(dtShareText() + "\n" + DT_SHARE_URL);
+              msg.textContent = "Text + link copied."; }
+        catch (e) { msg.textContent = "Copy blocked here."; }
+      } else if (act === "share") {
+        const file = new File([blob], "dream-team-result.png", { type: "image/png" });
+        try { await navigator.share({ files: [file], title: "Beat the 1992 Dream Team",
+                                      text: dtShareText(), url: DT_SHARE_URL }); }
+        catch (e) { if (!(e && e.name === "AbortError"))
+                      msg.textContent = "Share unavailable. Use the buttons above."; }
+      }
+    };
+  });
 }
 
 /* A short burst, then it removes itself. Nothing persistent to clean up. */
