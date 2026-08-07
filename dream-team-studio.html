@@ -4831,6 +4831,69 @@ function dtSocialURL(kind) {
 /* The card. 1080x1080 -- square posts well everywhere, and the roster is the
    point, so it gets the room rather than the box score. Drawn at 2x and
    scaled, or the text goes soft on a phone. */
+/* Which five would start?
+
+   The card used to bold the first five DRAFTED, which is close to meaningless:
+   minutes are handed out by quality rank in dtNormalizeRotation, so the player
+   taken first can be tenth in the rotation. This picks a real lineup instead --
+   two guards, two forwards, a centre -- taking the highest-minutes eligible
+   player for each slot.
+
+   Slots are filled SCARCEST FIRST. Fill greedily in G,G,F,F,C order and a
+   forward-centre who is the only big on the roster gets used at forward, then
+   the centre slot has nobody left. Counting eligibility first and starting
+   with the tightest slot avoids that, which matters because a twelve drafted
+   from a random pool is often short somewhere.
+
+   -> { order: [indices, starters first], starters: Set(indices) } */
+function dtStartingFive(rows, stats) {
+  const n = rows.length;
+  const min = i => (stats[i] && stats[i].MIN) || 0;
+  const posOf = i => {
+    const nm = typeof rows[i] === "string" ? rows[i] : (rows[i] && rows[i].name);
+    try { return playerPositions(nm) || { g: false, f: false, c: false }; }
+    catch (e) { return { g: false, f: false, c: false }; }
+  };
+  const pos = [];
+  for (let i = 0; i < n; i++) pos.push(posOf(i));
+
+  const slots = [{ k: "g" }, { k: "g" }, { k: "f" }, { k: "f" }, { k: "c" }];
+  // eligible count per slot TYPE, so the rarest position is served first
+  const supply = { g: 0, f: 0, c: 0 };
+  for (let i = 0; i < n; i++) { if (pos[i].g) supply.g++; if (pos[i].f) supply.f++; if (pos[i].c) supply.c++; }
+  slots.sort((a, b) => supply[a.k] - supply[b.k]);
+
+  const used = new Set(), starters = [];
+  for (const sl of slots) {
+    let best = -1;
+    for (let i = 0; i < n; i++) {
+      if (used.has(i) || !pos[i][sl.k]) continue;
+      if (best < 0 || min(i) > min(best)) best = i;
+    }
+    if (best >= 0) { used.add(best); starters.push(best); }
+  }
+  // A pool can simply lack a centre. Rather than print four starters, top the
+  // five up with whoever plays the most -- that is who takes the floor.
+  if (starters.length < 5) {
+    const rest = [];
+    for (let i = 0; i < n; i++) if (!used.has(i)) rest.push(i);
+    rest.sort((a, b) => min(b) - min(a));
+    while (starters.length < 5 && rest.length) {
+      const i = rest.shift(); used.add(i); starters.push(i);
+    }
+  }
+  // Starters read G G F F C; the bench follows in minutes order.
+  const rank = { g: 0, f: 1, c: 2 };
+  starters.sort((a, b) => {
+    const ka = pos[a].g ? 0 : pos[a].f ? 1 : 2, kb = pos[b].g ? 0 : pos[b].f ? 1 : 2;
+    return ka - kb || min(b) - min(a);
+  });
+  const bench = [];
+  for (let i = 0; i < n; i++) if (!used.has(i)) bench.push(i);
+  bench.sort((a, b) => min(b) - min(a));
+  return { order: starters.concat(bench), starters: new Set(starters) };
+}
+
 function dtBuildShareCard() {
   const r = DT.result;
   const W = 1080, H = 1080, DPR = 2;
@@ -4878,15 +4941,19 @@ function dtBuildShareCard() {
   c.textAlign = "left";
   c.fillStyle = "#8a8ab8";
   c.font = "600 20px Oswald, sans-serif";
-  c.fillText("YOUR TWELVE", 70, 400);
+  c.fillText("YOUR TWELVE  \u00b7  STARTERS IN WHITE", 70, 400);
   c.textAlign = "right";
   c.fillText("PTS", W - 70, 400);
   c.strokeStyle = "#2a2a52"; c.lineWidth = 1;
   c.beginPath(); c.moveTo(70, 414); c.lineTo(W - 70, 414); c.stroke();
 
+  const five = dtStartingFive(rows, stats);
+  const order = five.order.slice(0, 12);
   let y = 452;
-  for (let i = 0; i < Math.min(rows.length, 12); i++) {
+  for (let k = 0; k < order.length; k++) {
+    const i = order[k];
     const t = rows[i] || {}, st = stats[i] || {};
+    const isStarter = five.starters.has(i);
     // A row is {name, game, quality} and the stat keys are UPPERCASE. Reading
     // the row as a string printed "[object Object]" twelve times, and st.pts
     // silently gave nothing -- both on the image people were about to post.
@@ -4906,8 +4973,8 @@ function dtBuildShareCard() {
     } catch (e) { sub = ""; }
 
     c.textAlign = "left";
-    c.fillStyle = i < 5 ? "#ffffff" : "#c8c8e4";
-    c.font = (i < 5 ? "600 " : "400 ") + "27px Oswald, sans-serif";
+    c.fillStyle = isStarter ? "#ffffff" : "#c8c8e4";
+    c.font = (isStarter ? "600 " : "400 ") + "27px Oswald, sans-serif";
     while (c.measureText(nm).width > 560 && nm.length > 4) nm = nm.slice(0, -2);
     c.fillText(nm, 70, y);
     if (sub) {
