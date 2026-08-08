@@ -13,14 +13,14 @@
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="HoopsMatic">
 <meta property="og:title" content="Beat the 1992 Dream Team">
-<meta property="og:description" content="Draft twelve player-seasons from a 30-card deck and see if they can take down the greatest team ever assembled.">
+<meta property="og:description" content="Draft 12 player-seasons from a 30-card deck and see if they can take down the greatest team ever assembled.">
 <meta property="og:image" content="https://hoopsmatic.com/dream-team-game/og-dream-team.jpg">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta property="og:url" content="https://hoopsmatic.com/dream-team-game">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Beat the 1992 Dream Team">
-<meta name="twitter:description" content="Draft twelve player-seasons from a 30-card deck and see if they can take down the greatest team ever assembled.">
+<meta name="twitter:description" content="Draft 12 player-seasons from a 30-card deck and see if they can take down the greatest team ever assembled.">
 <meta name="twitter:image" content="https://hoopsmatic.com/dream-team-game/og-dream-team.jpg">
 <!-- build 2026-08-02 · footer + leftover cards + mobile sheet close -->
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏀</text></svg>">
@@ -797,7 +797,10 @@ body.dt-board{touch-action:manipulation}
    board. It costs about 26px of grid height, which the six cards absorb. */
 body.dt-board .app-footer{display:block;flex:0 0 auto;font-size:10px;
   margin:6px 0 4px;padding:0 8px;line-height:1.35}
-body.dt-board .app-footer br{display:none}
+/* The <br> stays. Collapsing the two sentences onto one line saved a few
+   pixels and made "…hoopshype.comFor business inquiries…" run together with no
+   gap -- two different addresses reading as one string. Height is not worth
+   that. */
 body.dt-board .app-footer a{white-space:nowrap}
 /* Pinning this to the bottom of the load screen put it OFF-SCREEN: the screen
    is min-height:100vh and the injected nav sits above it, so its bottom edge
