@@ -4,24 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Beat the 1992 Dream Team</title>
-<!-- What a shared LINK unfurls to. The 73-9 game shows a Curry photo this way
-     and this page had no tags at all, so every link posted anywhere rendered
-     as a bare grey box. Separate from the share CARD: the card is the PNG the
-     player downloads or copies, this is what X, Facebook and iMessage fetch
-     when they see the URL. Both are wanted -- the card carries the roster, the
-     unfurl makes the link worth clicking. -->
-<meta property="og:type" content="website">
-<meta property="og:site_name" content="HoopsMatic">
-<meta property="og:title" content="Beat the 1992 Dream Team">
-<meta property="og:description" content="Draft 12 player-seasons from a 30-card deck and see if they can take down the greatest team ever assembled.">
-<meta property="og:image" content="https://hoopsmatic.com/dream-team-game/og-dream-team.jpg">
-<meta property="og:image:width" content="1200">
-<meta property="og:image:height" content="630">
-<meta property="og:url" content="https://hoopsmatic.com/dream-team-game">
-<meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="Beat the 1992 Dream Team">
-<meta name="twitter:description" content="Draft 12 player-seasons from a 30-card deck and see if they can take down the greatest team ever assembled.">
-<meta name="twitter:image" content="https://hoopsmatic.com/dream-team-game/og-dream-team.jpg">
+<!-- No og:/twitter: tags here on purpose. The Worker injects them for every
+     hoopsmatic route from its own OG_META table, immediately before </head> --
+     so anything declared here is overridden by definition. Two competing sets
+     is exactly what broke the Twitter card: this page said
+     summary_large_image with an image, the Worker said summary without one,
+     and the Worker won. The dreamteam entry in worker.js owns them now. -->
 <!-- build 2026-08-02 · footer + leftover cards + mobile sheet close -->
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏀</text></svg>">
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
