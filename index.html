@@ -554,19 +554,26 @@ body.dt-plain{background:#0b0b1c}
   padding:14px 14px 12px;background:rgba(18,18,43,.55)}
 .lb-hdr{font-family:'Oswald',sans-serif;text-transform:uppercase;letter-spacing:1.5px;
   font-size:12px;color:#9a9ac8;text-align:center;margin-bottom:10px}
-.lb-tabs{display:flex;gap:6px;justify-content:center;margin-bottom:10px}
-.lb-tab{font-family:'Oswald',sans-serif;font-size:11px;letter-spacing:1px;
-  text-transform:uppercase;padding:6px 12px;border-radius:999px;cursor:pointer;
-  border:1px solid #2a2a52;background:#12122b;color:#9a9ac8}
-.lb-tab.on{border-color:#ffd24d;color:#ffd24d}
+/* All three windows at once. Tabs hid two thirds of the board behind a click
+   for no reason -- ten rows each fits, and seeing today next to all time is the
+   comparison people actually want. */
+.lb-cols{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.lb-col{min-width:0}
+.lb-col-hdr{font-family:'Oswald',sans-serif;text-transform:uppercase;
+  letter-spacing:1.2px;font-size:11px;color:#ffd24d;text-align:center;
+  padding-bottom:6px;margin-bottom:4px;border-bottom:1px solid #2a2a52}
+.lb-col-rank{font-family:'Oswald',sans-serif;font-size:11px;color:#8a8ab8;
+  text-align:center;margin-top:6px}
+.lb-col-rank b{color:#ffd24d}
+@media(max-width:820px){ .lb-cols{grid-template-columns:1fr;gap:16px} }
 .lb-rows{display:flex;flex-direction:column}
-.lb-row{display:grid;grid-template-columns:26px 54px 1fr auto;column-gap:8px;
+.lb-row{display:grid;grid-template-columns:20px 42px 1fr;column-gap:7px;
   align-items:baseline;font-family:'JetBrains Mono',ui-monospace,monospace;
   font-size:13px;color:#cfcff0;padding:5px 2px;border-top:1px solid rgba(42,42,77,.6)}
 .lb-row:first-child{border-top:none}
 .lb-row.you{background:rgba(255,210,77,.08);border-radius:6px}
 .lb-c-rank{color:#6a6a94;font-size:12px}
-.lb-c-diff b{color:#ffd24d;font-size:15px}
+.lb-c-diff b{color:#ffd24d;font-size:14px}
 .lb-c-name{color:#cfcff0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
 .lb-c-sc{color:#8a8ab8;font-size:12px;white-space:nowrap}
 .lb-rank{margin-top:10px;padding-top:10px;border-top:1px solid #ffffff14;
@@ -4821,38 +4828,33 @@ async function dtlbRun() {
 }
 
 const DT_LB_LABEL = { day: "Today", week: "This week", alltime: "All time" };
-let dtlbView = "day";
 
 function dtlbRender(panel, data, myDiff, sub) {
   panel.dataset.json = JSON.stringify(data);
   const me = dtlbId();
-  const win = data[dtlbView] ? dtlbView : "alltime";
-  const top = (data[win] && data[win].top) || [];
 
-  const tabs = ["day", "week", "alltime"].map(w =>
-    `<button class="lb-tab${w === win ? " on" : ""}" onclick="dtlbTab('${w}')">`
-    + DT_LB_LABEL[w] + "</button>").join("");
-
-  const rows = top.length
-    ? top.map((e, i) =>
-        `<div class="lb-row${e.id === me ? " you" : ""}">`
-        + `<span class="lb-c-rank">${i + 1}</span>`
-        + `<span class="lb-c-diff"><b>${dtlbSign(e.diff)}</b></span>`
-        + `<span class="lb-c-name">${dtlbEsc(e.name || "anonymous")}</span>`
-        + `<span class="lb-c-sc">${e.ptsA}\u2013${e.ptsB}${e.ot ? " OT" : ""}</span>`
-        + "</div>").join("")
-    : '<div class="lb-msg">no results yet \u2014 you could be first</div>';
-
-  /* Where you rank, across all three windows at once. One number in isolation
-     is hard to read: #40 means nothing until you know of how many. */
-  const parts = [];
-  for (const w of ["day", "week", "alltime"]) {
+  /* One column per window, all visible. The score line is dropped from the rows
+     -- three columns of it does not fit a phone, and the differential is the
+     ranked figure anyway. */
+  const col = w => {
+    const top = (data[w] && data[w].top) || [];
+    const rows = top.length
+      ? top.map((e, i) =>
+          `<div class="lb-row${e.id === me ? " you" : ""}">`
+          + `<span class="lb-c-rank">${i + 1}</span>`
+          + `<span class="lb-c-diff"><b>${dtlbSign(e.diff)}</b></span>`
+          + `<span class="lb-c-name">${dtlbEsc(e.name || "anonymous")}</span>`
+          + "</div>").join("")
+      : '<div class="lb-msg">nobody yet</div>';
     const rk = data[w] && data[w].rank;
-    if (rk) parts.push(`${DT_LB_LABEL[w]}: <b>#${rk.rank}</b> of ${rk.of}`);
-  }
-  const rank = parts.length
-    ? `<div class="lb-rank">Where you rank &mdash; ${parts.join(" &middot; ")}</div>`
-    : "";
+    // A rank belongs under its own column: "#4 of 37" means nothing without
+    // knowing which window it counts.
+    const mine = rk ? `<div class="lb-col-rank">you: <b>#${rk.rank}</b> of ${rk.of}</div>` : "";
+    return `<div class="lb-col"><div class="lb-col-hdr">${DT_LB_LABEL[w]}</div>`
+      + `<div class="lb-rows">${rows}</div>${mine}</div>`;
+  };
+  const cols = `<div class="lb-cols">${["day", "week", "alltime"].map(col).join("")}</div>`;
+  const rank = "";
 
   /* Named players see nothing; anonymous ones get one prompt. The board updates
      retroactively, so there is no reason to ask before someone has a result
@@ -4864,24 +4866,15 @@ function dtlbRender(panel, data, myDiff, sub) {
     + " results so far will be updated too.</div>"
     + '<button onclick="dtlbClaimName()">Set my name</button></div>';
 
-  const best = sub && sub.best && sub.best.alltime;
+  const best = sub && sub.best;
   const note = best && best.diff > myDiff
     ? `<div class="lb-msg">Your best is ${dtlbSign(best.diff)} \u2014 this game was `
       + `${dtlbSign(myDiff)}, so the board keeps the better one.</div>`
     : "";
 
-  panel.innerHTML = `<div class="lb-hdr">Best point differential</div>${tabs}`
-    + `<div class="lb-rows">${rows}</div>${rank}${claim}${note}`;
+  panel.innerHTML = '<div class="lb-hdr">Best point differential \u2014 top 10</div>'
+    + `${cols}${rank}${claim}${note}`;
 }
-
-window.dtlbTab = function (w) {
-  dtlbView = w;
-  const panel = document.getElementById("lbPanel");
-  if (!panel || !panel.dataset.json) return;
-  const r = DT && DT.result;
-  dtlbRender(panel, JSON.parse(panel.dataset.json),
-             r ? (r.ptsA | 0) - (r.ptsB | 0) : 0, null);
-};
 
 window.dtlbClaimName = async function () {
   const cur = dtlbName();
