@@ -547,6 +547,39 @@ body.dt-plain{background:#0b0b1c}
 .rings{display:block;width:110px;height:50px;margin:0 auto 14px;opacity:.95}
 .rings-sm{width:74px;height:34px;margin-bottom:8px}
 .medal{font-size:1.6rem;vertical-align:-2px;margin:0 6px}
+/* ===== LEADERBOARD =====
+   Class names match the 73-9 game's panel deliberately: the two boards should
+   look like siblings, and a fix to one can be copied across. */
+.lb-panel{margin-top:16px;border:1px solid #23234a;border-radius:12px;
+  padding:14px 14px 12px;background:rgba(18,18,43,.55)}
+.lb-hdr{font-family:'Oswald',sans-serif;text-transform:uppercase;letter-spacing:1.5px;
+  font-size:12px;color:#9a9ac8;text-align:center;margin-bottom:10px}
+.lb-tabs{display:flex;gap:6px;justify-content:center;margin-bottom:10px}
+.lb-tab{font-family:'Oswald',sans-serif;font-size:11px;letter-spacing:1px;
+  text-transform:uppercase;padding:6px 12px;border-radius:999px;cursor:pointer;
+  border:1px solid #2a2a52;background:#12122b;color:#9a9ac8}
+.lb-tab.on{border-color:#ffd24d;color:#ffd24d}
+.lb-rows{display:flex;flex-direction:column}
+.lb-row{display:grid;grid-template-columns:26px 54px 1fr auto;column-gap:8px;
+  align-items:baseline;font-family:'JetBrains Mono',ui-monospace,monospace;
+  font-size:13px;color:#cfcff0;padding:5px 2px;border-top:1px solid rgba(42,42,77,.6)}
+.lb-row:first-child{border-top:none}
+.lb-row.you{background:rgba(255,210,77,.08);border-radius:6px}
+.lb-c-rank{color:#6a6a94;font-size:12px}
+.lb-c-diff b{color:#ffd24d;font-size:15px}
+.lb-c-name{color:#cfcff0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.lb-c-sc{color:#8a8ab8;font-size:12px;white-space:nowrap}
+.lb-rank{margin-top:10px;padding-top:10px;border-top:1px solid #ffffff14;
+  font-family:'Oswald',sans-serif;font-size:13px;color:#9a9ac8;text-align:center}
+.lb-rank b{color:#ffd24d}
+.lb-claim{margin-top:12px;padding-top:10px;border-top:1px solid rgba(255,209,102,.25);text-align:center}
+.lb-claim-msg{font-family:'Oswald',sans-serif;color:#ffd166;font-size:13px;margin-bottom:8px}
+.lb-claim button{font-family:'Oswald',sans-serif;font-size:12px;letter-spacing:1px;
+  padding:9px 16px;border-radius:8px;border:1px solid #4a4a80;background:#181838;
+  color:#ffd166;cursor:pointer}
+.lb-msg{font-family:'JetBrains Mono',ui-monospace,monospace;font-size:11px;
+  color:#6a6a94;text-align:center;margin-top:8px}
+
 /* ===== SHARE RESULT =====
    Ported from the 73-9 game so the two share sheets look and behave the same.
    The class names are kept identical on purpose: anyone who has read one file
@@ -4527,7 +4560,16 @@ function dtIsPhone(){
 function dtRender() {
   const el = document.getElementById("blitzMode");
   if (!el || !DT) return;
-  if (DT.done) { dtBoardLock(false); el.innerHTML = dtResultHtml(); return; }
+  if (DT.done) {
+    dtBoardLock(false);
+    el.innerHTML = dtResultHtml();
+    // Fire and forget, after the recap is in the DOM. Not awaited: the result
+    // must render at once whether or not the network cooperates, and dtRender
+    // runs on every resize too -- so it is guarded against submitting twice for
+    // the same game.
+    if (!DT._lbSent) { DT._lbSent = 1; setTimeout(dtlbRun, 30); }
+    return;
+  }
   dtBoardLock(true);
 
   const board = dtBoardCount();
@@ -4688,6 +4730,7 @@ function dtResultHtml() {
     </div>
     ${dtBoardHtml()}
     ${dtStatsHtml()}
+    ${r.tied ? "" : '<div id="lbPanel" class="lb-panel"><div class="lb-hdr">Leaderboard</div><div class="lb-msg">loading\u2026</div></div>'}
     <div class="dt-endbtns">
       ${r.tied ? "" :
         `<button class="dt-b dt-share" onclick="dtShareResult()">SHARE RESULT</button>`}
@@ -4695,6 +4738,177 @@ function dtResultHtml() {
     </div>
   </div>`;
 }
+
+/* ============================================================
+   LEADERBOARD  --  ranked by POINT DIFFERENTIAL (+4, +2, -1).
+
+   Best result per player over three windows, which is the same shape as the
+   73-9 board (best win % rather than every attempt). Submitting is automatic
+   and silent: only an improvement is recorded server-side, so a bad game can
+   never cost you a place, and there is nothing to decide on the results screen.
+
+   It fails invisibly by design. If the endpoint is unset, blocked or down, the
+   panel says so quietly and the rest of the recap is untouched -- a
+   leaderboard is a garnish and must never be the reason someone cannot see
+   their own result.
+
+   A caveat worth knowing: the pool is random per play, so this is a BEST-EVER
+   board and reads as one. It cannot tell a great draft from a kind deal. A fair
+   same-pool contest would need a daily seed, which dtStart deliberately dropped.
+   ============================================================ */
+
+const DT_LB_API = "https://hoopsmatic.com/dt-lb";
+const DT_LB_KEY = "dt_lb_id";
+const DT_LB_NAME = "dt_lb_name";
+
+function dtlbId() {
+  /* One id per browser, kept in localStorage. Without it every game would be a
+     new stranger and "best per player" would mean nothing. */
+  let v = "";
+  try { v = localStorage.getItem(DT_LB_KEY) || ""; } catch (e) {}
+  if (!/^[A-Za-z0-9_-]{6,64}$/.test(v)) {
+    v = "dt" + Math.random().toString(36).slice(2, 12) + Date.now().toString(36);
+    try { localStorage.setItem(DT_LB_KEY, v); } catch (e) {}
+  }
+  return v;
+}
+function dtlbName() {
+  try { return localStorage.getItem(DT_LB_NAME) || ""; } catch (e) { return ""; }
+}
+function dtlbSetName(n) {
+  try { localStorage.setItem(DT_LB_NAME, n); } catch (e) {}
+}
+
+function dtlbEsc(x) {
+  return String(x == null ? "" : x).replace(/[&<>"']/g, c =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+const dtlbSign = d => (d > 0 ? "+" : "") + d;
+
+async function dtlbPost(path, body) {
+  const r = await fetch(DT_LB_API + path, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!r.ok) throw new Error("HTTP " + r.status);
+  return r.json();
+}
+
+/* Called from the recap. Submits, then renders -- and if the submit fails it
+   still tries to render the board, since reading it does not depend on writing. */
+async function dtlbRun() {
+  const panel = document.getElementById("lbPanel");
+  if (!panel || !DT_LB_API || !DT || !DT.result || DT.result.tied) return;
+  const r = DT.result;
+  const diff = (r.ptsA | 0) - (r.ptsB | 0);
+  let sub = null;
+  try {
+    sub = await dtlbPost("/submit", {
+      id: dtlbId(), name: dtlbName(), diff,
+      ptsA: r.ptsA | 0, ptsB: r.ptsB | 0, ot: r.ot | 0,
+      perfect: !!r.perfect, seed: String(DT.seed || ""),
+    });
+  } catch (e) { /* read-only is still useful */ }
+  try {
+    const res = await fetch(DT_LB_API + "/board?id=" + encodeURIComponent(dtlbId()),
+                            { cache: "no-store" });
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    dtlbRender(panel, await res.json(), diff, sub);
+  } catch (e) {
+    panel.innerHTML = '<div class="lb-hdr">Leaderboard</div>'
+      + '<div class="lb-msg">unavailable right now</div>';
+  }
+}
+
+const DT_LB_LABEL = { day: "Today", week: "This week", alltime: "All time" };
+let dtlbView = "day";
+
+function dtlbRender(panel, data, myDiff, sub) {
+  panel.dataset.json = JSON.stringify(data);
+  const me = dtlbId();
+  const win = data[dtlbView] ? dtlbView : "alltime";
+  const top = (data[win] && data[win].top) || [];
+
+  const tabs = ["day", "week", "alltime"].map(w =>
+    `<button class="lb-tab${w === win ? " on" : ""}" onclick="dtlbTab('${w}')">`
+    + DT_LB_LABEL[w] + "</button>").join("");
+
+  const rows = top.length
+    ? top.map((e, i) =>
+        `<div class="lb-row${e.id === me ? " you" : ""}">`
+        + `<span class="lb-c-rank">${i + 1}</span>`
+        + `<span class="lb-c-diff"><b>${dtlbSign(e.diff)}</b></span>`
+        + `<span class="lb-c-name">${dtlbEsc(e.name || "anonymous")}</span>`
+        + `<span class="lb-c-sc">${e.ptsA}\u2013${e.ptsB}${e.ot ? " OT" : ""}</span>`
+        + "</div>").join("")
+    : '<div class="lb-msg">no results yet \u2014 you could be first</div>';
+
+  /* Where you rank, across all three windows at once. One number in isolation
+     is hard to read: #40 means nothing until you know of how many. */
+  const parts = [];
+  for (const w of ["day", "week", "alltime"]) {
+    const rk = data[w] && data[w].rank;
+    if (rk) parts.push(`${DT_LB_LABEL[w]}: <b>#${rk.rank}</b> of ${rk.of}`);
+  }
+  const rank = parts.length
+    ? `<div class="lb-rank">Where you rank &mdash; ${parts.join(" &middot; ")}</div>`
+    : "";
+
+  /* Named players see nothing; anonymous ones get one prompt. The board updates
+     retroactively, so there is no reason to ask before someone has a result
+     worth putting a name to. */
+  const named = (data.you && data.you.name) || dtlbName();
+  const claim = named ? "" :
+    '<div class="lb-claim"><div class="lb-claim-msg">'
+    + "Playing anonymously. Add a name to appear on the board \u2014 your"
+    + " results so far will be updated too.</div>"
+    + '<button onclick="dtlbClaimName()">Set my name</button></div>';
+
+  const best = sub && sub.best && sub.best.alltime;
+  const note = best && best.diff > myDiff
+    ? `<div class="lb-msg">Your best is ${dtlbSign(best.diff)} \u2014 this game was `
+      + `${dtlbSign(myDiff)}, so the board keeps the better one.</div>`
+    : "";
+
+  panel.innerHTML = `<div class="lb-hdr">Best point differential</div>${tabs}`
+    + `<div class="lb-rows">${rows}</div>${rank}${claim}${note}`;
+}
+
+window.dtlbTab = function (w) {
+  dtlbView = w;
+  const panel = document.getElementById("lbPanel");
+  if (!panel || !panel.dataset.json) return;
+  const r = DT && DT.result;
+  dtlbRender(panel, JSON.parse(panel.dataset.json),
+             r ? (r.ptsA | 0) - (r.ptsB | 0) : 0, null);
+};
+
+window.dtlbClaimName = async function () {
+  const cur = dtlbName();
+  const n = prompt("Name for the leaderboard (up to 24 characters):", cur || "");
+  if (n === null) return;
+  const name = n.trim().slice(0, 24);
+  if (!name) return;
+  dtlbSetName(name);
+  const panel = document.getElementById("lbPanel");
+  try {
+    await dtlbPost("/claim", { id: dtlbId(), name });
+    if (panel) {
+      const msg = document.createElement("div");
+      msg.className = "lb-msg";
+      msg.textContent = "Saved. Reloading the board\u2026";
+      panel.appendChild(msg);
+    }
+    dtlbRun();
+  } catch (e) {
+    if (panel) {
+      const msg = document.createElement("div");
+      msg.className = "lb-msg";
+      msg.textContent = "Could not save the name just now.";
+      panel.appendChild(msg);
+    }
+  }
+};
 
 /* ============================================================
    SHARE RESULT  --  ported from the 73-9 game (roulette).
