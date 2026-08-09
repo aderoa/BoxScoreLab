@@ -1029,7 +1029,7 @@ body.studio.locked #app{overflow:hidden}
     <div id="progressBar"><div id="progressFill"></div></div>
     <div id="progressText">Connecting...</div>
   </div>
-  <div class="app-footer">Anything wrong with the game? Email us at <a href="mailto:hoopshype@hoopshype.com">hoopshype@hoopshype.com</a><br>For business inquiries, contact us at <a href="mailto:ads@hoopshype.com">ads@hoopshype.com</a></div>
+  <div class="app-footer">Anything wrong with the game? Email us at <a href="mailto:hoopshype@hoopshype.com?cc=aderoa@hoopshype.com">hoopshype@hoopshype.com</a><br>For business inquiries, contact us at <a href="mailto:ads@hoopshype.com">ads@hoopshype.com</a></div>
 </div>
 <div id="app">
   <div class="header">
@@ -1211,7 +1211,7 @@ body.studio.locked #app{overflow:hidden}
     Search and add players to build your fantasy team
   </div>
 
-  <div class="app-footer">Anything wrong with the game? Email us at <a href="mailto:hoopshype@hoopshype.com">hoopshype@hoopshype.com</a><br>For business inquiries, contact us at <a href="mailto:ads@hoopshype.com">ads@hoopshype.com</a></div>
+  <div class="app-footer">Anything wrong with the game? Email us at <a href="mailto:hoopshype@hoopshype.com?cc=aderoa@hoopshype.com">hoopshype@hoopshype.com</a><br>For business inquiries, contact us at <a href="mailto:ads@hoopshype.com">ads@hoopshype.com</a></div>
 </div>
 
 <!-- =========== Replace-player modal =========== -->
@@ -4857,6 +4857,22 @@ async function dtlbRun() {
   if (!panel || !DT_LB_API || !DT || !DT.result || DT.result.tied) return;
   const r = DT.result;
   const diff = (r.ptsA | 0) - (r.ptsB | 0);
+
+  /* A NAME BEFORE A PLACE. Nothing is submitted until there is one, so the board
+     cannot fill with "anonymous" -- a leaderboard of unnamed entries tells a
+     reader nothing. Declining is allowed and is a real answer: the boards are
+     still shown, just without this result on them. */
+  if (!dtlbName()) {
+    if (!(await dtlbAskName())) {
+      panel.innerHTML = '<div class="lb-hdr">Leaderboard</div>'
+        + '<div class="lb-claim"><div class="lb-claim-msg">'
+        + "A nickname is needed to appear on the board \u2014 this result was not "
+        + "saved.</div>"
+        + '<button onclick="dtlbNameThenRun()">Choose a nickname</button></div>';
+      return;
+    }
+  }
+
   let sub = null;
   try {
     sub = await dtlbPost("/submit", {
@@ -4875,6 +4891,22 @@ async function dtlbRun() {
       + '<div class="lb-msg">unavailable right now</div>';
   }
 }
+
+/* Asks for a nickname and keeps it. false means the reader declined, which is a
+   choice rather than a failure. */
+async function dtlbAskName() {
+  const n = prompt("Choose a nickname for the leaderboard (up to 24 characters):", "");
+  if (n === null) return false;
+  const name = n.trim().slice(0, 24);
+  if (!name) return false;
+  dtlbSetName(name);
+  try { await dtlbPost("/claim", { id: dtlbId(), name }); } catch (e) {}
+  return true;
+}
+
+window.dtlbNameThenRun = async function () {
+  if (await dtlbAskName()) dtlbRun();
+};
 
 const DT_LB_LABEL = { day: "Today", week: "This week", alltime: "All time" };
 
@@ -4921,8 +4953,28 @@ function dtlbRender(panel, data, myDiff, sub) {
       + `${dtlbSign(myDiff)}, so the board keeps the better one.</div>`
     : "";
 
+  /* Most perfect drafts -- a different question from the best margin, so its own
+     table. Shown only when somebody has one; an empty board is noise. */
+  let pf = "";
+  if (data.perfect && data.perfect.length) {
+    const myName = (data.you && data.you.name) || dtlbName();
+    pf = '<div class="lb-hdr" style="margin-top:16px">Most perfect drafts</div>'
+      + '<div class="lb-rows">'
+      + data.perfect.map((e, i) =>
+          `<div class="lb-row${e.name === myName ? " you" : ""}">`
+          + `<span class="lb-c-rank">${i + 1}</span>`
+          + `<span class="lb-c-diff"><b>${e.perfects}</b></span>`
+          + `<span class="lb-c-name">${dtlbEsc(e.name)}</span>`
+          + `<span class="lb-c-sc">${e.plays} game${e.plays === 1 ? "" : "s"}</span>`
+          + "</div>").join("")
+      + "</div>";
+    const mine = data.you && data.you.perfects;
+    if (mine) pf += `<div class="lb-rank">You have <b>${mine}</b> perfect draft`
+      + `${mine === 1 ? "" : "s"}</div>`;
+  }
+
   panel.innerHTML = '<div class="lb-hdr">Best point differential \u2014 top 10</div>'
-    + `${cols}${rank}${claim}${note}`;
+    + `${cols}${rank}${pf}${claim}${note}`;
 }
 
 window.dtlbClaimName = async function () {
