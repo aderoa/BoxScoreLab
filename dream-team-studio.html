@@ -4954,24 +4954,26 @@ function dtlbRender(panel, data, myDiff, sub) {
     : "";
 
   /* Most perfect drafts -- a different question from the best margin, so its own
-     table. Shown only when somebody has one; an empty board is noise. */
-  let pf = "";
-  if (data.perfect && data.perfect.length) {
-    const myName = (data.you && data.you.name) || dtlbName();
-    pf = '<div class="lb-hdr" style="margin-top:16px">Most perfect drafts</div>'
-      + '<div class="lb-rows">'
-      + data.perfect.map((e, i) =>
-          `<div class="lb-row${e.name === myName ? " you" : ""}">`
-          + `<span class="lb-c-rank">${i + 1}</span>`
-          + `<span class="lb-c-diff"><b>${e.perfects}</b></span>`
-          + `<span class="lb-c-name">${dtlbEsc(e.name)}</span>`
-          + `<span class="lb-c-sc">${e.plays} game${e.plays === 1 ? "" : "s"}</span>`
-          + "</div>").join("")
+     table. Shown even when EMPTY: an unclaimed board is an invitation, and
+     hiding it means nobody knows the prize exists. Signing the best twelve in a
+     thirty-card deck off five clues at a time is meant to be rare. */
+  const myName = (data.you && data.you.name) || dtlbName();
+  const pfRows = (data.perfect && data.perfect.length)
+    ? data.perfect.map((e, i) =>
+        `<div class="lb-row${e.name === myName ? " you" : ""}">`
+        + `<span class="lb-c-rank">${i + 1}</span>`
+        + `<span class="lb-c-diff"><b>${e.perfects}</b></span>`
+        + `<span class="lb-c-name">${dtlbEsc(e.name)}</span>`
+        + `<span class="lb-c-sc">${e.plays} game${e.plays === 1 ? "" : "s"}</span>`
+        + "</div>").join("")
+    : '<div class="lb-msg" style="padding:10px 0">'
+      + "Nobody has signed the best twelve yet. Be the first."
       + "</div>";
-    const mine = data.you && data.you.perfects;
-    if (mine) pf += `<div class="lb-rank">You have <b>${mine}</b> perfect draft`
-      + `${mine === 1 ? "" : "s"}</div>`;
-  }
+  let pf = '<div class="lb-hdr" style="margin-top:16px">Most perfect drafts</div>'
+    + `<div class="lb-rows">${pfRows}</div>`;
+  const mine = data.you && data.you.perfects;
+  if (mine) pf += `<div class="lb-rank">You have <b>${mine}</b> perfect draft`
+    + `${mine === 1 ? "" : "s"}</div>`;
 
   panel.innerHTML = '<div class="lb-hdr">Best point differential \u2014 top 10</div>'
     + `${cols}${rank}${pf}${claim}${note}`;
