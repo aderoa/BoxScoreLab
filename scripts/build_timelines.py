@@ -82,6 +82,45 @@ COUNTED = {"regular", "playoff", "playin", "cup"}
 #   PHO and PHX are the same franchise appearing under two codes in different
 #   feeds. Not a relocation at all -- just an inconsistency that would otherwise
 #   split a Suns career in half.
+# The repo's OWN tricode table is the authority for normalising codes, loaded at
+# run time from data/team_codes.json rather than duplicated here. It already
+# carries the relocations (SEA->OKC, NJN->BKN, VAN->MEM, CHH->CHA, NOH->NOP) and
+# an era rule for BLT, which was two different franchises sharing one code -- a
+# flat dict cannot express that and would silently merge them. Everything below
+# only supplies DISPLAY NAMES for the normalised codes, plus the handful of codes
+# team_codes.json does not mention because they never needed translating.
+TEAM_CODES = {}
+
+
+def load_team_codes():
+    """-> ({simple}, {code: [rules]}). Absent file is not fatal, but is reported."""
+    path = os.path.join(DATA, "team_codes.json")
+    if not os.path.exists(path):
+        print("  !! no data/team_codes.json -- tricodes will NOT be normalised,"
+              " so relocations will split into separate stints")
+        return {}, {}
+    with open(path, encoding="utf-8") as f:
+        j = json.load(f)
+    return j.get("simple", {}), j.get("era", {})
+
+
+def normalise(tri, season):
+    """
+    One franchise code, applying the repo's era rules before its simple map.
+
+    Era first: BLT is BAL up to 1955 and WAS from 1963, and a simple lookup would
+    answer one of those for both.
+    """
+    simple, era = TEAM_CODES.get("simple", {}), TEAM_CODES.get("era", {})
+    if tri in era:
+        for rule in era[tri]:
+            lo, hi = rule.get("minYear"), rule.get("maxYear")
+            if (lo is None or season >= lo) and (hi is None or season <= hi):
+                tri = rule["code"]
+                break
+    return simple.get(tri, tri)
+
+
 FRANCHISE = {}
 
 
@@ -120,6 +159,22 @@ _f("SAS", "San Antonio Spurs", "SAS", "SA", "DLC", "TEX")
 _f("TOR", "Toronto Raptors", "TOR")
 _f("UTA", "Utah Jazz", "UTA", "UTH", "NOJ")
 _f("WAS", "Washington Wizards", "WAS", "WSB", "CAP", "BAL", "CHZ", "CHP")
+
+# DEFUNCT, with no modern successor. Named rather than left as bare codes, since a
+# stint reading "AND" is indistinguishable from a bug -- and folding them into a
+# surviving franchise would be worse: these teams died, they did not move.
+_f("AND", "Anderson Packers", "AND")
+_f("CHS", "Chicago Stags", "CHS")
+_f("INO", "Indianapolis Olympians", "INO")
+_f("SHE", "Sheboygan Red Skins", "SHE")
+_f("WAT", "Waterloo Hawks", "WAT")
+_f("STB", "St. Louis Bombers", "STB")
+_f("PIT", "Pittsburgh Ironmen", "PIT")
+_f("CLR", "Cleveland Rebels", "CLR")
+_f("DTF", "Detroit Falcons", "DTF")
+_f("TRH", "Toronto Huskies", "TRH")
+_f("PRO", "Providence Steamrollers", "PRO")
+_f("WSC", "Washington Capitols", "WSC")
 
 # --------------------------------------------------------- field detection
 #
@@ -274,7 +329,20 @@ def load_rows(verbose=False):
             if not dates:
                 print(f"  !! {season_dir}: no dates available, skipping")
                 continue
-        for r in read_ndjson(path):
+        raw = read_ndjson(path)
+        # MINUTES WERE NOT RECORDED BEFORE 1951-52, so in the earliest seasons
+        # every row reads as zero and the DNP filter deletes the whole season --
+        # which it silently did, taking Anderson, Sheboygan and Waterloo with it.
+        # Decided per season, and reported: a season that logs no minutes at all
+        # is a season where minutes are unknown, not one where nobody played.
+        drop_dnp = has_min
+        if has_min and raw:
+            z = sum(1 for r in raw if not minutes_of(r.get(F["min"])))
+            if z >= 0.95 * len(raw):
+                drop_dnp = False
+                print(f"    {season_dir}: no minutes recorded this season --"
+                      f" keeping every row")
+        for r in raw:
             gid = str(r.get(F["gid"]) or "")
             pid = str(r.get(F["pid"]) or "").strip()
             if not pid or not gid:
@@ -287,7 +355,7 @@ def load_rows(verbose=False):
             if key in seen:
                 continue
             seen.add(key)
-            if has_min and minutes_of(r.get(F["min"])) <= 0:
+            if drop_dnp and minutes_of(r.get(F["min"])) <= 0:
                 dropped_dnp += 1
                 continue
             tri = str(r.get(F["team"]) or "").strip().upper()
@@ -311,8 +379,10 @@ def load_rows(verbose=False):
     return rows
 
 
-def franchise_of(tri):
-    return FRANCHISE.get(tri, (tri or "???", tri or "???"))
+def franchise_of(tri, season):
+    code = normalise(tri, season)
+    key, name = FRANCHISE.get(code, (code or "???", code or "???"))
+    return key, name
 
 
 def build(rows, verbose=False):
@@ -334,9 +404,9 @@ def build(rows, verbose=False):
         cur = None
         n = 0
         for date, gid, tri, kind, _nm in games:
-            fkey, fname = franchise_of(tri)
-            if tri and tri not in FRANCHISE:
-                unmapped[tri] += 1
+            fkey, fname = franchise_of(tri, season_of(date, gid))
+            if fkey not in FRANCHISE:
+                unmapped[f"{tri} -> {fkey}"] += 1
             if cur is None or cur["franchise"] != fkey:
                 if cur:
                     stints.append(cur)
@@ -443,6 +513,9 @@ def main():
     ap.add_argument("--no-write", action="store_true")
     ap.add_argument("--verbose", action="store_true")
     a = ap.parse_args()
+    simple, era = load_team_codes()
+    TEAM_CODES["simple"], TEAM_CODES["era"] = simple, era
+    print(f"  team codes: {len(simple)} simple, {len(era)} era rule(s)")
     rows = load_rows(a.verbose)
     stints = build(rows, a.verbose)
     if not a.no_write:
