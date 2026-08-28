@@ -863,7 +863,7 @@ let WAR2016=new Set();   // 2015-16 Warriors, removed from the draftable pool
 let teams=[[],[]], adjusted=[[],[]], teamNames=["YOUR SQUAD","OPPONENT"];
 
 // --- tunable game constants (easy to tweak / move to a config later) ---
-const BUILD      = "v100 · server-verified results · 2026-07-30";
+const BUILD      = "v101 · verify retry + stale-token refresh · 2026-08-28";
 // Where a shared squad link points. This must be a page that serves THIS game's
 // HTML (it reads the ?sq= payload client-side). Until hoopsmatic.com/73-9 serves
 // this file, shared links will 404 — change this one line back to the GitHub Pages
@@ -2842,6 +2842,20 @@ function lbShowClaimGate(panel,onSave,rank){
   handleInput.addEventListener('keydown',e=>{if(e.key==='Enter')save();});
 }
 function _lbApplyWin(w){ if(!_lbBoard)_lbBoard={}; _lbBoard.day=w.day; _lbBoard.week=w.week; _lbBoard.alltime=w.alltime; }
+// v101: tokens expire server-side 15 minutes after verification. The auto
+// submit fires seconds later so this rarely matters — but a Retry pressed
+// late, or any future delayed path, would silently die at the gate. If the
+// token in hand is stale (or missing), quietly re-verify the same squad
+// first; the roster is still in memory on the results screen.
+async function lbFreshToken(token){
+  const AGE=12*60*1000;
+  if(token && (window.__srvTokenTs||0) && (Date.now()-(window.__srvTokenTs||0))<AGE) return token;
+  try{
+    const sv=await verifyWithServer(roster);
+    if(sv&&sv.token){ window.__srvTokenTs=Date.now(); return sv.token; }
+  }catch(e){}
+  return token||'';
+}
 async function lbInit(pct,record,isPerfect,token){
   if(!LB_API)return;
   const panel=document.getElementById('lbPanel');
@@ -2874,7 +2888,7 @@ async function lbInit(pct,record,isPerfect,token){
   if(panel){
     const submitPlay=async(nmVal)=>{
       try{
-        const r=await fetch(_lbBase()+'/claim',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pct:Number(pct.toFixed(2)),record:record,name:nmVal||'',handle:playerHandle()||'',id:playerId(),token:token||''})});
+        const r=await fetch(_lbBase()+'/claim',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pct:Number(pct.toFixed(2)),record:record,name:nmVal||'',handle:playerHandle()||'',id:playerId(),token:(await lbFreshToken(token))||''})});
         return await r.json();
       }catch(e){ console.warn('[ROULETTE] leaderboard /claim failed:',e); return null; }
     };
@@ -3001,6 +3015,7 @@ function showResults(){
       const sv=await verifyWithServer(roster);
       if(sv&&sv.record&&sv.vsWarriors){
         __srvToken=sv.token||null;
+        window.__srvTokenTs=Date.now();   // v101: for the stale-token re-verify at claim time
         if(sv.bestPossible)__srvBest=!!sv.bestPossible.isBestPossible;
         __srvWar={winPct:sv.vsWarriors.winPct/100,margin:sv.vsWarriors.margin};
         yours=Object.assign({},yours,{w:sv.record.w,l:sv.record.l,ppg:sv.record.ppg,oppg:sv.record.oppg});
@@ -3125,6 +3140,16 @@ function showResults(){
         '</div>';
     }
 
+    // v101: verification failed on a score high enough that the leaderboard
+    // gate will reject it tokenless — say so NOW, with a fix, instead of the
+    // player finding out via a support email days later.
+    if(war.winPct*100>=50 && !__srvToken){
+      html+='<div id="vfyWarn" class="war-panel" style="border-color:#ffd24a66;background:linear-gradient(160deg,rgba(72,58,18,.5),rgba(30,24,8,.5))">'
+        +'<div style="font-family:Oswald,sans-serif;font-weight:700;letter-spacing:2px;text-transform:uppercase;font-size:12px;color:#ffd24a">\u26a0 Score not verified</div>'
+        +'<div style="font-size:12.5px;line-height:1.7;color:#e8dcb0;margin:8px 0 10px">We couldn\u2019t reach the verification server, and unverified high scores don\u2019t enter the leaderboard. If you use an ad-blocker or VPN, allow hoopsmatic.com and workers.dev, then retry.</div>'
+        +'<button id="vfyRetry" class="btn" style="padding:10px 22px;font-size:13px">Retry verification</button>'
+        +'<span id="vfyMsg" style="display:block;margin-top:8px;font-size:12px;color:#ffd24a"></span></div>';
+    }
     // leaderboards last: this is community/reference info, not the result itself
     if(LB_API) html+='<div id="lbPanel" class="war-panel lb-panel"></div>'+
                      '<div id="lbPerfectPanel" class="war-panel lb-panel"></div>'+
@@ -3157,6 +3182,21 @@ function showResults(){
     window.__LAST_WP__=winPctStr;
     if(window.__CHALLENGE__){ try{ renderChallengePanel(winPctStr); }catch(e){} }
     try{ lbInit(war.winPct*100, yours.w+'\u2013'+yours.l, samePicks, __srvToken); }catch(e){}
+    const vfyBtn=document.getElementById('vfyRetry');
+    if(vfyBtn) vfyBtn.onclick=async function(){
+      vfyBtn.disabled=true; vfyBtn.textContent='Verifying\u2026';
+      const msg=document.getElementById('vfyMsg');
+      const sv=await verifyWithServer(roster);
+      if(sv&&sv.token){
+        __srvToken=sv.token; window.__srvTokenTs=Date.now();
+        const warn=document.getElementById('vfyWarn');
+        if(warn){ warn.style.borderColor='#4dff9a66'; warn.innerHTML='<div style="font-family:Oswald,sans-serif;font-weight:700;letter-spacing:2px;text-transform:uppercase;font-size:12px;color:#7dffb0">\u2713 Verified \u2014 score submitted to the leaderboard</div>'; }
+        try{ lbInit(war.winPct*100, yours.w+'\u2013'+yours.l, samePicks, __srvToken); }catch(e){}
+      }else{
+        vfyBtn.disabled=false; vfyBtn.textContent='Retry verification';
+        if(msg) msg.textContent='Still blocked \u2014 check your blocker settings and try again.';
+      }
+    };
     try{ lbShowSetNameLink(); }catch(e){}
     if(samePicks){ try{ fireConfetti(); }catch(e){} }
   },40);
