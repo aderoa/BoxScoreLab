@@ -3964,6 +3964,26 @@ function dtBoxFor(squad, targetPts, minutes) {
     a.PTS = ptsOf(a);
     total += a.PTS - was;
   }
+  /* ASSISTS CANNOT OUTNUMBER THE BASKETS THEY CREATED.
+     
+     Only a made field goal can be assisted, so team assists are bounded by team
+     FGM -- and in reality sit well under it, since plenty of baskets are scored
+     unassisted. The box scores were breaking that: the scoring line is scaled by
+     k to land on the target score, and AST was not in the list of stats scaled
+     with it. A line rolled at 110 and scaled down to 96 kept every assist while
+     losing baskets, and a heavy enough scale-down pushed the total past FGM.
+     
+     Scaled first for the same reason the rest of the line is, then held under a
+     ceiling of 0.72 x FGM -- the top of the range real teams reach over a season,
+     so a good passing side still looks like one. */
+  box.forEach(a => { a.AST = Math.round((a.AST || 0) * k); });
+  const teamFGM = box.reduce((n, a) => n + (a.FGM || 0), 0);
+  const teamAST = box.reduce((n, a) => n + (a.AST || 0), 0);
+  const capAST = Math.round(teamFGM * 0.72);
+  if (teamAST > capAST && teamAST > 0) {
+    const sc = capAST / teamAST;
+    box.forEach(a => { a.AST = Math.round((a.AST || 0) * sc); });
+  }
   teams = savedT; adjusted = savedA;
   return { rows: tA, stats: box };
 }
@@ -4623,7 +4643,24 @@ function dtRender() {
     // must render at once whether or not the network cooperates, and dtRender
     // runs on every resize too -- so it is guarded against submitting twice for
     // the same game.
-    if (!DT._lbSent) { DT._lbSent = 1; setTimeout(dtlbRun, 30); }
+    //
+    // THE GUARD IS ABOUT THE RESULT, NOT THE RENDER. A tied game renders a recap
+    // too, which set the flag -- and dtlbRun returns immediately on a tie, so
+    // nothing was ever sent. When overtime finished and the game finally had a
+    // winner, the flag said it had already been dealt with and the panel sat on
+    // "loading" for good. Every perfect line-up that went to overtime was lost
+    // that way.
+    //
+    // Keyed on the score, so a genuine second submission for the same finished
+    // game is still prevented, and a real change -- a tie becoming a win --
+    // counts as a new result because it is one.
+    const lbKey = DT.result
+      ? (DT.result.tied ? "tied" : (DT.result.ptsA | 0) + ":" + (DT.result.ptsB | 0))
+      : "";
+    if (lbKey && lbKey !== "tied" && DT._lbSent !== lbKey) {
+      DT._lbSent = lbKey;
+      setTimeout(dtlbRun, 30);
+    }
     return;
   }
   dtBoardLock(true);
