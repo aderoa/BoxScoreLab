@@ -79,6 +79,7 @@ STUDIO_CSS = """
 /* ===== STUDIO LAYER -- inert without ?studio=1 ===== */
 body.studio{background:#000;overflow:hidden;height:100vh}
 body.studio #hm-nav-root,body.studio .mode-tabs,body.studio .app-footer,
+body.studio .hm-next,body.studio .hm-strip,
 body.studio.hide-chrome .dt-stats,body.studio.hide-chrome .dt-reset,
 body.studio.hide-chrome .dt-lastten{display:none!important}
 /* The stage is the exact output frame. Scaling the app instead of resizing
