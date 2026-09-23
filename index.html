@@ -14,6 +14,7 @@
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏀</text></svg>">
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
+<script src="https://hoopsmatic.com/hoopsmatic-games.js" data-hm-game="dreamteam" data-hm-footer="auto" data-hm-cards="auto" defer></script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 ::-webkit-scrollbar{height:6px;width:6px}
@@ -830,6 +831,11 @@ body.dt-board .app-footer{display:block;flex:0 0 auto;font-size:10px;
    gap -- two different addresses reading as one string. Height is not worth
    that. */
 body.dt-board .app-footer a{white-space:nowrap}
+/* The shared HoopsMatic cross-promo module renders itself: a card block above
+   the footer and a link strip inside it. Neither fits the locked one-screen
+   board, which is where the footer is already squeezed to 10px. They come back
+   on the rules and result screens. */
+body.dt-board .hm-next, body.dt-board .hm-strip { display: none; }
 /* Pinning this to the bottom of the load screen put it OFF-SCREEN: the screen
    is min-height:100vh and the injected nav sits above it, so its bottom edge
    is already past the fold before the footer is placed. It stays in the flow,
