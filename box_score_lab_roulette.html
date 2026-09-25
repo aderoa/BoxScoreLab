@@ -864,7 +864,7 @@ let WAR2016=new Set();   // 2015-16 Warriors, removed from the draftable pool
 let teams=[[],[]], adjusted=[[],[]], teamNames=["YOUR SQUAD","OPPONENT"];
 
 // --- tunable game constants (easy to tweak / move to a config later) ---
-const BUILD      = "v101 · verify retry + stale-token refresh · 2026-08-28";
+const BUILD      = "v102 · scroll back to reel after signing · 2026-09-25";
 // Where a shared squad link points. This must be a page that serves THIS game's
 // HTML (it reads the ?sq= payload client-side). Until hoopsmatic.com/73-9 serves
 // this file, shared links will 404 — change this one line back to the GitHub Pages
@@ -1569,6 +1569,8 @@ function pickPlayer(key,name,pickedPos){
   $("respinBtn").style.display="none";
   currentGroup=null;
   updateHud();
+  // v102: bring the wheel back after a signing (reader report, mobile).
+  scrollToReel();
 
   if(rosterCount()>=SLOTS){
     $("reelHint").textContent="Roster complete \u2014 tap two players to swap positions, or simulate your season";
@@ -1586,6 +1588,24 @@ function pickPlayer(key,name,pickedPos){
   }
 }
 
+// v102: landing auto-scrolls DOWN to the pick matrix (v89/v91). Signing a player
+// then hides that panel, the page collapses, and the browser keeps the low scroll
+// position. Since the "More HoopsMatic games" cards were added below the game, that
+// position lands on the cards. Scroll back to the reel, with the same sticky-HUD
+// clearance as the landing scroll, only if the reel isn't already fully in view.
+function scrollToReel(){
+  try{
+    const stage=document.querySelector(".reel-stage"); if(!stage)return;
+    requestAnimationFrame(()=>{
+      const hud=document.querySelector(".hud");
+      const clearance=(hud?hud.getBoundingClientRect().height:64)+12;
+      const r=stage.getBoundingClientRect();
+      if(r.top>=clearance-4 && r.bottom<=window.innerHeight)return;
+      const y=r.top+window.scrollY-clearance;
+      window.scrollTo({top:Math.max(0,y), behavior:"smooth"});
+    });
+  }catch(e){}
+}
 function buildReelIdle(){
   // a still, dimmed strip of random logos so the window isn't empty
   const track=$("reelTrack");
