@@ -82,6 +82,12 @@ body{background:linear-gradient(160deg,#1a1a3e 0%,#0a0a1a 55%,#050510 100%);back
 .ch-banner b{color:#ffb27a}
 .ch-panel{background:linear-gradient(160deg,rgba(92,42,30,.42),rgba(20,12,10,.5));border-color:#ff9a4d44}
 .ch-panel .war-hdr{color:#ff9a4d}
+.daily-card{display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin:-30px 0 34px;padding:16px 18px;border-radius:14px;background:linear-gradient(160deg,rgba(255,107,53,.12),rgba(255,215,0,.06));border:1px solid #ffd70055;text-align:left}
+.daily-card .dc-txt{flex:1 1 220px;min-width:0}
+.daily-card .dc-name{font-family:'Oswald',sans-serif;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;font-size:17px;color:#fff}
+.daily-card .dc-blurb{font-size:13px;line-height:1.45;color:#c9c9e6;margin-top:4px}
+.daily-card .dc-blurb b{color:var(--gold)}
+.daily-card .btn{padding:11px 20px;font-size:13px;text-decoration:none;display:inline-block;flex:0 0 auto}
 .ch-vs{display:flex;align-items:stretch;justify-content:center;gap:10px;margin:12px 0 6px}
 .ch-side{flex:1 1 0;min-width:0}
 .ch-who{font-family:'Oswald',sans-serif;font-weight:700;font-size:13px;letter-spacing:.5px;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -864,7 +870,7 @@ let WAR2016=new Set();   // 2015-16 Warriors, removed from the draftable pool
 let teams=[[],[]], adjusted=[[],[]], teamNames=["YOUR SQUAD","OPPONENT"];
 
 // --- tunable game constants (easy to tweak / move to a config later) ---
-const BUILD      = "v102 · scroll back to reel after signing · 2026-09-25";
+const BUILD      = "v103 · Daily 73-9 card on the results screen · 2026-10-13";
 // Where a shared squad link points. This must be a page that serves THIS game's
 // HTML (it reads the ?sq= payload client-side). Until hoopsmatic.com/73-9 serves
 // this file, shared links will 404 — change this one line back to the GitHub Pages
@@ -3007,6 +3013,40 @@ async function verifyWithServer(rosterArr){
   }catch(e){return null}
   finally{clearTimeout(t)}
 }
+// Daily 73-9 card on the results screen, right under the action buttons.
+// Players finish a game here at their most engaged; until now the Daily was
+// only linked from the games strip at the very bottom of the page.
+// Reads nothing from any server: the countdown is computed here, and "played
+// today" is the Daily's own per-day best-attempt key (d739_best:<day>), which
+// it stores on this same origin. If that key format ever changes, the card
+// just falls back to the invitation — it never claims the player hasn't played.
+function dailyDayKey(){
+  // Day flips at 9:00 AM ET, the Daily's own rollover. ET from the browser's
+  // timezone data, so DST is handled without hard-coding the rule.
+  let et;
+  try{ et=new Date(new Date().toLocaleString('en-US',{timeZone:'America/New_York'})); }
+  catch(e){ et=new Date(Date.now()-4*3600e3); }
+  const msLeft=(()=>{ const n=new Date(et); n.setHours(9,0,0,0); if(n<=et) n.setDate(n.getDate()+1); return n-et; })();
+  et.setHours(et.getHours()-9);
+  const p=n=>(n<10?'0':'')+n;
+  return { day: et.getFullYear()+'-'+p(et.getMonth()+1)+'-'+p(et.getDate()), msLeft };
+}
+function dailyCardHtml(){
+  try{
+    const k=dailyDayKey();
+    const h=Math.floor(k.msLeft/3600e3), m=Math.floor((k.msLeft%3600e3)/60e3);
+    const left=(h?h+'h ':'')+m+'m';
+    let played=false;
+    try{ played=!!localStorage.getItem('d739_best:'+k.day); }catch(e){}
+    const url='https://hoopsmatic.com/73-9-game/daily?ref=g739-results';
+    const blurb=played
+      ? 'You’ve played today’s board. See where you rank. New board in <b>'+left+'</b>.'
+      : 'Ten teams, $150M, three tries to find the squad that beats the 73-9 Warriors. New board in <b>'+left+'</b>.';
+    return '<div class="daily-card"><div class="dc-txt"><div class="dc-name">Today’s Daily 73-9</div>'+
+      '<div class="dc-blurb">'+blurb+'</div></div>'+
+      '<a class="btn" href="'+url+'">'+(played?'See the leaderboard':'Play today’s board')+'</a></div>';
+  }catch(e){ return ''; }
+}
 function showResults(){
   if(spinning)return;
   if(rosterCount()<3){alert("Sign at least 3 players before simulating.");return}
@@ -3139,6 +3179,7 @@ function showResults(){
       '<button class="btn ghost" onclick="openChallengeModal()">Challenge a friend</button>'+
       '<button class="btn ghost" onclick="playAgain()">Play again</button>'+
       '</div>';
+    html+=dailyCardHtml();
 
     // your squad
     html+='<div class="sq yours">'+
