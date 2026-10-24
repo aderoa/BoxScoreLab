@@ -12,8 +12,16 @@
      and the Worker won. The dreamteam entry in worker.js owns them now. -->
 <!-- build 2026-08-02 · footer + leftover cards + mobile sheet close -->
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏀</text></svg>">
-<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
+<!-- Nothing in <head> blocks the first paint. The font CSS loads as a preload
+     that switches itself on (the faces use display=swap, so text was always
+     painted in the fallback first), and pako is deferred: only the data.bin
+     inflate uses it, and the loader waits for it (PAKO_READY). -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://cdnjs.cloudflare.com">
+<link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" onload="this.onload=null;this.rel='stylesheet'">
+<noscript><link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet"></noscript>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js" defer></script>
 <script src="https://hoopsmatic.com/hoopsmatic-games.js" data-hm-game="dreamteam" data-hm-footer="auto" data-hm-cards="auto" defer></script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -628,7 +636,12 @@ body.dt-plain{background:#0b0b1c}
 .dt-confetti{position:fixed;inset:0;pointer-events:none;z-index:9999;overflow:hidden}
 .dt-confetti i{position:absolute;top:-14px;width:9px;height:14px;border-radius:2px;display:block;animation:dtfall linear forwards}
 @keyframes dtfall{to{transform:translateY(104vh) rotate(680deg);opacity:.15}}
-.dt-board{margin:20px auto 4px;max-width:520px;text-align:left}
+/* div.dt-board, not .dt-board: dtBoardLock() puts the same class on <body> for
+   the one-screen phone board, so a bare .dt-board also gave BODY this 20px top
+   margin while a game was live. When the result screen took the lock off (on a
+   timer, not a tap) the whole page jumped 20px -- a 1.0 layout shift on every
+   finished game on a phone, and the locked board ran 24px past the screen. */
+div.dt-board{margin:20px auto 4px;max-width:520px;text-align:left}
 .dt-board-head{font-size:.62rem;letter-spacing:.14em;text-transform:uppercase;opacity:.55;margin-bottom:7px}
 .dt-brow{display:flex;align-items:center;gap:10px;padding:7px 10px;background:rgba(255,255,255,.05);border-radius:6px;margin-bottom:3px;cursor:pointer;font-size:.78rem}
 .dt-brow:hover{background:rgba(255,255,255,.1)}
@@ -1601,20 +1614,109 @@ function applyDefensiveImpact(){
 function processAll(){normalizeTeam(0);normalizeTeam(1);equalizePossessions();applyDefensiveImpact();reconcile()}
 
 // === DATA LOADING ===
+/* pako is loaded with defer so it no longer blocks the first paint. Deferred
+   scripts run before DOMContentLoaded (a failed one does not hold it up), and
+   this inline script runs while the document is still parsing, so
+   DOMContentLoaded is the point where pako is either there or never will be. */
+const PAKO_READY=new Promise(r=>{
+  if(typeof pako!=='undefined'||document.readyState==='complete'){r();return;}
+  document.addEventListener('DOMContentLoaded',()=>r(),{once:true});
+  window.addEventListener('load',()=>r(),{once:true});   // in case DOMContentLoaded already went by
+});
+/* Resolves once the first frame has been painted, so the 17MB data.bin starts
+   after the loading screen is on screen instead of competing with it. A hidden
+   tab paints nothing, so it starts at once there, and the timeout is a backstop
+   in case a frame never comes. */
+function afterFirstPaint(){
+  return new Promise(r=>{
+    if(document.visibilityState==='hidden'){r();return;}
+    requestAnimationFrame(()=>setTimeout(r,0));
+    setTimeout(r,250);
+  });
+}
+/* Hands the main thread back so a waiting tap (or a frame) can run, then
+   carries on. scheduler.yield where the browser has it; a MessageChannel
+   message otherwise, which unlike setTimeout(0) is not clamped to 4ms. */
+function yieldToMain(){
+  if(window.scheduler&&typeof scheduler.yield==="function")return scheduler.yield();
+  return new Promise(r=>{const c=new MessageChannel();c.port1.onmessage=()=>r();c.port2.postMessage(0);});
+}
+/* THE PLAY BUTTON INP (2.1s in the field). The How-to-play modal opens over
+   this loading screen, and its GOT IT tap used to land in the middle of one
+   JSON.parse of the ~83MB inflated data.bin -- several seconds of main thread
+   on a phone, all of it ahead of the tap. data.bin is
+     {"t":[...],"p":...,"d":{"Name":[[game],...],"Name":[...],...}}
+   and nearly all of it is "d", so "d" is parsed a slice of players at a time
+   (~0.5MB of text each) with a yield between slices. A slice is cut just after
+   a player's closing "]]" and parsed as a small object of its own; the result
+   is the very object JSON.parse builds, keys in the same order. Any surprise
+   -- a different layout, a slice that does not parse -- falls back to the one
+   JSON.parse of the whole string that this always did. */
+async function parseDataBin(s){
+  try{
+    const dAt=s.indexOf(',"d":{');
+    if(dAt<0||s.charCodeAt(0)!==123||!s.endsWith("}}"))throw new Error("layout");
+    const out=JSON.parse(s.slice(0,dAt)+"}");      // {"t":...,"p":...}
+    const d={},end=s.length-2;                    // end: d's closing brace
+    let pos=dAt+6;                                 // first character inside d
+    while(pos<end){
+      let cut=end;
+      if(end-pos>524288){
+        const k=s.indexOf(']],"',pos+524288);
+        if(k>=0&&k<end)cut=k+2;
+      }
+      Object.assign(d,JSON.parse("{"+s.slice(pos,cut)+"}"));
+      pos=cut+1;                                   // past the comma
+      if(pos<end)await yieldToMain();
+    }
+    out.d=d;
+    return out;
+  }catch(e){
+    console.warn("[BSL] sliced parse fell back to JSON.parse:",e&&e.message);
+    return JSON.parse(s);
+  }
+}
 (async function(){
   const fill=document.getElementById("progressFill"),text=document.getElementById("progressText"),label=document.getElementById("progressLabel");
   try{
+    await afterFirstPaint();
     const resp=await fetch("data.bin");
     if(!resp.ok)throw new Error("HTTP "+resp.status+" — make sure data.bin is in the same folder");
     const reader=resp.body.getReader();
     const total=parseInt(resp.headers.get("content-length"))||11000000;
     let received=0;const chunks=[];
-    while(true){const{done,value}=await reader.read();if(done)break;chunks.push(value);received+=value.length;fill.style.width=Math.min(80,Math.round(received/total*80))+"%";text.textContent=(received/1048576).toFixed(1)+" / ~"+(total/1048576).toFixed(0)+" MB"}
+    // Inflate each chunk as it arrives -- the 73-9 loader's approach -- so the
+    // decompression is spread over the download in small pieces instead of one
+    // multi-second block at the end. chunks[] is still collected, so any
+    // failure falls back to the original one-shot pako.inflate of all of it.
+    // When the bytes are already there (fast line, HTTP cache) every read()
+    // resolves at once with big chunks and the loop never leaves its task, so
+    // each chunk is fed in 32KB pieces and the loop yields whenever ~40ms of
+    // work has piled up.
+    await PAKO_READY;
+    let streaming=true,inflator=null,lastYield=performance.now();
+    try{ inflator=new pako.Inflate({to:'string'}); }catch(e){ streaming=false; }
+    while(true){const{done,value}=await reader.read();if(done)break;chunks.push(value);received+=value.length;
+      for(let o=0;streaming&&o<value.length;o+=32768){
+        try{ inflator.push(value.subarray(o,o+32768),false); if(inflator.err)streaming=false; }catch(e){ streaming=false; }
+        if(performance.now()-lastYield>40){ await yieldToMain(); lastYield=performance.now(); }
+      }
+      fill.style.width=Math.min(80,Math.round(received/total*80))+"%";text.textContent=(received/1048576).toFixed(1)+" / ~"+(total/1048576).toFixed(0)+" MB"}
     label.textContent="Decompressing...";fill.style.width="85%";
-    const compressed=new Uint8Array(received);let offset=0;for(const c of chunks){compressed.set(c,offset);offset+=c.length}
-    const decompressed=pako.inflate(compressed,{to:'string'});
+    let decompressed;
+    if(streaming){
+      try{
+        inflator.push(new Uint8Array(0),true);   // flush / end of stream
+        if(inflator.err)streaming=false; else decompressed=inflator.result;
+      }catch(e){ streaming=false; }
+    }
+    if(!streaming){
+      const compressed=new Uint8Array(received);let offset=0;for(const c of chunks){compressed.set(c,offset);offset+=c.length}
+      decompressed=pako.inflate(compressed,{to:'string'});
+    }
     label.textContent="Parsing...";fill.style.width="93%";
-    const raw=JSON.parse(decompressed);
+    await yieldToMain();
+    const raw=await parseDataBin(decompressed);
     TEAMS=raw.t;POS=raw.p;playerIndex=raw.d;
     playerNames=Object.keys(playerIndex).sort();
 
@@ -1653,12 +1755,31 @@ function processAll(){normalizeTeam(0);normalizeTeam(1);equalizePossessions();ap
       try{
         // Diagnostic dump — helps debug team-abbreviation mismatches that
         // cause "too few candidates" auto-completes on the Franchise Cup.
-        try{
-          console.log("[BSL] TEAMS array ("+TEAMS.length+" unique team codes):",TEAMS);
-          const counts={};
-          for(const f of NBA_FRANCHISES){counts[f.abbr]=cupCandidates("franchise",f.abbr).length}
-          console.table(counts);
-        }catch(e){console.warn("Diagnostic logging failed",e)}
+        // It walks every game of every player once per franchise: ~8s of CPU
+        // on a desktop, ~30s on a phone, in ONE block as the game appeared --
+        // every tap in that window (DEAL THE POOL, the How-to-play GOT IT)
+        // waited for all of it. Same table, but counted in idle time, ~8ms at
+        // a stretch, after the rest of the boot below. The count is
+        // cupCandidates("franchise",abbr).length, using its own test.
+        (async()=>{
+          try{
+            console.log("[BSL] TEAMS array ("+TEAMS.length+" unique team codes):",TEAMS);
+            const idle=()=>new Promise(r=>window.requestIdleCallback?requestIdleCallback(()=>r(),{timeout:2000}):setTimeout(r,50));
+            const counts={};
+            await idle();
+            let t=performance.now();
+            for(const f of NBA_FRANCHISES){
+              let c=0;
+              for(const n of playerNames){
+                if(performance.now()-t>8){ await idle(); t=performance.now(); }
+                const games=playerIndex[n]||[];
+                if(games.some(g=>isPlayableGame(g)&&gameMatchesFranchise(g,f.abbr)))c++;
+              }
+              counts[f.abbr]=c;
+            }
+            console.table(counts);
+          }catch(e){console.warn("Diagnostic logging failed",e)}
+        })();
 
         updateTabs();
         const saved=loadCareer();
