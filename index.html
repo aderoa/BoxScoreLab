@@ -636,7 +636,7 @@ body.dt-plain{background:#0b0b1c}
 .dt-confetti{position:fixed;inset:0;pointer-events:none;z-index:9999;overflow:hidden}
 .dt-confetti i{position:absolute;top:-14px;width:9px;height:14px;border-radius:2px;display:block;animation:dtfall linear forwards}
 @keyframes dtfall{to{transform:translateY(104vh) rotate(680deg);opacity:.15}}
-/* div.dt-board, not .dt-board: dtBoardLock() puts the same class on <body> for
+/* div.dt-board, not .dt-board: dtBoardLock() puts the same class on the body element for
    the one-screen phone board, so a bare .dt-board also gave BODY this 20px top
    margin while a game was live. When the result screen took the lock off (on a
    timer, not a tap) the whole page jumped 20px -- a 1.0 layout shift on every
