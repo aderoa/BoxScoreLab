@@ -246,6 +246,16 @@ body{background:linear-gradient(160deg,#1a1a3e 0%,#0a0a1a 55%,#050510 100%);back
 
 /* ===== Landed team + picks ===== */
 .landed{margin-top:18px;animation:fadeIn .4s}
+/* v104 (layout shift): the landed panel appears ~2s after the Spin tap, too late
+   to count as user-initiated, and pushed the "More HoopsMatic games" cards and
+   the footer down by its full height on every landing (~0.55 CLS each). While a
+   draft is running (#game.drafting, set by spin()) the hidden panel's slot is
+   held open by a spacer instead, so what sits below never moves. 680px is the
+   shortest a rendered pick matrix gets at any width (measured: 680-1136px), and
+   the panel itself never renders shorter than its spacer. */
+.landed-spacer{display:none}
+#game.drafting #landed.hidden+.landed-spacer{display:block;height:680px;margin-top:18px}
+#game.drafting #landed{min-height:680px}
 .landed-hdr{display:flex;align-items:center;justify-content:center;gap:14px;margin-bottom:6px}
 .landed-hdr img{width:54px;height:54px;object-fit:contain}
 .landed-hdr .badge{width:50px;height:50px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'Oswald',sans-serif;font-weight:700;background:#1d1d40;border:2px solid #3a3a6e;color:#cfcff0;font-size:15px}
@@ -314,6 +324,11 @@ body{background:linear-gradient(160deg,#1a1a3e 0%,#0a0a1a 55%,#050510 100%);back
 
 /* ===== Results ===== */
 #results{animation:fadeIn .45s}
+/* v104 (layout shift): the results land after the gameserver verify call, often
+   more than 0.5s after the Simulate tap, and pushed the games cards and footer
+   off the screen (~0.68 CLS). The "Simulating…" placeholder holds a screen of
+   height until then; the finished results are always taller than that. */
+#results.res-pending{min-height:100vh}
 .res-record{text-align:center;margin:4px 0 18px}
 .res-record .rl{font-family:'Oswald',sans-serif;font-size:13px;letter-spacing:4px;color:var(--dim);text-transform:uppercase}
 .res-record .rv{font-family:'Oswald',sans-serif;font-size:74px;font-weight:700;line-height:1;letter-spacing:2px;color:#fff;margin:4px 0}
@@ -424,6 +439,7 @@ body{background:linear-gradient(160deg,#1a1a3e 0%,#0a0a1a 55%,#050510 100%);back
     </div>
 
     <div id="landed" class="landed hidden"></div>
+    <div class="landed-spacer" aria-hidden="true"></div>
   </div>
 
   <!-- RESULTS -->
@@ -870,7 +886,7 @@ let WAR2016=new Set();   // 2015-16 Warriors, removed from the draftable pool
 let teams=[[],[]], adjusted=[[],[]], teamNames=["YOUR SQUAD","OPPONENT"];
 
 // --- tunable game constants (easy to tweak / move to a config later) ---
-const BUILD      = "v103 · Daily 73-9 card on the results screen · 2026-10-13";
+const BUILD      = "v104 · loading pass: layout shift + render-blocking fixes · 2026-10-24";
 // Where a shared squad link points. This must be a page that serves THIS game's
 // HTML (it reads the ?sq= payload client-side). Until hoopsmatic.com/73-9 serves
 // this file, shared links will 404 — change this one line back to the GitHub Pages
@@ -1192,6 +1208,7 @@ function startGame(){
   $("intro").classList.add("hidden");
   $("results").classList.add("hidden");
   $("game").classList.remove("hidden");
+  $("game").classList.remove("drafting");   // v104: no reserved landing slot until the first spin
   const mtBtn=$("motionToggle");
   if(mtBtn){ const on=motionReduced(); mtBtn.classList.toggle('active',on); mtBtn.textContent=on?'Motion: reduced':'Reduce motion'; }
   $("landed").classList.add("hidden");
@@ -1348,6 +1365,7 @@ function spin(){
   if(spinning)return;
   if(rosterCount()>=SLOTS){showResults();return}
   spinning=true;
+  $("game").classList.add("drafting");   // v104: reserve the landing slot (layout shift, see CSS)
   $("spinBtn").disabled=true;
   $("landed").classList.add("hidden");
   $("respinBtn").style.display="none";
@@ -1579,6 +1597,7 @@ function pickPlayer(key,name,pickedPos){
   scrollToReel();
 
   if(rosterCount()>=SLOTS){
+    $("game").classList.remove("drafting");   // v104: nothing left to land; same tap, so no counted shift
     $("reelHint").textContent="Roster complete \u2014 tap two players to swap positions, or simulate your season";
     $("spinBtn").textContent="Simulate season";
     $("spinBtn").disabled=false;
@@ -3052,6 +3071,11 @@ function showResults(){
   if(rosterCount()<3){alert("Sign at least 3 players before simulating.");return}
   $("game").classList.add("hidden");
   const el=$("results");el.classList.remove("hidden");
+  el.classList.add("res-pending");   // v104: hold the space until the results land (see CSS)
+  // The short placeholder used to shrink the page enough that the browser
+  // clamped the scroll to the top, which is where the results were read from.
+  // With the space held the page no longer shrinks, so go to the top explicitly.
+  if(window.scrollY)window.scrollTo(0,0);
   el.innerHTML='<div class="res-record"><div class="rl">Simulating your season &amp; the alternatives…</div>'+
     '<div class="rv"><span class="spinner-mini"></span></div></div>';
 
@@ -3241,6 +3265,7 @@ function showResults(){
     // that question, no F12 required from anyone.
     html+='<div style="text-align:center;font-size:10px;color:#4a4a6a;margin-top:14px;font-family:monospace;letter-spacing:.5px">build '+BUILD.split(' \u00b7 ')[0]+'</div>';
     el.innerHTML=html;
+    el.classList.remove("res-pending");
     window.__LAST_WP__=winPctStr;
     if(window.__CHALLENGE__){ try{ renderChallengePanel(winPctStr); }catch(e){} }
     try{ lbInit(war.winPct*100, yours.w+'\u2013'+yours.l, samePicks, __srvToken); }catch(e){}
