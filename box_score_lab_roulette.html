@@ -20,8 +20,16 @@
 <meta name="twitter:description" content="You have $100 million to put together a squad to try to beat the best regular-season team ever.">
 <meta name="twitter:image" content="https://hoopsmatic.com/73-9-game/og-73-9.png">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎰</text></svg>">
-<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
+<!-- v104: nothing in <head> blocks the first paint any more. The font CSS loads
+     as a preload that switches itself on (the faces use display=swap, so text
+     was always painted in the fallback first), and pako is deferred: only the
+     data.bin inflate uses it, and the boot waits for it (PAKO_READY). -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://cdnjs.cloudflare.com">
+<link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" onload="this.onload=null;this.rel='stylesheet'">
+<noscript><link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet"></noscript>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js" defer></script>
 <script src="https://hoopsmatic.com/hoopsmatic-games.js" data-hm-game="g739" data-hm-footer="auto" data-hm-cards="auto" defer></script>
 <style>
 :root{
@@ -4095,6 +4103,27 @@ async function fileVersion(url){
   }catch(e){ return null; }
 }
 
+/* v104: pako is loaded with defer so it no longer blocks the first paint.
+   Deferred scripts run before DOMContentLoaded (a failed one does not hold it
+   up), and this inline script runs while the document is still parsing, so
+   DOMContentLoaded is the point where pako is either there or never will be. */
+const PAKO_READY=new Promise(r=>{
+  if(typeof pako!=='undefined'||document.readyState==='complete'){r();return;}
+  document.addEventListener('DOMContentLoaded',()=>r(),{once:true});
+  window.addEventListener('load',()=>r(),{once:true});   // in case DOMContentLoaded already went by
+});
+/* v104: resolves once the first frame has been painted, so the 17MB data.bin
+   (and the JSON fetches) start after the loading screen is on screen instead of
+   competing with it. A hidden tab paints nothing, so it starts at once there,
+   and the timeout is a backstop in case a frame never comes. */
+function afterFirstPaint(){
+  return new Promise(r=>{
+    if(document.visibilityState==='hidden'){r();return;}
+    requestAnimationFrame(()=>setTimeout(r,0));
+    setTimeout(r,250);
+  });
+}
+
 /* ============================================================
    BOOT / DATA LOADING (mirrors the salary variant's loader)
    ============================================================ */
@@ -4103,6 +4132,7 @@ async function fileVersion(url){
   console.log("%c[ROULETTE BUILD] "+BUILD,"color:#ffd700;font-weight:bold");
   const fill=$("progressFill"),text=$("progressText"),label=$("progressLabel");
   try{
+    await afterFirstPaint();
     // --- Prefetch the auxiliary JSONs in PARALLEL with the big data.bin download.
     // None of them depend on data.bin, so kicking them off now means their bytes
     // arrive alongside the ~11MB blob instead of strictly after it. Each consumer
@@ -4142,6 +4172,7 @@ async function fileVersion(url){
     // UTF-8 sequences across pushes, so the result matches the one-shot output.
     let received=0;const chunks=[];
     let streaming=true, inflator=null;
+    await PAKO_READY;   // v104: pako is deferred; it is in by now in practice, this makes sure
     try{ inflator=new pako.Inflate({to:'string'}); }catch(e){ streaming=false; }
     while(true){
       const{done,value}=await reader.read();

@@ -12,8 +12,16 @@
      and the Worker won. The dreamteam entry in worker.js owns them now. -->
 <!-- build 2026-08-02 · footer + leftover cards + mobile sheet close -->
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏀</text></svg>">
-<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
+<!-- Nothing in <head> blocks the first paint. The font CSS loads as a preload
+     that switches itself on (the faces use display=swap, so text was always
+     painted in the fallback first), and pako is deferred: only the data.bin
+     inflate uses it, and the loader waits for it (PAKO_READY). -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://cdnjs.cloudflare.com">
+<link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" onload="this.onload=null;this.rel='stylesheet'">
+<noscript><link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet"></noscript>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js" defer></script>
 <script src="https://hoopsmatic.com/hoopsmatic-games.js" data-hm-game="dreamteam" data-hm-footer="auto" data-hm-cards="auto" defer></script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -1606,9 +1614,30 @@ function applyDefensiveImpact(){
 function processAll(){normalizeTeam(0);normalizeTeam(1);equalizePossessions();applyDefensiveImpact();reconcile()}
 
 // === DATA LOADING ===
+/* pako is loaded with defer so it no longer blocks the first paint. Deferred
+   scripts run before DOMContentLoaded (a failed one does not hold it up), and
+   this inline script runs while the document is still parsing, so
+   DOMContentLoaded is the point where pako is either there or never will be. */
+const PAKO_READY=new Promise(r=>{
+  if(typeof pako!=='undefined'||document.readyState==='complete'){r();return;}
+  document.addEventListener('DOMContentLoaded',()=>r(),{once:true});
+  window.addEventListener('load',()=>r(),{once:true});   // in case DOMContentLoaded already went by
+});
+/* Resolves once the first frame has been painted, so the 17MB data.bin starts
+   after the loading screen is on screen instead of competing with it. A hidden
+   tab paints nothing, so it starts at once there, and the timeout is a backstop
+   in case a frame never comes. */
+function afterFirstPaint(){
+  return new Promise(r=>{
+    if(document.visibilityState==='hidden'){r();return;}
+    requestAnimationFrame(()=>setTimeout(r,0));
+    setTimeout(r,250);
+  });
+}
 (async function(){
   const fill=document.getElementById("progressFill"),text=document.getElementById("progressText"),label=document.getElementById("progressLabel");
   try{
+    await afterFirstPaint();
     const resp=await fetch("data.bin");
     if(!resp.ok)throw new Error("HTTP "+resp.status+" — make sure data.bin is in the same folder");
     const reader=resp.body.getReader();
@@ -1617,6 +1646,7 @@ function processAll(){normalizeTeam(0);normalizeTeam(1);equalizePossessions();ap
     while(true){const{done,value}=await reader.read();if(done)break;chunks.push(value);received+=value.length;fill.style.width=Math.min(80,Math.round(received/total*80))+"%";text.textContent=(received/1048576).toFixed(1)+" / ~"+(total/1048576).toFixed(0)+" MB"}
     label.textContent="Decompressing...";fill.style.width="85%";
     const compressed=new Uint8Array(received);let offset=0;for(const c of chunks){compressed.set(c,offset);offset+=c.length}
+    await PAKO_READY;
     const decompressed=pako.inflate(compressed,{to:'string'});
     label.textContent="Parsing...";fill.style.width="93%";
     const raw=JSON.parse(decompressed);
