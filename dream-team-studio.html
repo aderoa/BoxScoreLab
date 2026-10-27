@@ -22,29 +22,6 @@
 <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" onload="this.onload=null;this.rel='stylesheet'">
 <noscript><link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet"></noscript>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js" defer></script>
-<!-- The rules screen paints straight from the HTML now, before the web fonts
-     are in. Painting it in the fallback font and then swapping moved every
-     line, so the page content waits for Oswald and JetBrains Mono to load,
-     1.5s at most; past that it shows in the fallback and swaps as before.
-     data.bin waits for this (HM_REVEALED), so it doesn't compete with the
-     fonts or starve this check. -->
-<script>(function(){
-  var d=document.documentElement,f=document.fonts,shown;
-  window.HM_REVEALED=new Promise(function(r){shown=r;});
-  if(!f||!f.forEach){shown();return;}
-  d.classList.add('hm-fw');
-  var t,end=function(){clearInterval(t);d.classList.remove('hm-fw');shown();};
-  t=setInterval(function(){
-    var o=0,j=0,busy=0;
-    f.forEach(function(x){
-      var n=x.family.replace(/["']/g,'');
-      if(x.status==='loading')busy=1;
-      else if(x.status==='loaded'){if(n==='Oswald')o=1;else if(n==='JetBrains Mono')j=1;}
-    });
-    if(o&&j&&!busy)end();
-  },30);
-  setTimeout(end,1500);
-})();</script>
 <script src="https://hoopsmatic.com/hoopsmatic-games.js" data-hm-game="dreamteam" data-hm-footer="auto" data-hm-cards="auto" defer></script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -61,7 +38,7 @@ body{background:linear-gradient(145deg,#1a1a3e 0%,#0a0a1a 50%,#ffffff 100%);back
 #progressBar{width:100%;height:4px;background:#2a2a55;border-radius:2px;overflow:hidden}
 #progressFill{width:0%;height:100%;border-radius:2px;background:linear-gradient(90deg,#ff6b35,#ffd700);transition:width 0.4s ease}
 #progressText{font-size:11px;color:#555;margin-top:8px}
-#app{display:block;padding:16px 12px;max-width:1200px;margin:0 auto}
+#app{display:none;padding:16px 12px;max-width:1200px;margin:0 auto}
 .header{text-align:center;margin-bottom:20px}
 .logo-sm{font-family:'Oswald',sans-serif;font-size:26px;font-weight:700;letter-spacing:4px;text-transform:uppercase;background:linear-gradient(90deg,#ff6b35,#ffd700);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
 .player-count{font-size:10px;color:#444;letter-spacing:2px;margin-top:2px}
@@ -808,29 +785,6 @@ div.dt-board{margin:20px auto 4px;max-width:520px;text-align:left}
   background:#4a90e2;color:#fff;letter-spacing:.1em;border-radius:10px;
   box-shadow:0 3px 0 rgba(0,0,0,.35)}
 .dt-again:active{transform:translateY(2px);box-shadow:0 1px 0 rgba(0,0,0,.35)}
-/* While data.bin loads, DEAL THE POOL keeps its box (the label is still there,
-   just transparent) and a progress bar fills exactly that box; when the data
-   is in, the real button takes the same box, so nothing moves. A failed load
-   says so in the same box and taps to retry. position:relative is for the
-   desktop layout; the phone rule further down makes it sticky, which also
-   holds the bar. The mode tabs wait for the data too. */
-.dt-again.ld{position:relative;color:transparent;background:none;box-shadow:none;pointer-events:none;cursor:default}
-.dt-again.ld.err{pointer-events:auto;cursor:pointer}
-.dt-again .ld-bar{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:9px;padding:0 12px;
-  border:1px solid #2a2a55;border-radius:inherit;background:#13132b;color:#8888aa;font-size:.8rem;font-weight:600;letter-spacing:.06em;line-height:1.25}
-/* stage on one line, MB count on the next, each a full-width block that never
-   moves: the text inside is replaced, not shifted, so the bar adds no CLS */
-.dt-again .ld-msg{display:block;width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.dt-again #ldLabel,.dt-again #ldText{display:block;overflow:hidden;text-overflow:ellipsis}
-.dt-again #ldText{min-height:1.25em;margin-top:2px;font-size:.92em;opacity:.8}
-.dt-again .ld-track{width:82%;max-width:360px;height:6px;background:#2a2a55;border-radius:3px;overflow:hidden}
-.dt-again .ld-fill{display:block;height:100%;background:linear-gradient(90deg,#ff6b35,#ffd700);transition:width .4s ease}
-.dt-again.ld.err .ld-bar{color:#ffb3a6;border-color:#e6394699}
-.dt-again.ld.err .ld-msg,.dt-again.ld.err #ldLabel{white-space:normal}
-.dt-again.ld.err #ldText{display:none}
-.dt-again.ld.err .ld-track{display:none}
-#app.dt-loading .mode-tab{pointer-events:none}
-.hm-fw #app{visibility:hidden}
 /* Share sits ABOVE New Pool: the moment the result lands is when someone wants
    to post it, and New Pool wipes the thing they would be sharing. */
 .dt-endbtns{display:flex;flex-direction:column;align-items:center;gap:8px;margin-top:10px}
@@ -1086,20 +1040,26 @@ body.studio.locked #app{overflow:hidden}
 </style>
 </head>
 <body>
-<!-- The Dream Team rules screen is the first thing on the page: #app is shown
-     from the start and DEAL THE POOL is a progress bar until data.bin is in.
-     There is no separate loading screen. The class is set here rather than on
-     the body tag itself, which the Worker matches to inject the site nav. -->
-<script>document.body.classList.add("dt-plain")</script>
-<div id="app" class="dt-loading">
+<div id="loadScreen">
+  <svg class="rings" viewBox="0 0 220 100" aria-hidden="true"><g fill="none" stroke-width="7"><circle cx="45" cy="40" r="28" stroke="#0081C8"/><circle cx="110" cy="40" r="28" stroke="#000000"/><circle cx="175" cy="40" r="28" stroke="#EE334E"/><circle cx="77" cy="68" r="28" stroke="#FCB131"/><circle cx="143" cy="68" r="28" stroke="#00A651"/></g></svg>
+  <div class="logo-main">BEAT THE 1992<br><svg class="flag" viewBox="0 0 38 20" aria-hidden="true"><rect width="38" height="20" fill="#fff"/><g fill="#B22234"><rect y="0.000" width="38" height="1.538"/><rect y="3.077" width="38" height="1.538"/><rect y="6.154" width="38" height="1.538"/><rect y="9.231" width="38" height="1.538"/><rect y="12.308" width="38" height="1.538"/><rect y="15.385" width="38" height="1.538"/><rect y="18.462" width="38" height="1.538"/></g><rect width="15.2" height="10.77" fill="#3C3B6E"/><g fill="#fff"><circle cx="1.90" cy="1.60" r=".62"/><circle cx="4.35" cy="1.60" r=".62"/><circle cx="6.80" cy="1.60" r=".62"/><circle cx="9.25" cy="1.60" r=".62"/><circle cx="11.70" cy="1.60" r=".62"/><circle cx="14.15" cy="1.60" r=".62"/><circle cx="1.90" cy="4.00" r=".62"/><circle cx="4.35" cy="4.00" r=".62"/><circle cx="6.80" cy="4.00" r=".62"/><circle cx="9.25" cy="4.00" r=".62"/><circle cx="11.70" cy="4.00" r=".62"/><circle cx="14.15" cy="4.00" r=".62"/><circle cx="1.90" cy="6.40" r=".62"/><circle cx="4.35" cy="6.40" r=".62"/><circle cx="6.80" cy="6.40" r=".62"/><circle cx="9.25" cy="6.40" r=".62"/><circle cx="11.70" cy="6.40" r=".62"/><circle cx="14.15" cy="6.40" r=".62"/><circle cx="1.90" cy="8.80" r=".62"/><circle cx="4.35" cy="8.80" r=".62"/><circle cx="6.80" cy="8.80" r=".62"/><circle cx="9.25" cy="8.80" r=".62"/><circle cx="11.70" cy="8.80" r=".62"/><circle cx="14.15" cy="8.80" r=".62"/></g></svg> DREAM TEAM <svg class="flag" viewBox="0 0 38 20" aria-hidden="true"><rect width="38" height="20" fill="#fff"/><g fill="#B22234"><rect y="0.000" width="38" height="1.538"/><rect y="3.077" width="38" height="1.538"/><rect y="6.154" width="38" height="1.538"/><rect y="9.231" width="38" height="1.538"/><rect y="12.308" width="38" height="1.538"/><rect y="15.385" width="38" height="1.538"/><rect y="18.462" width="38" height="1.538"/></g><rect width="15.2" height="10.77" fill="#3C3B6E"/><g fill="#fff"><circle cx="1.90" cy="1.60" r=".62"/><circle cx="4.35" cy="1.60" r=".62"/><circle cx="6.80" cy="1.60" r=".62"/><circle cx="9.25" cy="1.60" r=".62"/><circle cx="11.70" cy="1.60" r=".62"/><circle cx="14.15" cy="1.60" r=".62"/><circle cx="1.90" cy="4.00" r=".62"/><circle cx="4.35" cy="4.00" r=".62"/><circle cx="6.80" cy="4.00" r=".62"/><circle cx="9.25" cy="4.00" r=".62"/><circle cx="11.70" cy="4.00" r=".62"/><circle cx="14.15" cy="4.00" r=".62"/><circle cx="1.90" cy="6.40" r=".62"/><circle cx="4.35" cy="6.40" r=".62"/><circle cx="6.80" cy="6.40" r=".62"/><circle cx="9.25" cy="6.40" r=".62"/><circle cx="11.70" cy="6.40" r=".62"/><circle cx="14.15" cy="6.40" r=".62"/><circle cx="1.90" cy="8.80" r=".62"/><circle cx="4.35" cy="8.80" r=".62"/><circle cx="6.80" cy="8.80" r=".62"/><circle cx="9.25" cy="8.80" r=".62"/><circle cx="11.70" cy="8.80" r=".62"/><circle cx="14.15" cy="8.80" r=".62"/></g></svg></div>
+  <div class="subtitle">Build your roster against the most legendary team ever.</div>
+  <div id="progressWrap">
+    <div id="progressLabel">Downloading game logs...</div>
+    <div id="progressBar"><div id="progressFill"></div></div>
+    <div id="progressText">Connecting...</div>
+  </div>
+  <div class="app-footer">Anything wrong with the game? Email us at <a href="mailto:hoopsmatic@hoopsmatic.com">hoopsmatic@hoopsmatic.com</a><br>For business inquiries, contact us at <a href="mailto:ads@hoopsmatic.com">ads@hoopsmatic.com</a></div>
+</div>
+<div id="app">
   <div class="header">
     <svg class="rings rings-sm" viewBox="0 0 220 100" aria-hidden="true"><g fill="none" stroke-width="7"><circle cx="45" cy="40" r="28" stroke="#0081C8"/><circle cx="110" cy="40" r="28" stroke="#000000"/><circle cx="175" cy="40" r="28" stroke="#EE334E"/><circle cx="77" cy="68" r="28" stroke="#FCB131"/><circle cx="143" cy="68" r="28" stroke="#00A651"/></g></svg>
     <div class="logo-sm">BEAT THE 1992 <svg class="flag" viewBox="0 0 38 20" aria-hidden="true"><rect width="38" height="20" fill="#fff"/><g fill="#B22234"><rect y="0.000" width="38" height="1.538"/><rect y="3.077" width="38" height="1.538"/><rect y="6.154" width="38" height="1.538"/><rect y="9.231" width="38" height="1.538"/><rect y="12.308" width="38" height="1.538"/><rect y="15.385" width="38" height="1.538"/><rect y="18.462" width="38" height="1.538"/></g><rect width="15.2" height="10.77" fill="#3C3B6E"/><g fill="#fff"><circle cx="1.90" cy="1.60" r=".62"/><circle cx="4.35" cy="1.60" r=".62"/><circle cx="6.80" cy="1.60" r=".62"/><circle cx="9.25" cy="1.60" r=".62"/><circle cx="11.70" cy="1.60" r=".62"/><circle cx="14.15" cy="1.60" r=".62"/><circle cx="1.90" cy="4.00" r=".62"/><circle cx="4.35" cy="4.00" r=".62"/><circle cx="6.80" cy="4.00" r=".62"/><circle cx="9.25" cy="4.00" r=".62"/><circle cx="11.70" cy="4.00" r=".62"/><circle cx="14.15" cy="4.00" r=".62"/><circle cx="1.90" cy="6.40" r=".62"/><circle cx="4.35" cy="6.40" r=".62"/><circle cx="6.80" cy="6.40" r=".62"/><circle cx="9.25" cy="6.40" r=".62"/><circle cx="11.70" cy="6.40" r=".62"/><circle cx="14.15" cy="6.40" r=".62"/><circle cx="1.90" cy="8.80" r=".62"/><circle cx="4.35" cy="8.80" r=".62"/><circle cx="6.80" cy="8.80" r=".62"/><circle cx="9.25" cy="8.80" r=".62"/><circle cx="11.70" cy="8.80" r=".62"/><circle cx="14.15" cy="8.80" r=".62"/></g></svg> DREAM TEAM <svg class="flag" viewBox="0 0 38 20" aria-hidden="true"><rect width="38" height="20" fill="#fff"/><g fill="#B22234"><rect y="0.000" width="38" height="1.538"/><rect y="3.077" width="38" height="1.538"/><rect y="6.154" width="38" height="1.538"/><rect y="9.231" width="38" height="1.538"/><rect y="12.308" width="38" height="1.538"/><rect y="15.385" width="38" height="1.538"/><rect y="18.462" width="38" height="1.538"/></g><rect width="15.2" height="10.77" fill="#3C3B6E"/><g fill="#fff"><circle cx="1.90" cy="1.60" r=".62"/><circle cx="4.35" cy="1.60" r=".62"/><circle cx="6.80" cy="1.60" r=".62"/><circle cx="9.25" cy="1.60" r=".62"/><circle cx="11.70" cy="1.60" r=".62"/><circle cx="14.15" cy="1.60" r=".62"/><circle cx="1.90" cy="4.00" r=".62"/><circle cx="4.35" cy="4.00" r=".62"/><circle cx="6.80" cy="4.00" r=".62"/><circle cx="9.25" cy="4.00" r=".62"/><circle cx="11.70" cy="4.00" r=".62"/><circle cx="14.15" cy="4.00" r=".62"/><circle cx="1.90" cy="6.40" r=".62"/><circle cx="4.35" cy="6.40" r=".62"/><circle cx="6.80" cy="6.40" r=".62"/><circle cx="9.25" cy="6.40" r=".62"/><circle cx="11.70" cy="6.40" r=".62"/><circle cx="14.15" cy="6.40" r=".62"/><circle cx="1.90" cy="8.80" r=".62"/><circle cx="4.35" cy="8.80" r=".62"/><circle cx="6.80" cy="8.80" r=".62"/><circle cx="9.25" cy="8.80" r=".62"/><circle cx="11.70" cy="8.80" r=".62"/><circle cx="14.15" cy="8.80" r=".62"/></g></svg></div>
   </div>
   <div class="mode-tabs">
     <button class="mode-tab" id="modeSandboxTab" onclick="setMode('sandbox')" style="display:none">Sandbox</button>
-    <button class="mode-tab" id="modeCareerTab" onclick="setMode('career')">Career</button>
-    <button class="mode-tab active" id="modeBlitzTab" onclick="setMode('blitz')">Dream Team</button>
+    <button class="mode-tab active" id="modeCareerTab" onclick="setMode('career')">Career</button>
+    <button class="mode-tab" id="modeBlitzTab" onclick="setMode('blitz')">Dream Team</button>
   </div>
 
   <!-- =========== SANDBOX MODE =========== -->
@@ -1130,31 +1090,9 @@ body.studio.locked #app{overflow:hidden}
   </div>
 
   <!-- =========== BLITZ MODE =========== -->
-  <!-- dtShowIntro() as it renders with no saved record, data still loading -->
-  <div id="blitzMode" style="display:block"><div class="dt-intro">
-    <svg class="rings rings-sm" viewBox="0 0 220 100" aria-hidden="true"><g fill="none" stroke-width="7"><circle cx="45" cy="40" r="28" stroke="#0081C8"/><circle cx="110" cy="40" r="28" stroke="#000000"/><circle cx="175" cy="40" r="28" stroke="#EE334E"/><circle cx="77" cy="68" r="28" stroke="#FCB131"/><circle cx="143" cy="68" r="28" stroke="#00A651"/></g></svg>
-    <div class="dt-intro-title">BEAT THE 1992 <svg class="flag" viewBox="0 0 38 20" aria-hidden="true"><rect width="38" height="20" fill="#fff"/><g fill="#B22234"><rect y="0.000" width="38" height="1.538"/><rect y="3.077" width="38" height="1.538"/><rect y="6.154" width="38" height="1.538"/><rect y="9.231" width="38" height="1.538"/><rect y="12.308" width="38" height="1.538"/><rect y="15.385" width="38" height="1.538"/><rect y="18.462" width="38" height="1.538"/></g><rect width="15.2" height="10.77" fill="#3C3B6E"/><g fill="#fff"><circle cx="1.90" cy="1.60" r=".62"/><circle cx="4.35" cy="1.60" r=".62"/><circle cx="6.80" cy="1.60" r=".62"/><circle cx="9.25" cy="1.60" r=".62"/><circle cx="11.70" cy="1.60" r=".62"/><circle cx="14.15" cy="1.60" r=".62"/><circle cx="1.90" cy="4.00" r=".62"/><circle cx="4.35" cy="4.00" r=".62"/><circle cx="6.80" cy="4.00" r=".62"/><circle cx="9.25" cy="4.00" r=".62"/><circle cx="11.70" cy="4.00" r=".62"/><circle cx="14.15" cy="4.00" r=".62"/><circle cx="1.90" cy="6.40" r=".62"/><circle cx="4.35" cy="6.40" r=".62"/><circle cx="6.80" cy="6.40" r=".62"/><circle cx="9.25" cy="6.40" r=".62"/><circle cx="11.70" cy="6.40" r=".62"/><circle cx="14.15" cy="6.40" r=".62"/><circle cx="1.90" cy="8.80" r=".62"/><circle cx="4.35" cy="8.80" r=".62"/><circle cx="6.80" cy="8.80" r=".62"/><circle cx="9.25" cy="8.80" r=".62"/><circle cx="11.70" cy="8.80" r=".62"/><circle cx="14.15" cy="8.80" r=".62"/></g></svg> DREAM TEAM</div>
-    <div class="dt-intro-sub">Thirty unknown players. Sign twelve of them.</div>
-    <ol class="dt-rules">
-      <li>Thirty hidden candidates. You must sign <b>12</b> and cut the rest.</li>
-      <li>Only <b>5</b> of them are on the board. A new one appears each time you resolve a card.</li>
-      <li>A clue lands on a <b>random visible</b> card and reveals a <b>random</b> detail. You start with none.</li>
-      <li>Only <b>5</b> clues can be on the board at once. Signing or cutting a card clears its clues.</li>
-      <li>Signing or cutting reveals who they were &mdash; you learn from both.</li>
-      <li><b>30</b> cards, and that is the whole deck. All twelve award categories are
-          represented &mdash; MVP, Finals MVP, DPOY, Sixth Man, Rookie of the Year, Most Improved,
-          All-NBA, All-Star, All-Star MVP, Champion, Top-78, Top-75 &mdash; and a season award
-          always shows a season the player actually won it.</li>
-      <li>One extra <b>Top-78</b> is buried in the <b>last 5</b> cards. He is usually the
-          difference between winning and losing, and only deep cutting reaches him.</li>
-    </ol>
-    <button class="dt-b dt-again ld" id="dtDeal" aria-busy="true">DEAL THE POOL<span class="ld-bar" aria-live="polite"><span class="ld-msg"><span id="ldLabel">Downloading game logs...</span> <span id="ldText"></span></span><span class="ld-track"><span class="ld-fill" id="ldFill" style="width:0%"></span></span></span></button>
-    
-    
-    <div class="dt-hint" style="margin-top:10px">Beating them is rare by design &mdash; roughly one deck in a hundred holds a twelve that can.</div>
-  </div></div>
+  <div id="blitzMode" style="display:none"></div>
   <!-- =========== CAREER MODE =========== -->
-  <div id="careerMode" style="display:none">
+  <div id="careerMode">
     <div class="career-bar">
       <input type="text" id="teamNameInput" class="team-name-input" placeholder="Name your team…" maxlength="32" autocomplete="off">
       <div class="career-record">
@@ -1740,12 +1678,11 @@ const PAKO_READY=new Promise(r=>{
    tab paints nothing, so it starts at once there, and the timeout is a backstop
    in case a frame never comes. */
 function afterFirstPaint(){
-  if(document.visibilityState==='hidden')return Promise.resolve();
-  // "first paint" is now the rules screen being revealed (see HM_REVEALED in the head)
-  return (window.HM_REVEALED||Promise.resolve()).then(()=>new Promise(r=>{
+  return new Promise(r=>{
+    if(document.visibilityState==='hidden'){r();return;}
     requestAnimationFrame(()=>setTimeout(r,0));
     setTimeout(r,250);
-  }));
+  });
 }
 /* Hands the main thread back so a waiting tap (or a frame) can run, then
    carries on. scheduler.yield where the browser has it; a MessageChannel
@@ -1789,34 +1726,8 @@ async function parseDataBin(s){
     return JSON.parse(s);
   }
 }
-/* The loading bar sits in the DEAL THE POOL spot, and the rules screen is
-   rendered again under it (setMode at the end of this script), so progress is
-   kept here and written to whichever bar is on the page. */
-const DT_LOAD={state:"loading",pct:0,label:"Downloading game logs...",text:""};
-function dtLoadSet(pct,label,text){
-  if(pct!=null)DT_LOAD.pct=pct;
-  if(label!=null)DT_LOAD.label=label;
-  if(text!=null)DT_LOAD.text=text;
-  const f=document.getElementById("ldFill"),l=document.getElementById("ldLabel"),t=document.getElementById("ldText");
-  if(f)f.style.width=DT_LOAD.pct+"%";
-  if(l)l.textContent=DT_LOAD.label;
-  if(t)t.textContent=DT_LOAD.text;
-}
-function dtDealHtml(){
-  if(DT_LOAD.state==="ready")return '<button class="dt-b dt-again" onclick="dtStart()">DEAL THE POOL</button>';
-  const err=DT_LOAD.state==="error";
-  return '<button class="dt-b dt-again ld'+(err?' err" id="dtDeal" onclick="dtRetryLoad()">':'" id="dtDeal" aria-busy="true">')+
-    'DEAL THE POOL<span class="ld-bar" aria-live="polite"><span class="ld-msg"><span id="ldLabel">'+DT_LOAD.label+
-    '</span> <span id="ldText">'+DT_LOAD.text+'</span></span><span class="ld-track"><span class="ld-fill" id="ldFill" style="width:'+
-    DT_LOAD.pct+'%"></span></span></span></button>';
-}
-function dtRetryLoad(){
-  DT_LOAD.state="loading";
-  dtLoadSet(0,"Downloading game logs...","");
-  const d=document.getElementById("dtDeal");if(d)d.outerHTML=dtDealHtml();
-  dtLoadData();
-}
-async function dtLoadData(){
+(async function(){
+  const fill=document.getElementById("progressFill"),text=document.getElementById("progressText"),label=document.getElementById("progressLabel");
   try{
     await afterFirstPaint();
     const resp=await fetch("data.bin");
@@ -1840,8 +1751,8 @@ async function dtLoadData(){
         try{ inflator.push(value.subarray(o,o+32768),false); if(inflator.err)streaming=false; }catch(e){ streaming=false; }
         if(performance.now()-lastYield>40){ await yieldToMain(); lastYield=performance.now(); }
       }
-      dtLoadSet(Math.min(80,Math.round(received/total*80)),null,(received/1048576).toFixed(1)+" / ~"+(total/1048576).toFixed(0)+" MB")}
-    dtLoadSet(85,"Decompressing...");
+      fill.style.width=Math.min(80,Math.round(received/total*80))+"%";text.textContent=(received/1048576).toFixed(1)+" / ~"+(total/1048576).toFixed(0)+" MB"}
+    label.textContent="Decompressing...";fill.style.width="85%";
     let decompressed;
     if(streaming){
       try{
@@ -1853,7 +1764,7 @@ async function dtLoadData(){
       const compressed=new Uint8Array(received);let offset=0;for(const c of chunks){compressed.set(c,offset);offset+=c.length}
       decompressed=pako.inflate(compressed,{to:'string'});
     }
-    dtLoadSet(93,"Parsing...");
+    label.textContent="Parsing...";fill.style.width="93%";
     await yieldToMain();
     const raw=await parseDataBin(decompressed);
     TEAMS=raw.t;POS=raw.p;playerIndex=raw.d;
@@ -1862,7 +1773,7 @@ async function dtLoadData(){
     // Load bio data for Career Mode (mystery-player clues). Non-fatal: if
     // bio.json is missing the career tab just won't be functional, but
     // sandbox still works.
-    dtLoadSet(97,"Loading bio data...");
+    label.textContent="Loading bio data...";fill.style.width="97%";
     try{
       const bioResp=await fetch("bio.json");
       if(bioResp.ok){
@@ -1876,10 +1787,9 @@ async function dtLoadData(){
       }
     }catch(e){console.warn("bio.json load failed",e)}
 
-    dtLoadSet(100,null,"Done!");
+    fill.style.width="100%";text.textContent="Done!";
     setTimeout(()=>{
-      DT_LOAD.state="ready";   // setMode("blitz") below renders the real DEAL THE POOL in the bar's box
-      document.getElementById("app").classList.remove("dt-loading");
+      document.getElementById("loadScreen").style.display="none";
       document.getElementById("app").style.display="block";
       // Land on the Dream Team game. setMode() handles every panel's
       // display and paints the intro; Career still initialises lazily the
@@ -1957,14 +1867,8 @@ async function dtLoadData(){
         }
       }
     },400);
-  }catch(err){
-    console.error(err);
-    // The failure shows in the DEAL THE POOL spot; a tap loads again.
-    DT_LOAD.state="error";DT_LOAD.label="Couldn't load the game. Tap to retry";DT_LOAD.text="";
-    const d=document.getElementById("dtDeal");if(d)d.outerHTML=dtDealHtml();
-  }
-}
-dtLoadData();
+  }catch(err){label.textContent="Error loading data";text.textContent=err.message;fill.style.background="#e63946";fill.style.width="100%";console.error(err)}
+})();
 
 // Fisher-Yates shuffle — the standard uniform random permutation.
 //
@@ -5615,9 +5519,6 @@ function dtConfetti() {
   setTimeout(() => wrap.remove(), 4200);
 }
 
-/* A copy of this screen, as it renders with no saved record and the data
-   still loading, sits in the page itself inside #blitzMode so the rules paint
-   before any script runs. Keep the two in step. */
 function dtShowIntro() {
   const el = document.getElementById("blitzMode");
   if (!el) return;
@@ -5640,7 +5541,7 @@ function dtShowIntro() {
       <li>One extra <b>Top-78</b> is buried in the <b>last ${DT_TAIL}</b> cards. He is usually the
           difference between winning and losing, and only deep cutting reaches him.</li>
     </ol>
-    ${dtDealHtml()}
+    <button class="dt-b dt-again" onclick="dtStart()">DEAL THE POOL</button>
     ${dtBoardHtml()}
     ${dtStatsHtml()}
     <div class="dt-hint" style="margin-top:10px">Beating them is rare by design &mdash; roughly one deck in a hundred holds a twelve that can.</div>
@@ -7113,12 +7014,6 @@ if(document.readyState==="complete"||document.readyState==="interactive"){
 }else{
   document.addEventListener("DOMContentLoaded",maybeShowWelcomeOnFirstVisit);
 }
-
-/* The rules screen is already on the page as plain HTML, so it paints before
-   any of this runs. Rendering it once more now, with data.bin still loading,
-   adds what only script knows: the player's own record and best-ten board.
-   The loader calls setMode("blitz") again when the data is in, as before. */
-try{ setMode("blitz"); }catch(e){ console.warn("early setMode(blitz) failed:",e); }
 </script>
 
 <!-- ===== Welcome modal markup ===== -->
