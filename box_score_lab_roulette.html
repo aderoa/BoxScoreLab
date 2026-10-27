@@ -30,32 +30,6 @@
 <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" onload="this.onload=null;this.rel='stylesheet'">
 <noscript><link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet"></noscript>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js" defer></script>
-<!-- v105: the rules screen is in the page from the first paint. A ?sq= link
-     opens the read-only shared view instead, so flag it here and keep the rules
-     out of sight; the boot script drops the flag if the link doesn't decode. -->
-<script>if(/[?&]sq=/.test(location.search))document.documentElement.classList.add('hm-sq');</script>
-<!-- v105: painting the rules in the fallback font and then swapping to the web
-     fonts moved every line (a 0.4 layout shift on a phone). So the page content
-     waits for Oswald and JetBrains Mono to load, 1.5s at most; past that it
-     shows in the fallback and swaps as it always did. data.bin waits for this
-     (HM_REVEALED), so it doesn't compete with the fonts or starve this check. -->
-<script>(function(){
-  var d=document.documentElement,f=document.fonts,shown;
-  window.HM_REVEALED=new Promise(function(r){shown=r;});
-  if(!f||!f.forEach){shown();return;}
-  d.classList.add('hm-fw');
-  var t,end=function(){clearInterval(t);d.classList.remove('hm-fw');shown();};
-  t=setInterval(function(){
-    var o=0,j=0,busy=0;
-    f.forEach(function(x){
-      var n=x.family.replace(/["']/g,'');
-      if(x.status==='loading')busy=1;
-      else if(x.status==='loaded'){if(n==='Oswald')o=1;else if(n==='JetBrains Mono')j=1;}
-    });
-    if(o&&j&&!busy)end();
-  },30);
-  setTimeout(end,1500);
-})();</script>
 <script src="https://hoopsmatic.com/hoopsmatic-games.js" data-hm-game="g739" data-hm-footer="auto" data-hm-cards="auto" defer></script>
 <style>
 :root{
@@ -215,27 +189,6 @@ body{background:linear-gradient(160deg,#1a1a3e 0%,#0a0a1a 55%,#050510 100%);back
 .btn.ghost{background:transparent;color:var(--gold);border:1px solid #4a4a7a;box-shadow:none}
 .btn.ghost:hover{border-color:var(--gold)}
 .btn:disabled{opacity:.4;cursor:not-allowed;transform:none;box-shadow:none}
-/* v105: while data.bin loads, the Start button keeps its box (its label is
-   still there, just transparent) and a progress bar fills exactly that box.
-   When the data is in, the bar is removed and the button is the button: no
-   layout shift. On a failed load the same box says so and taps to retry. */
-.hm-sq #intro{display:none}
-.hm-fw .wrap{visibility:hidden}
-.btn.ld{position:relative;color:transparent;background:none;box-shadow:none;pointer-events:none;cursor:default}
-.btn.ld.err{pointer-events:auto;cursor:pointer}
-.ld-bar{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;border:1px solid var(--line);border-radius:inherit;background:var(--panel);color:var(--dim);font-family:'Oswald',sans-serif;font-weight:400;font-size:11px;letter-spacing:.5px;text-transform:none;line-height:1.2}
-/* label left, MB count right, both in boxes that never move: the text inside
-   is replaced, not shifted, so the bar itself adds nothing to CLS */
-.ld-msg{display:flex;width:88%;white-space:nowrap}
-#ldLabel{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;text-align:left}
-#ldText{flex:0 0 auto;width:6.4em;text-align:right}
-.ld-track{width:88%;height:6px;background:#1c1c3a;border-radius:4px;overflow:hidden}
-.ld-fill{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--orange),var(--gold));transition:width .25s}
-.btn.ld.err .ld-bar{color:#ffb3a6;border-color:#c0563a}
-.btn.ld.err .ld-msg{display:block;width:auto;padding:0 10px;white-space:normal;text-align:center}
-.btn.ld.err #ldLabel{text-align:center}
-.btn.ld.err #ldText{display:none}
-.btn.ld.err .ld-track{display:none}
 
 /* ===== Intro ===== */
 #intro{text-align:center;animation:fadeIn .4s}
@@ -440,9 +393,17 @@ body{background:linear-gradient(160deg,#1a1a3e 0%,#0a0a1a 55%,#050510 100%);back
 <body>
 <div class="wrap">
 
-  <!-- INTRO (v105: shown from the first paint; the Start button is a progress
-       bar until data.bin is in. There is no separate loading screen.) -->
-  <div id="intro">
+  <!-- LOAD -->
+  <div id="loadScreen">
+    <div class="logo-main">73-9</div>
+    <div class="subtitle">Beat the 2015-16 Warriors</div>
+    <div id="progressLabel">Loading game data...</div>
+    <div class="bar"><div id="progressFill"></div></div>
+    <div id="progressText">0.0 / ~11 MB</div>
+  </div>
+
+  <!-- INTRO -->
+  <div id="intro" class="hidden">
     <div class="logo-main">73-9</div>
     <div class="subtitle">Build a five that beats the 2015-16 Warriors</div>
     <div class="budget-hero">Your bankroll<span class="big" id="introBudget">$100.0M</span></div>
@@ -454,7 +415,7 @@ body{background:linear-gradient(160deg,#1a1a3e 0%,#0a0a1a 55%,#050510 100%);back
       <div><span class="num">5</span>We simulate an <b>82-game season</b>, then show how often your five would <b>beat the 2015-16 Warriors</b> (plus the best squad you could've signed).</div>
     </div>
     <div class="fine" id="introFine"></div>
-    <div class="center" style="margin-top:26px"><button class="btn ld" id="startBtn" aria-busy="true">Start the wheel<span class="ld-bar" id="ldBar" aria-live="polite"><span class="ld-msg"><span id="ldLabel">Loading game data...</span> <span id="ldText"></span></span><span class="ld-track"><span class="ld-fill" id="ldFill"></span></span></span></button></div>
+    <div class="center" style="margin-top:26px"><button class="btn" id="startBtn">Start the wheel</button></div>
   </div>
 
   <!-- GAME -->
@@ -933,7 +894,7 @@ let WAR2016=new Set();   // 2015-16 Warriors, removed from the draftable pool
 let teams=[[],[]], adjusted=[[],[]], teamNames=["YOUR SQUAD","OPPONENT"];
 
 // --- tunable game constants (easy to tweak / move to a config later) ---
-const BUILD      = "v105 · loading flow: rules screen first, progress bar in the Start button · 2026-10-26";
+const BUILD      = "v104 · loading pass: layout shift + render-blocking fixes · 2026-10-24";
 // Where a shared squad link points. This must be a page that serves THIS game's
 // HTML (it reads the ?sq= payload client-side). Until hoopsmatic.com/73-9 serves
 // this file, shared links will 404 — change this one line back to the GitHub Pages
@@ -3690,9 +3651,6 @@ function showSeriesIntentModal(act){
 // ---- mailbox check: on load, surface series updates and offer the next game ----
 window.__FEUD_CONTINUE__={};   // id -> live feud doc, so the banner's button can act without re-serializing HTML
 function continueFeud(id){
-  // v105: the rules screen (and this banner) shows before data.bin is in. A
-  // tap that early is held and carried out the moment the game is ready.
-  if(!window.__G739_READY__){window.__G739_PENDING__=()=>continueFeud(id);return;}
   const live=window.__FEUD_CONTINUE__[id];
   const known=_knownFeuds().find(x=>x.id===id);
   if(!live&&!known)return;
@@ -4058,7 +4016,6 @@ function renderSharedView(d){
   if(btn)btn.onclick=()=>{location.href=location.origin+location.pathname;};
 }
 if(SHARED_PAYLOAD){window.__SHARED__=true;renderSharedView(SHARED_PAYLOAD);}
-else document.documentElement.classList.remove('hm-sq');   // v105: not a shared view, show the rules
 
 /* Friend-challenge entry: a ?ch= link loads the FULL game (so the friend can
    play), flags the session as a challenge, and shows who they're up against. */
@@ -4160,21 +4117,20 @@ const PAKO_READY=new Promise(r=>{
    competing with it. A hidden tab paints nothing, so it starts at once there,
    and the timeout is a backstop in case a frame never comes. */
 function afterFirstPaint(){
-  if(document.visibilityState==='hidden')return Promise.resolve();
-  // v105: "first paint" is now the rules screen being revealed (see HM_REVEALED in the head)
-  return (window.HM_REVEALED||Promise.resolve()).then(()=>new Promise(r=>{
+  return new Promise(r=>{
+    if(document.visibilityState==='hidden'){r();return;}
     requestAnimationFrame(()=>setTimeout(r,0));
     setTimeout(r,250);
-  }));
+  });
 }
 
 /* ============================================================
    BOOT / DATA LOADING (mirrors the salary variant's loader)
    ============================================================ */
-async function bootGame(){
+(async function(){
   if(window.__SHARED__)return;   // shared-link view handles its own render; skip the 17MB boot
   console.log("%c[ROULETTE BUILD] "+BUILD,"color:#ffd700;font-weight:bold");
-  const fill=$("ldFill"),text=$("ldText"),label=$("ldLabel");   // v105: the bar inside the Start button
+  const fill=$("progressFill"),text=$("progressText"),label=$("progressLabel");
   try{
     await afterFirstPaint();
     // --- Prefetch the auxiliary JSONs in PARALLEL with the big data.bin download.
@@ -4263,7 +4219,6 @@ async function bootGame(){
     if(!salResp.ok)throw new Error("salaries.json HTTP "+salResp.status);
     const salJson=await salResp.json();
     CAP_BY_SY=salJson.cap_by_sy||{};
-    salaryByPlayer={};salaryEntries=[];   // v105: empty already, unless this is a retry after a failed load
     for(const e0 of (salJson.entries||[])){
       const name=e0[0];
       // Salary data is keyed by season START year; the game/box-score data — and
@@ -4343,30 +4298,17 @@ async function bootGame(){
 
     fill.style.width="100%";text.textContent="Done!";
     setTimeout(()=>{
+      $("loadScreen").style.display="none";
       $("introBudget").textContent=fmtM(BUDGET);
-      // v105: the bar goes and the button underneath it, same box, takes over.
-      const sb=$("startBtn"),bar=$("ldBar");
-      if(bar)bar.remove();
-      sb.classList.remove("ld","err");sb.removeAttribute("aria-busy");
-      sb.onclick=startGame;
-      window.__G739_READY__=true;
-      const go=window.__G739_PENDING__;
-      if(go){window.__G739_PENDING__=null;go();}
+      $("intro").classList.remove("hidden");
+      $("startBtn").onclick=startGame;
     },350);
   }catch(err){
+    label.textContent="Load failed";
+    text.textContent=String(err.message||err);
     console.error(err);
-    // v105: the failure shows in the Start button's spot; a tap loads again.
-    const sb=$("startBtn");
-    label.textContent="Couldn't load the game. Tap to retry";text.textContent="";
-    sb.classList.add("err");
-    sb.onclick=()=>{
-      sb.onclick=null;sb.classList.remove("err");
-      label.textContent="Loading game data...";fill.style.width="0";
-      bootGame();
-    };
   }
-}
-bootGame();
+})();
 
 </script>
 </body>
