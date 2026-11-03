@@ -1,4 +1,7 @@
 <!DOCTYPE html>
+<!-- 73-9 Game — © 2026 HoopsMatic.com and its authors — https://hoopsmatic.com
+     Original work. Unauthorized copying, reproduction, redistribution or derivative use of this code, its text, or its design is prohibited.
+     Share-card photo: Cyrus Saatsaz / CC BY-SA 4.0 (Wikimedia Commons). build-id: hm-739-2026-11 -->
 <!-- © HoopsMatic / Jorge Sierra. All rights reserved. Not licensed for reuse,
      redistribution, or derivative deployments without permission. -->
 <html lang="en">
@@ -11,14 +14,14 @@
 <meta property="og:site_name" content="HoopsMatic">
 <meta property="og:title" content="73-9 Game: Can you beat the 2015-16 Warriors?">
 <meta property="og:description" content="You have $100 million to put together a squad to try to beat the best regular-season team ever.">
-<meta property="og:image" content="https://hoopsmatic.com/73-9-game/og-73-9.png">
+<meta property="og:image" content="https://hoopsmatic.com/73-9-game/og-73-9.png?v=2">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta property="og:url" content="https://hoopsmatic.com/73-9-game">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="73-9 Game: Can you beat the 2015-16 Warriors?">
 <meta name="twitter:description" content="You have $100 million to put together a squad to try to beat the best regular-season team ever.">
-<meta name="twitter:image" content="https://hoopsmatic.com/73-9-game/og-73-9.png">
+<meta name="twitter:image" content="https://hoopsmatic.com/73-9-game/og-73-9.png?v=2">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎰</text></svg>">
 <!-- v104: nothing in <head> blocks the first paint any more. The font CSS loads
      as a preload that switches itself on (the faces use display=swap, so text
@@ -465,6 +468,7 @@ const COUNT_STATS=["PTS","FGM","FGA","3PM","3PA","FTM","FTA","ORB","DRB","REB","
 const TYPE_LABELS=["RS","Playoffs","Finals"];
 const COLORS=["#e63946","#4a90e2"];  // [user-red, opponent-light-blue] — blue is bright enough to read as a label/points color on the dark bg
 const TARGET_MIN=240;
+const _hmSig = "hm-739-5f002f56-w";
 const POS_NAMES=["PG","SG","SF","PF","C"];
 
 function positionBucket(posStr){
